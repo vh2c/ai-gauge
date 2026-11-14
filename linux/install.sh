@@ -130,6 +130,7 @@ echo "🚀 Instalando arquivos do Gemini Gauge..."
 cp -r "${REPO_DIR}/core" "${TARGET_DIR}/"
 cp "${SCRIPT_DIR}/quota-hub.py" "${TARGET_DIR}/"
 cp "${SCRIPT_DIR}/quota-hub" "${TARGET_DIR}/"
+cp "${SCRIPT_DIR}/gemini-gauge" "${TARGET_DIR}/"
 
 if [ -f "${SCRIPT_DIR}/icon.png" ]; then
     cp "${SCRIPT_DIR}/icon.png" "${TARGET_DIR}/icon.png"
@@ -139,11 +140,47 @@ elif [ -f "${REPO_DIR}/assets/icon.png" ]; then
     cp "${REPO_DIR}/assets/icon.png" "${ICON_DIR}/gemini-gauge.png"
 fi
 
-chmod +x "${TARGET_DIR}/quota-hub" "${TARGET_DIR}/quota-hub.py"
+chmod +x "${TARGET_DIR}/quota-hub" "${TARGET_DIR}/gemini-gauge" "${TARGET_DIR}/quota-hub.py"
 
-# Symlink to ~/.local/bin/quota-hub and ~/.local/bin/gemini-gauge
-ln -sf "${TARGET_DIR}/quota-hub" "${BIN_DIR}/quota-hub"
-ln -sf "${TARGET_DIR}/quota-hub" "${BIN_DIR}/gemini-gauge"
+# Write direct launcher wrappers into ~/.local/bin
+cat << 'LAUNCHER_EOF' > "${BIN_DIR}/gemini-gauge"
+#!/usr/bin/env bash
+TARGET_DIR="${HOME}/.local/share/universal-ai-quota"
+if [ -f "${TARGET_DIR}/quota-hub.py" ]; then
+    exec python3 "${TARGET_DIR}/quota-hub.py" "$@"
+fi
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+exec python3 "${SCRIPT_DIR}/quota-hub.py" "$@"
+LAUNCHER_EOF
+
+chmod +x "${BIN_DIR}/gemini-gauge"
+cp "${BIN_DIR}/gemini-gauge" "${BIN_DIR}/quota-hub"
+
+# Also symlink to /usr/local/bin if writable or sudo available for global access
+if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+    ln -sf "${BIN_DIR}/gemini-gauge" "/usr/local/bin/gemini-gauge" 2>/dev/null || true
+    ln -sf "${BIN_DIR}/gemini-gauge" "/usr/local/bin/quota-hub" 2>/dev/null || true
+elif command -v sudo >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
+    sudo ln -sf "${BIN_DIR}/gemini-gauge" "/usr/local/bin/gemini-gauge" 2>/dev/null || true
+    sudo ln -sf "${BIN_DIR}/gemini-gauge" "/usr/local/bin/quota-hub" 2>/dev/null || true
+fi
+
+# Ensure ~/.local/bin is in PATH for bash and zsh
+if [[ ":$PATH:" != *":${HOME}/.local/bin:"* ]]; then
+    if [ -f "${HOME}/.bashrc" ] && ! grep -q '\.local/bin' "${HOME}/.bashrc" 2>/dev/null; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.bashrc"
+    fi
+    if [ -f "${HOME}/.zshrc" ] && ! grep -q '\.local/bin' "${HOME}/.zshrc" 2>/dev/null; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.zshrc"
+    fi
+fi
 
 # Desktop launcher entry
 sed -e "s|^Exec=.*|Exec=${BIN_DIR}/gemini-gauge|" \
@@ -160,14 +197,10 @@ echo "=========================================================="
 echo " 🎉 Instalação concluída com sucesso!"
 echo "=========================================================="
 echo "👉 Para abrir a interface gráfica:"
-echo "   - Clique no ícone 'Gemini Gauge' no menu de aplicativos do Linux"
-echo "   - Ou digite no terminal: gemini-gauge (ou quota-hub)"
+echo "   - Digite no terminal: gemini-gauge (ou quota-hub)"
+echo "   - Ou clique no ícone 'Gemini Gauge' no menu de aplicativos do Linux"
 echo ""
-echo "👉 Para ver as cotas no terminal (modo texto rápido / SSH):"
+echo "👉 Para ver as cotas direto no terminal (modo texto / SSH):"
 echo "   gemini-gauge --cli"
 echo "=========================================================="
-if [[ ":$PATH:" != *":${HOME}/.local/bin:"* ]]; then
-    echo "💡 Dica: Adicione ~/.local/bin ao seu PATH no terminal se ainda não estiver:"
-    echo '   export PATH="$HOME/.local/bin:$PATH"'
-fi
 echo ""

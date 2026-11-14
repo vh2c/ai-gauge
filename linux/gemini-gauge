@@ -1,3 +1,18 @@
 #!/usr/bin/env bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Gemini Gauge launcher for Linux
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+
+# Check standard install path if not alongside launcher
+if [ ! -f "${SCRIPT_DIR}/quota-hub.py" ]; then
+  if [ -f "${HOME}/.local/share/universal-ai-quota/quota-hub.py" ]; then
+    SCRIPT_DIR="${HOME}/.local/share/universal-ai-quota"
+  fi
+fi
+
 exec python3 "${SCRIPT_DIR}/quota-hub.py" "$@"

@@ -29,6 +29,10 @@ REPO_ROOT = APP_DIR.parent
 ENGINE_SCRIPT = REPO_ROOT / "core" / "engine.js"
 if not ENGINE_SCRIPT.exists():
     ENGINE_SCRIPT = APP_DIR / "core" / "engine.js"
+if not ENGINE_SCRIPT.exists():
+    candidate = Path.home() / ".local" / "share" / "universal-ai-quota" / "core" / "engine.js"
+    if candidate.exists():
+        ENGINE_SCRIPT = candidate
 
 CONFIG_DIR = Path.home() / ".config" / "UniversalAIQuota"
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -334,7 +338,15 @@ class QuotaHubAppLinux:
         if "--full" in sys.argv:
             self.mode = "full"
 
-        self.quota = load_quota()
+        # Fast startup: read cache first if available (instant), otherwise start empty
+        self.quota = None
+        if CACHE_FILE.exists():
+            try:
+                with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                    self.quota = json.load(f)
+            except Exception:
+                pass
+
         self.is_refreshing = False
 
         self.root.bind("<Control-m>", lambda e: self.toggle_mode())
@@ -349,9 +361,16 @@ class QuotaHubAppLinux:
         self.setup_ui()
         self.schedule_auto_refresh()
 
-        # Abre configurações se nenhum provedor estiver configurado
-        if not self.quota or self.quota.get("needs_setup") or not self.quota.get("groups"):
-            self.root.after(300, self.open_settings)
+        # Lift window and bring to front on Linux desktop
+        try:
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
+        except Exception:
+            pass
+
+        # Trigger background refresh
+        self.refresh(animated=(self.quota is None))
 
     def save_prefs(self):
         self.prefs["mode"] = self.mode
@@ -778,17 +797,21 @@ class QuotaHubAppLinux:
             canvas.create_text(cx, cy + r_outer + 19, text=rt, font=("Sans", 8), fill="#999999")
 
 def main():
-    if "--cli" in sys.argv or not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+    has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    if "--cli" in sys.argv or not has_display:
         quota = load_quota(force=("--force" in sys.argv))
         print_cli(quota)
         return
 
     if not HAS_TK:
-        print("⚠️  Módulo tkinter não encontrado. Executando em modo CLI.")
-        quota = load_quota()
+        print("⚠️  Módulo python3-tk (Tkinter) não encontrado.")
+        print("💡 Para abrir a interface gráfica no Ubuntu, execute: sudo apt install -y python3-tk")
+        print("⚡ Exibindo cotas em modo terminal (CLI):\n")
+        quota = load_quota(force=("--force" in sys.argv))
         print_cli(quota)
         return
 
+    print("⚡ Abrindo interface gráfica do Gemini Gauge...")
     app = QuotaHubAppLinux()
     app.root.mainloop()
 
