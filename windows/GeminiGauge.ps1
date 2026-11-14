@@ -149,8 +149,13 @@ $btnSettings = $window.FindName("BtnSettings")
 $btnClose = $window.FindName("BtnClose")
 $txtBrand = $window.FindName("TxtBrand")
 
-function Get-ColorBrush ($pct) {
-    if ($pct -ge 50) { return (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99))) }
+function Get-ColorBrush ($pct, $customR = 0, $customG = 0, $customB = 0) {
+    if ($pct -ge 50) {
+        if ($customR -gt 0 -or $customG -gt 0 -or $customB -gt 0) {
+            return (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb($customR, $customG, $customB)))
+        }
+        return (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
+    }
     if ($pct -ge 20) { return (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xF5, 0xA6, 0x23))) }
     return (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xFF, 0x4D, 0x4F)))
 }
@@ -166,10 +171,23 @@ function Render-UI ($data) {
     $cardsPanel.Children.Clear()
     
     foreach ($g in $data.groups) {
+        $gname = "$($g.name)".ToLower()
+        $prov = "$($g.provider)".ToLower()
+        
+        $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
+        $cR = 0; $cG = 0; $cB = 0
+        if ($gname.Contains("claude pro") -or $prov.Contains("claude pro")) {
+            $cR = 0xD7; $cG = 0x8C; $cB = 0x68
+            $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD7, 0x8C, 0x68)))
+        } elseif ($prov.Contains("studio") -or $gname.Contains("gemini api")) {
+            $cR = 0x38; $cG = 0xBD; $cB = 0xF8
+            $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
+        }
+        
         $gbTitle = New-Object System.Windows.Controls.TextBlock
-        $prov = if ($g.provider) { " [$($g.provider)]" } else { "" }
-        $gbTitle.Text = ($g.name + $prov).ToUpper()
-        $gbTitle.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x88, 0x88, 0x88))
+        $pText = if ($g.provider) { " [$($g.provider)]" } else { "" }
+        $gbTitle.Text = ($g.name + $pText).ToUpper()
+        $gbTitle.Foreground = $accentBrush
         $gbTitle.FontSize = 10
         $gbTitle.FontWeight = [System.Windows.FontWeights]::Bold
         $gbTitle.Margin = New-Object System.Windows.Thickness(0, 8, 0, 4)
@@ -211,7 +229,7 @@ function Render-UI ($data) {
             $resetStr = if ($b.reset_in) { " • $($b.reset_in)" } else { "" }
             $tbVal = New-Object System.Windows.Controls.TextBlock
             $tbVal.Text = "$pct%$resetStr"
-            $tbVal.Foreground = Get-ColorBrush($pct)
+            $tbVal.Foreground = Get-ColorBrush $pct $cR $cG $cB
             $tbVal.FontWeight = [System.Windows.FontWeights]::Bold
             $tbVal.FontSize = 11.5
             [System.Windows.Controls.Grid]::SetColumn($tbVal, 1)
@@ -227,7 +245,7 @@ function Render-UI ($data) {
             $pbarBg.Margin = New-Object System.Windows.Thickness(0, 4, 0, 4)
             
             $pbarFill = New-Object System.Windows.Controls.Border
-            $pbarFill.Background = Get-ColorBrush($pct)
+            $pbarFill.Background = Get-ColorBrush $pct $cR $cG $cB
             $pbarFill.Height = 6
             $pbarFill.CornerRadius = New-Object System.Windows.CornerRadius(3)
             $pbarFill.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
@@ -263,11 +281,15 @@ function Show-SettingsDialog {
         </StackPanel>
         
         <StackPanel Grid.Row="1">
-            <CheckBox Name="ChkGemini" Content="Google Gemini API (Google AI Studio)" Foreground="#FFFFFF" Margin="0,6,0,2"/>
+            <CheckBox Name="ChkGemini" Content="Google Gemini API (Google AI Studio)" Foreground="#38BDF8" FontWeight="Bold" Margin="0,6,0,2"/>
             <TextBox Name="TxtGeminiKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
             <TextBlock Name="LinkAiStudio" Text="Obter chave gratuita no Google AI Studio ↗" Foreground="#38BDF8" FontSize="9.5" Margin="0,0,0,12" Cursor="Hand"/>
             
-            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#FFFFFF" Margin="0,0,0,14"/>
+            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#00E699" FontWeight="Bold" Margin="0,0,0,14"/>
+            
+            <CheckBox Name="ChkClaudePro" Content="Claude Pro (Sessão Antigravity)" Foreground="#D78C68" FontWeight="Bold" Margin="0,0,0,2"/>
+            <TextBox Name="TxtClaudeProToken" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
+            <TextBlock Text="💡 Token OAuth opcional (detectado automaticamente se houver sessão)" Foreground="#888888" FontSize="9" Margin="0,0,0,14"/>
             
             <CheckBox Name="ChkOpenAI" Content="OpenAI API (GPT-4o, o1)" Foreground="#FFFFFF" Margin="0,0,0,2"/>
             <TextBox Name="TxtOpenAIKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,14"/>
@@ -291,6 +313,8 @@ function Show-SettingsDialog {
     $txtGemini = $cfgWin.FindName("TxtGeminiKey")
     $linkAiStudio = $cfgWin.FindName("LinkAiStudio")
     $chkAnti = $cfgWin.FindName("ChkAnti")
+    $chkClaudePro = $cfgWin.FindName("ChkClaudePro")
+    $txtClaudePro = $cfgWin.FindName("TxtClaudeProToken")
     $chkOpenAI = $cfgWin.FindName("ChkOpenAI")
     $txtOpenAI = $cfgWin.FindName("TxtOpenAIKey")
     $chkClaude = $cfgWin.FindName("ChkClaude")
@@ -308,12 +332,15 @@ function Show-SettingsDialog {
         $chkGemini.IsChecked = [bool]($currentCfg.providers.gemini.enabled)
         $txtGemini.Text = "$($currentCfg.providers.gemini.api_key)"
         $chkAnti.IsChecked = ($currentCfg.providers.antigravity.enabled -ne $false)
+        $chkClaudePro.IsChecked = ($currentCfg.providers.claude_pro.enabled -ne $false)
+        $txtClaudePro.Text = "$($currentCfg.providers.claude_pro.token)"
         $chkOpenAI.IsChecked = [bool]($currentCfg.providers.openai.enabled)
         $txtOpenAI.Text = "$($currentCfg.providers.openai.api_key)"
         $chkClaude.IsChecked = [bool]($currentCfg.providers.anthropic.enabled)
         $txtClaude.Text = "$($currentCfg.providers.anthropic.api_key)"
     } else {
         $chkAnti.IsChecked = $true
+        $chkClaudePro.IsChecked = $true
     }
     
     $linkAiStudio.Add_MouseDown({
@@ -329,6 +356,10 @@ function Show-SettingsDialog {
                 }
                 antigravity = @{
                     enabled = [bool]$chkAnti.IsChecked
+                }
+                claude_pro = @{
+                    enabled = [bool]$chkClaudePro.IsChecked
+                    token = $txtClaudePro.Text.Trim()
                 }
                 openai = @{
                     enabled = [bool]$chkOpenAI.IsChecked

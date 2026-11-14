@@ -92,17 +92,26 @@ def load_config():
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if "providers" not in data:
+                    data["providers"] = {}
+                if "claude_pro" not in data["providers"]:
+                    data["providers"]["claude_pro"] = {"enabled": True}
+                if "hidden_hud_gauges" not in data:
+                    data["hidden_hud_gauges"] = []
+                return data
         except Exception:
             pass
     return {
         "providers": {
             "antigravity": {"enabled": True},
+            "claude_pro": {"enabled": True},
             "gemini": {"enabled": False, "api_key": ""},
             "openai": {"enabled": False, "api_key": ""},
             "anthropic": {"enabled": False, "api_key": ""}
         },
-        "refresh_interval_seconds": 30
+        "refresh_interval_seconds": 30,
+        "hidden_hud_gauges": []
     }
 
 def save_config(cfg):
@@ -176,49 +185,71 @@ def load_quota(force=False):
     return None
 
 def get_gauge_items(quota):
+    cfg = load_config()
+    hidden_set = set(cfg.get("hidden_hud_gauges", []))
     items = []
     for g in quota.get("groups", []):
         gname = g.get("name", "").lower()
-        if "gemini 4" in gname or "argon" in gname:
+        prov = g.get("provider", "").lower()
+        if "claude pro" in gname or "claude pro" in prov:
+            model = "Claude Pro"
+            accent = "#D78C68"
+        elif "gemini 4" in gname or "argon" in gname:
             model = "Argon"
+            accent = "#00E699"
         elif "claude" in gname or "gpt" in gname:
             model = "Claude/GPT"
+            accent = "#00E699"
         elif "openai" in gname:
             model = "OpenAI"
+            accent = "#10A37F"
         elif "anthropic" in gname:
             model = "Claude API"
+            accent = "#D97706"
+        elif "studio" in prov or "gemini api" in gname:
+            model = "Gemini Flash" if "flash" in gname else "Gemini Pro"
+            accent = "#38BDF8"
         else:
             model = "Gemini"
+            accent = "#00E699"
 
         for b in g.get("buckets", []):
+            bid = b.get("id", "")
+            if bid in hidden_set:
+                continue
             bname = b.get("name", "").lower()
-            if "5" in bname or "five" in bname:
+            if "5" in bname or "five" in bname or "5h" in bid:
                 limit_title = "5 hours Limit"
-            elif "rpm" in bname or "req" in bname:
-                limit_title = "RPM Limit"
+            elif "flash" in bname or "flash" in bid:
+                limit_title = "Flash RPM"
+            elif "pro" in bid:
+                limit_title = "Pro RPM"
+            elif "key" in bid or "status" in bname:
+                limit_title = "API Key"
             elif "tpm" in bname or "token" in bname:
                 limit_title = "TPM Limit"
             else:
                 limit_title = "Weekly Limit"
 
             items.append({
-                "id": b.get("id", ""),
+                "id": bid,
                 "title": limit_title,
                 "model": model,
                 "pct": b.get("remaining_pct", 100),
                 "reset_in": b.get("reset_in", ""),
                 "detail": b.get("detail", ""),
-                "provider": g.get("provider", "")
+                "provider": g.get("provider", ""),
+                "accent": accent
             })
     return items
 
-def status_color(pct):
+def status_color(pct, custom_accent=None):
     if pct > 50:
-        return "#22921E"
+        return custom_accent if custom_accent else "#00E699"
     elif pct > 20:
-        return "#C86402"
+        return "#F5A623"
     else:
-        return "#C62828"
+        return "#FF4D4F"
 
 def print_cli(quota):
     send_telemetry_heartbeat()
@@ -372,77 +403,139 @@ class QuotaHubAppLinux:
     def open_settings(self):
         cfg = load_config()
         pCfg = cfg.get("providers", {})
+        hidden_set = set(cfg.get("hidden_hud_gauges", []))
 
         dlg = tk.Toplevel(self.root)
-        dlg.title("Configurar Provedores de IA - VH2C")
-        dlg.geometry("480x420")
+        dlg.title("Configurar Provedores de IA - Gemini Gauge")
+        dlg.geometry("500x560")
         dlg.configure(bg="#181818")
         dlg.transient(self.root)
         dlg.grab_set()
 
-        pad = {"padx": 16, "pady": 6}
-
-        header = tk.Label(dlg, text="⚙️ Configuração de Provedores de IA", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818")
+        header = tk.Label(dlg, text="⚙️ Provedores de IA & Seleção de Gauges", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818")
         header.pack(fill="x", pady=(14, 4), padx=16)
 
-        sub = tk.Label(dlg, text="Ative seus provedores ou cole suas chaves de API:", font=("Sans", 8), fg="#999999", bg="#181818")
+        sub = tk.Label(dlg, text="Ative seus provedores e selecione os Gauges do seu Painel Lateral HUD:", font=("Sans", 8), fg="#999999", bg="#181818")
         sub.pack(fill="x", padx=16, pady=(0, 10))
 
-        # Antigravity
-        var_anti = tk.BooleanVar(value=pCfg.get("antigravity", {}).get("enabled", True))
-        cb_anti = tk.Checkbutton(dlg, text="Antigravity Pro/Ultra (Detecção Automática / Headless)", variable=var_anti,
-                                 font=("Sans", 9, "bold"), fg="#FFFFFF", bg="#181818", selectcolor="#2A2A2A", activebackground="#181818", activeforeground="#FFFFFF")
-        cb_anti.pack(anchor="w", **pad)
+        # Canvas with scrollbar for cards
+        c_frame = tk.Frame(dlg, bg="#181818")
+        c_frame.pack(fill="both", expand=True, padx=12, pady=4)
+        c_canvas = tk.Canvas(c_frame, bg="#181818", highlightthickness=0)
+        c_scrollbar = tk.Scrollbar(c_frame, orient="vertical", command=c_canvas.yview)
+        cards_box = tk.Frame(c_canvas, bg="#181818")
+        cards_box.bind("<Configure>", lambda e: c_canvas.configure(scrollregion=c_canvas.bbox("all")))
+        c_canvas.create_window((0, 0), window=cards_box, anchor="nw", width=460)
+        c_canvas.configure(yview_scrollcommand=c_scrollbar.set)
+        c_canvas.pack(side="left", fill="both", expand=True)
+        c_scrollbar.pack(side="right", fill="y")
 
-        # Gemini
+        hud_vars = {}
+        def add_hud_cb(parent, gid, label):
+            v = tk.BooleanVar(value=(gid not in hidden_set))
+            hud_vars[gid] = v
+            cb = tk.Checkbutton(parent, text=label, variable=v, font=("Sans", 8), fg="#CCCCCC", bg="#1F1F1F",
+                                selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
+            cb.pack(side="left", padx=4)
+
+        # 1. Antigravity Card
+        f_anti = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
+        f_anti.pack(fill="x", pady=5)
+        var_anti = tk.BooleanVar(value=pCfg.get("antigravity", {}).get("enabled", True))
+        cb_anti = tk.Checkbutton(f_anti, text="Antigravity IDE (Live & Headless Standalone)", variable=var_anti,
+                                 font=("Sans", 9, "bold"), fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
+        cb_anti.pack(anchor="w")
+        tk.Label(f_anti, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#888888", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        r_anti1 = tk.Frame(f_anti, bg="#1F1F1F")
+        r_anti1.pack(anchor="w")
+        add_hud_cb(r_anti1, "gemini-weekly", "Gemini Semanal")
+        add_hud_cb(r_anti1, "gemini-5h", "Gemini (5h)")
+        add_hud_cb(r_anti1, "gemini-argon-wtu-weekly", "Argon")
+        r_anti2 = tk.Frame(f_anti, bg="#1F1F1F")
+        r_anti2.pack(anchor="w", pady=(2, 0))
+        add_hud_cb(r_anti2, "3p-weekly", "Claude/GPT Semanal")
+        add_hud_cb(r_anti2, "3p-5h", "Claude/GPT (5h)")
+
+        # 2. Claude Pro Card (#D78C68)
+        cpro_cfg = pCfg.get("claude_pro", {})
+        f_cpro = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#D78C68", highlightthickness=1)
+        f_cpro.pack(fill="x", pady=5)
+        var_claude_pro = tk.BooleanVar(value=cpro_cfg.get("enabled", True))
+        cb_cpro = tk.Checkbutton(f_cpro, text="Claude Pro (Sessão Antigravity)", variable=var_claude_pro,
+                                 font=("Sans", 9, "bold"), fg="#D78C68", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#D78C68")
+        cb_cpro.pack(anchor="w")
+        ent_claude_token = tk.Entry(f_cpro, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_claude_token.insert(0, cpro_cfg.get("token", ""))
+        ent_claude_token.pack(fill="x", pady=2)
+        tk.Label(f_cpro, text="💡 Token OAuth opcional (detectado automaticamente se houver sessão)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_cpro, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#D78C68", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        r_cpro = tk.Frame(f_cpro, bg="#1F1F1F")
+        r_cpro.pack(anchor="w")
+        add_hud_cb(r_cpro, "claude-pro-5h", "Janela de 5h")
+        add_hud_cb(r_cpro, "claude-pro-7d", "Cota Semanal (7d)")
+
+        # 3. Gemini Card
         gem_cfg = pCfg.get("gemini", {})
         var_gem = tk.BooleanVar(value=gem_cfg.get("enabled", False))
-        f_gem = tk.Frame(dlg, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_gem.pack(fill="x", padx=16, pady=4)
+        f_gem = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
+        f_gem.pack(fill="x", pady=5)
         cb_gem = tk.Checkbutton(f_gem, text="Google Gemini API (AI Studio)", variable=var_gem, font=("Sans", 9, "bold"),
-                                fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
+                                fg="#38BDF8", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#38BDF8")
         cb_gem.pack(anchor="w")
-        ent_gem = tk.Entry(f_gem, font=("Sans", 9), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_gem = tk.Entry(f_gem, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
         ent_gem.insert(0, gem_cfg.get("api_key", ""))
-        ent_gem.pack(fill="x", pady=4)
+        ent_gem.pack(fill="x", pady=2)
         link_gem = tk.Label(f_gem, text="🔗 Obter chave grátis no Google AI Studio", font=("Sans", 7), fg="#4DA3FF", bg="#1F1F1F", cursor="hand2")
         link_gem.pack(anchor="w")
         link_gem.bind("<Button-1>", lambda e: webbrowser.open("https://aistudio.google.com/app/apikey"))
+        tk.Label(f_gem, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#38BDF8", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        r_gem = tk.Frame(f_gem, bg="#1F1F1F")
+        r_gem.pack(anchor="w")
+        add_hud_cb(r_gem, "gemini-flash-rpm", "Flash RPM")
+        add_hud_cb(r_gem, "gemini-pro-rpm", "Pro RPM")
+        add_hud_cb(r_gem, "gemini-key-status", "Status da Chave")
 
-        # OpenAI
+        # 4. OpenAI Card
         oa_cfg = pCfg.get("openai", {})
         var_oa = tk.BooleanVar(value=oa_cfg.get("enabled", False))
-        f_oa = tk.Frame(dlg, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_oa.pack(fill="x", padx=16, pady=4)
-        cb_oa = tk.Checkbutton(f_oa, text="OpenAI API (sk-proj-...)", variable=var_oa, font=("Sans", 9, "bold"),
+        f_oa = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
+        f_oa.pack(fill="x", pady=5)
+        cb_oa = tk.Checkbutton(f_oa, text="OpenAI API (sk-...)", variable=var_oa, font=("Sans", 9, "bold"),
                                fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
         cb_oa.pack(anchor="w")
-        ent_oa = tk.Entry(f_oa, font=("Sans", 9), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_oa = tk.Entry(f_oa, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
         ent_oa.insert(0, oa_cfg.get("api_key", ""))
-        ent_oa.pack(fill="x", pady=4)
+        ent_oa.pack(fill="x", pady=2)
 
-        # Anthropic
+        # 5. Anthropic Claude API Card
         ant_cfg = pCfg.get("anthropic", {})
         var_ant = tk.BooleanVar(value=ant_cfg.get("enabled", False))
-        f_ant = tk.Frame(dlg, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_ant.pack(fill="x", padx=16, pady=4)
+        f_ant = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
+        f_ant.pack(fill="x", pady=5)
         cb_ant = tk.Checkbutton(f_ant, text="Anthropic Claude API (sk-ant-...)", variable=var_ant, font=("Sans", 9, "bold"),
                                 fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
         cb_ant.pack(anchor="w")
-        ent_ant = tk.Entry(f_ant, font=("Sans", 9), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_ant = tk.Entry(f_ant, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
         ent_ant.insert(0, ant_cfg.get("api_key", ""))
-        ent_ant.pack(fill="x", pady=4)
+        ent_ant.pack(fill="x", pady=2)
 
         # Save Action
         def do_save():
+            hidden_list = []
+            for gid, v in hud_vars.items():
+                if not v.get():
+                    hidden_list.append(gid)
+
             new_cfg = {
                 "providers": {
                     "antigravity": {"enabled": var_anti.get()},
+                    "claude_pro": {"enabled": var_claude_pro.get(), "token": ent_claude_token.get().strip()},
                     "gemini": {"enabled": var_gem.get() or bool(ent_gem.get().strip()), "api_key": ent_gem.get().strip()},
                     "openai": {"enabled": var_oa.get() or bool(ent_oa.get().strip()), "api_key": ent_oa.get().strip()},
                     "anthropic": {"enabled": var_ant.get() or bool(ent_ant.get().strip()), "api_key": ent_ant.get().strip()}
                 },
-                "refresh_interval_seconds": 30
+                "refresh_interval_seconds": 30,
+                "hidden_hud_gauges": hidden_list
             }
             save_config(new_cfg)
             dlg.destroy()
@@ -451,7 +544,7 @@ class QuotaHubAppLinux:
         f_btns = tk.Frame(dlg, bg="#181818", padx=16, pady=10)
         f_btns.pack(fill="x", side="bottom")
 
-        btn_save = tk.Button(f_btns, text="Salvar e Atualizar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+        btn_save = tk.Button(f_btns, text="Salvar e Atualizar", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699",
                              relief="flat", padx=14, pady=5, cursor="hand2", command=do_save)
         btn_save.pack(side="left")
 
@@ -506,7 +599,17 @@ class QuotaHubAppLinux:
 
         for g in groups:
             prov = f" [{g.get('provider')}]" if g.get('provider') else ""
-            lbl_g = tk.Label(main_frame, text=(g.get("name", "Modelos") + prov).upper(), font=("Sans", 8, "bold"), fg="#888888", bg="#181818", anchor="w")
+            gname_lower = g.get("name", "").lower()
+            prov_lower = g.get("provider", "").lower()
+            
+            if "claude pro" in gname_lower or "claude pro" in prov_lower:
+                accent_col = "#D78C68"
+            elif "studio" in prov_lower or "gemini api" in gname_lower:
+                accent_col = "#38BDF8"
+            else:
+                accent_col = "#00E699"
+
+            lbl_g = tk.Label(main_frame, text=(g.get("name", "Modelos") + prov).upper(), font=("Sans", 8, "bold"), fg=accent_col, bg="#181818", anchor="w")
             lbl_g.pack(fill="x", pady=(4, 2))
 
             card = tk.Frame(main_frame, bg="#1F1F1F", bd=1, relief="solid", padx=14, pady=10)
@@ -527,7 +630,7 @@ class QuotaHubAppLinux:
                 pct = b.get("remaining_pct", 100)
                 reset_str = f" • {b.get('reset_in')}" if b.get("reset_in") else ""
                 val_text = f"{pct}%{reset_str}"
-                val_col = status_color(pct)
+                val_col = status_color(pct, accent_col)
                 bval = tk.Label(row1, text=val_text, font=("Monospace", 9, "bold"), fg=val_col, bg="#1F1F1F")
                 bval.pack(side="right")
 
@@ -644,7 +747,7 @@ class QuotaHubAppLinux:
 
     def draw_gauge(self, canvas, cx, cy, item):
         pct = item.get("pct", 100)
-        col = status_color(pct)
+        col = status_color(pct, item.get("accent"))
         inactive_col = "#333333"
 
         r_outer = 27
