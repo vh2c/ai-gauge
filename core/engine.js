@@ -11,6 +11,7 @@ const os = require('os');
 
 const { AntigravityProvider } = require('./providers/antigravity');
 const { GeminiProvider } = require('./providers/gemini');
+const { ClaudeProProvider } = require('./providers/claude_pro');
 const { OpenAIProvider } = require('./providers/openai');
 const { AnthropicProvider } = require('./providers/anthropic');
 const { sendHeartbeat } = require('./telemetry');
@@ -27,6 +28,7 @@ function loadConfig() {
   return {
     providers: {
       antigravity: { enabled: true },
+      claude_pro: { enabled: true },
       gemini: { enabled: Boolean(process.env.GEMINI_API_KEY), api_key: process.env.GEMINI_API_KEY || '' },
       openai: { enabled: Boolean(process.env.OPENAI_API_KEY), api_key: process.env.OPENAI_API_KEY || '' },
       anthropic: { enabled: Boolean(process.env.ANTHROPIC_API_KEY), api_key: process.env.ANTHROPIC_API_KEY || '' }
@@ -51,6 +53,9 @@ class UniversalQuotaEngine {
 
     if (pCfg.antigravity?.enabled !== false) {
       providers.push(new AntigravityProvider().fetch());
+    }
+    if (pCfg.claude_pro?.enabled !== false) {
+      providers.push(new ClaudeProProvider(pCfg.claude_pro?.token).fetch());
     }
     if (pCfg.gemini?.enabled && pCfg.gemini?.api_key) {
       providers.push(new GeminiProvider(pCfg.gemini.api_key).fetch());

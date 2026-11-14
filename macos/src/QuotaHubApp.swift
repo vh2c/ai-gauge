@@ -33,7 +33,7 @@ struct GaugeSection {
     let subtitle: String?
     let tag: String // "ANTIGRAVITY", "AI STUDIO", "OPENAI", "CLAUDE"
     let accentColor: NSColor
-    let items: [GaugeItem]
+    var items: [GaugeItem]
 }
 
 struct GaugeItem {
@@ -50,11 +50,13 @@ struct GaugeItem {
 struct ProviderConfig: Codable {
     var enabled: Bool?
     var api_key: String?
+    var token: String?
 }
 
 struct AppConfig: Codable {
     var providers: [String: ProviderConfig]?
     var refresh_interval_seconds: Int?
+    var hidden_hud_gauges: [String]?
 }
 
 extension QuotaData {
@@ -62,6 +64,7 @@ extension QuotaData {
         var sections: [GaugeSection] = []
         
         var antiGroups: [Group] = []
+        var claudeProGroups: [Group] = []
         var studioGroups: [Group] = []
         var openGroups: [Group] = []
         var antGroups: [Group] = []
@@ -70,7 +73,9 @@ extension QuotaData {
         for g in groups {
             let p = (g.provider ?? "").lowercased()
             let n = g.name.lowercased()
-            if p.contains("antigravity") || n.contains("antigravity") || n.contains("argon") || n.contains("claude and gpt") {
+            if p.contains("claude pro") || n.contains("claude pro") {
+                claudeProGroups.append(g)
+            } else if p.contains("antigravity") || n.contains("antigravity") || n.contains("argon") || n.contains("claude and gpt") {
                 antiGroups.append(g)
             } else if p.contains("studio") || n.contains("google gemini api") || n.contains("ai studio") {
                 studioGroups.append(g)
@@ -120,6 +125,39 @@ extension QuotaData {
                 subtitle: "Live & Headless",
                 tag: "ANTIGRAVITY",
                 accentColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
+                items: items
+            ))
+        }
+        
+        if !claudeProGroups.isEmpty {
+            var items: [GaugeItem] = []
+            for g in claudeProGroups {
+                for b in g.buckets {
+                    let limitTitle: String
+                    let lowerB = b.name.lowercased()
+                    let bId = (b.id ?? "").lowercased()
+                    if lowerB.contains("5") || bId.contains("5h") {
+                        limitTitle = "5 hours Limit"
+                    } else {
+                        limitTitle = "Weekly Limit"
+                    }
+                    items.append(GaugeItem(
+                        id: b.id ?? "claude-pro",
+                        title: limitTitle,
+                        modelName: "Claude Pro",
+                        percentage: b.remaining_pct,
+                        resetIn: b.reset_in,
+                        detail: b.detail,
+                        provider: g.provider,
+                        sectionTag: "CLAUDE_PRO"
+                    ))
+                }
+            }
+            sections.append(GaugeSection(
+                name: "Claude Pro",
+                subtitle: "Sessão Antigravity",
+                tag: "CLAUDE_PRO",
+                accentColor: NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -268,18 +306,46 @@ class QuotaManager {
         return (configDir as NSString).appendingPathComponent("config.json")
     }
     
+    static func hasClaudeProKeychainSession() -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        task.arguments = ["find-generic-password", "-a", NSUserName(), "-w", "-s", "Claude Code-credentials"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+    
     static func loadConfig() -> AppConfig {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
-              let cfg = try? JSONDecoder().decode(AppConfig.self, from: data) else {
-            return AppConfig(
+        var cfg: AppConfig
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
+           let decoded = try? JSONDecoder().decode(AppConfig.self, from: data) {
+            cfg = decoded
+        } else {
+            cfg = AppConfig(
                 providers: [
-                    "antigravity": ProviderConfig(enabled: true, api_key: nil),
-                    "gemini": ProviderConfig(enabled: false, api_key: ""),
-                    "openai": ProviderConfig(enabled: false, api_key: ""),
-                    "anthropic": ProviderConfig(enabled: false, api_key: "")
+                    "antigravity": ProviderConfig(enabled: true, api_key: nil, token: nil),
+                    "claude_pro": ProviderConfig(enabled: true, api_key: nil, token: nil),
+                    "gemini": ProviderConfig(enabled: false, api_key: "", token: nil),
+                    "openai": ProviderConfig(enabled: false, api_key: "", token: nil),
+                    "anthropic": ProviderConfig(enabled: false, api_key: "", token: nil)
                 ],
-                refresh_interval_seconds: 30
+                refresh_interval_seconds: 30,
+                hidden_hud_gauges: []
             )
+        }
+        if cfg.providers?["claude_pro"] == nil {
+            if cfg.providers == nil { cfg.providers = [:] }
+            cfg.providers?["claude_pro"] = ProviderConfig(enabled: true, api_key: nil, token: nil)
+        }
+        if cfg.hidden_hud_gauges == nil {
+            cfg.hidden_hud_gauges = []
         }
         return cfg
     }
@@ -495,6 +561,8 @@ class TachometerGaugeView: NSView {
         let colorGreen: NSColor
         if item.sectionTag == "STUDIO" {
             colorGreen = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
+        } else if item.sectionTag == "CLAUDE_PRO" {
+            colorGreen = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
         } else if item.sectionTag == "OPENAI" {
             colorGreen = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
         } else if item.sectionTag == "CLAUDE" {
@@ -851,10 +919,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var geminiTestBtn: NSButton?
     var geminiStatusLabel: NSTextField?
     var antigravityCheck: NSButton?
+    var claudeProCheck: NSButton?
+    var claudeProTokenField: NSTextField?
+    var claudeProStatusLabel: NSTextField?
     var openaiCheck: NSButton?
     var openaiKeyField: NSTextField?
     var anthropicCheck: NSButton?
     var anthropicKeyField: NSTextField?
+    
+    var hudGaugeCheckboxes: [String: NSButton] = [:]
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
@@ -1105,7 +1178,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func setupHudUI(with quota: QuotaData) {
-        let sections = quota.gaugeSections
+        let cfg = QuotaManager.loadConfig()
+        let hiddenSet = Set(cfg.hidden_hud_gauges ?? [])
+        
+        var filteredSections: [GaugeSection] = []
+        for s in quota.gaugeSections {
+            let visibleItems = s.items.filter { !hiddenSet.contains($0.id) }
+            if !visibleItems.isEmpty {
+                var vs = s
+                vs.items = visibleItems
+                filteredSections.append(vs)
+            }
+        }
+        let sections = filteredSections
         let isVertical = (hudOrientation == .vertical)
         let totalItems = sections.reduce(0) { $0 + $1.items.count }
         
@@ -1619,11 +1704,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 cardView.cornerRadius = 8
                 contentView.addSubview(cardView)
                 
-                let isStudio = (g.provider ?? "").lowercased().contains("studio") || g.name.lowercased().contains("gemini api")
-                let accentColor = isStudio
-                    ? NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
-                    : NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+                let pLower = (g.provider ?? "").lowercased()
+                let isStudio = pLower.contains("studio") || g.name.lowercased().contains("gemini api")
+                let isClaudePro = pLower.contains("claude pro") || g.name.lowercased().contains("claude pro")
                 
+                let accentColor: NSColor
+                let tagText: String
+                if isClaudePro {
+                    accentColor = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
+                    tagText = "CLAUDE PRO (SESSÃO)"
+                } else if isStudio {
+                    accentColor = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
+                    tagText = "GOOGLE AI STUDIO"
+                } else {
+                    accentColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+                    tagText = "ANTIGRAVITY"
+                }
                 // Group Title
                 let gTitle = NSTextField(labelWithString: g.name)
                 gTitle.font = NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -1631,7 +1727,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 gTitle.frame = NSRect(x: 14, y: 10, width: cardView.frame.width - 170, height: 16)
                 cardView.addSubview(gTitle)
                 
-                let tagText = isStudio ? "GOOGLE AI STUDIO" : "ANTIGRAVITY"
                 let tagLabel = NSTextField(labelWithString: tagText)
                 tagLabel.font = NSFont.systemFont(ofSize: 8.5, weight: .bold)
                 tagLabel.textColor = accentColor
@@ -1858,8 +1953,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Settings Window
     @objc func openSettings() {
         if settingsWindow == nil {
-            let w: CGFloat = 500
-            let h: CGFloat = 620
+            let w: CGFloat = 520
+            let h: CGFloat = 660
             let win = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: w, height: h),
                 styleMask: [.titled, .closable],
@@ -1882,43 +1977,190 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func setupSettingsUI(in win: NSWindow) {
         let cfg = QuotaManager.loadConfig()
         let providers = cfg.providers ?? [:]
+        let hiddenSet = Set(cfg.hidden_hud_gauges ?? [])
+        self.hudGaugeCheckboxes.removeAll()
         
         let colorBg18 = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
         let colorCard = NSColor(srgbRed: 0x1E/255.0, green: 0x1E/255.0, blue: 0x22/255.0, alpha: 1.0)
         let colorBorder = NSColor(srgbRed: 0x2E/255.0, green: 0x2E/255.0, blue: 0x33/255.0, alpha: 1.0)
+        let colorSep = NSColor(srgbRed: 0x28/255.0, green: 0x28/255.0, blue: 0x2E/255.0, alpha: 1.0)
+        let claudeColor = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
         
-        let view = FlippedContentView(frame: win.contentView!.bounds)
-        view.wantsLayer = true
-        view.layer?.backgroundColor = colorBg18.cgColor
-        win.contentView = view
+        let mainView = FlippedContentView(frame: win.contentView!.bounds)
+        mainView.wantsLayer = true
+        mainView.layer?.backgroundColor = colorBg18.cgColor
+        win.contentView = mainView
         
-        let contentW = win.contentView!.bounds.width
-        var y: CGFloat = 22
+        let winW = win.contentView!.bounds.width
+        let winH = win.contentView!.bounds.height
         
-        // Header
-        let titleLabel = NSTextField(labelWithString: "⚙️ Provedores de IA & Modelos")
-        titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .bold)
+        let headerH: CGFloat = 62
+        let footerH: CGFloat = 56
+        
+        // ----------------- HEADER FIXO NO TOPO -----------------
+        let headerView = FlippedContentView(frame: NSRect(x: 0, y: 0, width: winW, height: headerH))
+        let titleLabel = NSTextField(labelWithString: "⚙️ Provedores de IA & Seleção de Gauges")
+        titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .bold)
         titleLabel.textColor = .white
-        titleLabel.frame = NSRect(x: 20, y: y, width: contentW - 40, height: 22)
-        view.addSubview(titleLabel)
-        y += 26
+        titleLabel.frame = NSRect(x: 18, y: 12, width: winW - 36, height: 20)
+        headerView.addSubview(titleLabel)
         
-        let subLabel = NSTextField(labelWithString: "Configure as fontes de dados para monitoramento das suas cotas:")
-        subLabel.font = NSFont.systemFont(ofSize: 11.5, weight: .regular)
+        let subLabel = NSTextField(labelWithString: "Ative os provedores e selecione quais Gauges devem aparecer no Painel Lateral HUD:")
+        subLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
         subLabel.textColor = NSColor(white: 0.65, alpha: 1.0)
-        subLabel.frame = NSRect(x: 20, y: y, width: contentW - 40, height: 16)
-        view.addSubview(subLabel)
-        y += 24
+        subLabel.frame = NSRect(x: 18, y: 34, width: winW - 36, height: 16)
+        headerView.addSubview(subLabel)
         
-        // 1. Google Gemini API Card
-        let geminiCardH: CGFloat = 152
-        let geminiCard = FlippedBox(frame: NSRect(x: 18, y: y, width: contentW - 36, height: geminiCardH))
+        let headerDiv = NSBox(frame: NSRect(x: 18, y: headerH - 1, width: winW - 36, height: 1))
+        headerDiv.boxType = .custom
+        headerDiv.fillColor = colorSep
+        headerDiv.borderColor = .clear
+        headerView.addSubview(headerDiv)
+        mainView.addSubview(headerView)
+        
+        // ----------------- SCROLL VIEW DE CARDS -----------------
+        let scrollY = headerH
+        let scrollH = winH - headerH - footerH
+        let cardW = winW - 36
+        
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: scrollY, width: winW, height: scrollH))
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.autohidesScrollers = true
+        
+        let scrollContent = FlippedContentView(frame: NSRect(x: 0, y: 0, width: winW, height: 750))
+        
+        var cy: CGFloat = 12.0
+        
+        func createHudSectionLabel(y: CGFloat, in parent: NSView) -> CGFloat {
+            let sep = NSBox(frame: NSRect(x: 14, y: y, width: cardW - 28, height: 1))
+            sep.boxType = .custom
+            sep.fillColor = colorSep
+            sep.borderColor = .clear
+            parent.addSubview(sep)
+            
+            let lbl = NSTextField(labelWithString: "Gauges no Painel Lateral HUD:")
+            lbl.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
+            lbl.textColor = NSColor(white: 0.55, alpha: 1.0)
+            lbl.frame = NSRect(x: 14, y: y + 6, width: cardW - 28, height: 14)
+            parent.addSubview(lbl)
+            return y + 24
+        }
+        
+        func addCheckbox(id: String, title: String, frame: NSRect, in parent: NSView) {
+            let btn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+            btn.attributedTitle = NSAttributedString(
+                string: " " + title,
+                attributes: [
+                    .foregroundColor: NSColor(white: 0.88, alpha: 1.0),
+                    .font: NSFont.systemFont(ofSize: 10.5, weight: .medium)
+                ]
+            )
+            btn.state = hiddenSet.contains(id) ? .off : .on
+            btn.frame = frame
+            parent.addSubview(btn)
+            self.hudGaugeCheckboxes[id] = btn
+        }
+        
+        let colW = (cardW - 36) / 2.0
+        
+        // 1. Antigravity IDE Card
+        let antiCardH: CGFloat = 150
+        let antiCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: antiCardH))
+        antiCard.boxType = .custom
+        antiCard.fillColor = colorCard
+        antiCard.borderColor = colorBorder
+        antiCard.borderWidth = 1
+        antiCard.cornerRadius = 8
+        scrollContent.addSubview(antiCard)
+        
+        let antiCfg = providers["antigravity"]
+        let antiBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        antiBtn.state = (antiCfg?.enabled ?? true) ? .on : .off
+        antiBtn.attributedTitle = NSAttributedString(
+            string: "  Antigravity IDE (Live & Headless Standalone)",
+            attributes: [
+                .foregroundColor: NSColor.white,
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+            ]
+        )
+        antiBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
+        antiCard.addSubview(antiBtn)
+        self.antigravityCheck = antiBtn
+        
+        let antiDesc = NSTextField(labelWithString: "Detecta cotas do IDE em execução ou via sonda headless quando fechado.")
+        antiDesc.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+        antiDesc.textColor = NSColor(white: 0.55, alpha: 1.0)
+        antiDesc.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
+        antiCard.addSubview(antiDesc)
+        
+        let antiHudY = createHudSectionLabel(y: 54, in: antiCard)
+        addCheckbox(id: "gemini-weekly", title: "Gemini Semanal", frame: NSRect(x: 14, y: antiHudY, width: colW, height: 18), in: antiCard)
+        addCheckbox(id: "gemini-5h", title: "Gemini (5 Horas)", frame: NSRect(x: 14 + colW, y: antiHudY, width: colW, height: 18), in: antiCard)
+        addCheckbox(id: "3p-weekly", title: "Claude / GPT Semanal", frame: NSRect(x: 14, y: antiHudY + 22, width: colW, height: 18), in: antiCard)
+        addCheckbox(id: "3p-5h", title: "Claude / GPT (5 Horas)", frame: NSRect(x: 14 + colW, y: antiHudY + 22, width: colW, height: 18), in: antiCard)
+        addCheckbox(id: "gemini-argon-wtu-weekly", title: "Argon Semanal", frame: NSRect(x: 14, y: antiHudY + 44, width: colW, height: 18), in: antiCard)
+        
+        cy += antiCardH + 12
+        
+        // 2. Claude Pro Card (#D78C68)
+        let claudeCardH: CGFloat = 154
+        let claudeCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: claudeCardH))
+        claudeCard.boxType = .custom
+        claudeCard.fillColor = colorCard
+        claudeCard.borderColor = colorBorder
+        claudeCard.borderWidth = 1
+        claudeCard.cornerRadius = 8
+        scrollContent.addSubview(claudeCard)
+        
+        let claudeCfg = providers["claude_pro"]
+        let claudeBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        claudeBtn.state = (claudeCfg?.enabled ?? true) ? .on : .off
+        claudeBtn.attributedTitle = NSAttributedString(
+            string: "  Claude Pro (Sessão Antigravity)",
+            attributes: [
+                .foregroundColor: NSColor.white,
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+            ]
+        )
+        claudeBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
+        claudeCard.addSubview(claudeBtn)
+        self.claudeProCheck = claudeBtn
+        
+        let hasKeychain = QuotaManager.hasClaudeProKeychainSession()
+        let statusMsg = hasKeychain
+            ? "✓ Sessão ativa detectada no macOS Keychain (Claude Code / Antigravity)"
+            : "ℹ️ Sessão não encontrada no Keychain. Faça login no Antigravity ou cole token:"
+        let claudeStatus = NSTextField(labelWithString: statusMsg)
+        claudeStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+        claudeStatus.textColor = hasKeychain ? claudeColor : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+        claudeStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
+        claudeCard.addSubview(claudeStatus)
+        self.claudeProStatusLabel = claudeStatus
+        
+        let claudeToken = makeCenteredDarkField(
+            frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
+            placeholder: hasKeychain ? "Token OAuth gerenciado automaticamente pelo Keychain" : "Token OAuth Claude (sk-ant-oat01-...)",
+            value: claudeCfg?.token ?? ""
+        )
+        claudeCard.addSubview(claudeToken)
+        self.claudeProTokenField = claudeToken
+        
+        let claudeHudY = createHudSectionLabel(y: 92, in: claudeCard)
+        addCheckbox(id: "claude-pro-5h", title: "Janela de 5 Horas (5h)", frame: NSRect(x: 14, y: claudeHudY, width: colW, height: 18), in: claudeCard)
+        addCheckbox(id: "claude-pro-7d", title: "Cota Semanal (7 dias)", frame: NSRect(x: 14 + colW, y: claudeHudY, width: colW, height: 18), in: claudeCard)
+        
+        cy += claudeCardH + 12
+        
+        // 3. Google Gemini API Card
+        let geminiCardH: CGFloat = 196
+        let geminiCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: geminiCardH))
         geminiCard.boxType = .custom
         geminiCard.fillColor = colorCard
         geminiCard.borderColor = colorBorder
         geminiCard.borderWidth = 1
         geminiCard.cornerRadius = 8
-        view.addSubview(geminiCard)
+        scrollContent.addSubview(geminiCard)
         
         let geminiCfg = providers["gemini"]
         let geminiBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -1927,20 +2169,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             string: "  Google Gemini API (Google AI Studio)",
             attributes: [
                 .foregroundColor: NSColor.white,
-                .font: NSFont.systemFont(ofSize: 12.5, weight: .semibold)
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        geminiBtn.frame = NSRect(x: 14, y: 12, width: geminiCard.frame.width - 28, height: 20)
+        geminiBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         geminiCard.addSubview(geminiBtn)
         self.geminiCheck = geminiBtn
         
         let geminiHint = NSTextField(labelWithString: "💡 Chaves do Google AI Studio começam com AIzaSy...")
         geminiHint.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
         geminiHint.textColor = NSColor(white: 0.55, alpha: 1.0)
-        geminiHint.frame = NSRect(x: 36, y: 34, width: geminiCard.frame.width - 50, height: 15)
+        geminiHint.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
         geminiCard.addSubview(geminiHint)
         
-        let fieldW: CGFloat = geminiCard.frame.width - 28 - 92
+        let fieldW: CGFloat = cardW - 28 - 92
         let geminiField = makeCenteredDarkField(
             frame: NSRect(x: 14, y: 52, width: fieldW, height: 34),
             placeholder: "Chave de API Gemini (AIzaSy...)",
@@ -1968,13 +2210,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let statusLabel = NSTextField(labelWithString: "")
         statusLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         statusLabel.textColor = NSColor(white: 0.60, alpha: 1.0)
-        statusLabel.frame = NSRect(x: 14, y: 92, width: geminiCard.frame.width - 28, height: 16)
+        statusLabel.frame = NSRect(x: 14, y: 92, width: cardW - 28, height: 16)
         geminiCard.addSubview(statusLabel)
         self.geminiStatusLabel = statusLabel
         
         let geminiLink = NSButton(title: "", target: self, action: #selector(openAiStudioLink))
         geminiLink.isBordered = false
-        geminiLink.frame = NSRect(x: 14, y: 114, width: geminiCard.frame.width - 28, height: 20)
+        geminiLink.frame = NSRect(x: 14, y: 112, width: cardW - 28, height: 18)
         geminiLink.attributedTitle = NSAttributedString(
             string: "Obter Chave Gratuita no Google AI Studio (aistudio.google.com) ↗",
             attributes: [
@@ -1984,49 +2226,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         geminiCard.addSubview(geminiLink)
         
-        y += geminiCardH + 12
+        let geminiHudY = createHudSectionLabel(y: 136, in: geminiCard)
+        let gColW = (cardW - 36) / 3.0
+        addCheckbox(id: "gemini-flash-rpm", title: "Flash RPM", frame: NSRect(x: 14, y: geminiHudY, width: gColW, height: 18), in: geminiCard)
+        addCheckbox(id: "gemini-pro-rpm", title: "Pro RPM", frame: NSRect(x: 14 + gColW, y: geminiHudY, width: gColW, height: 18), in: geminiCard)
+        addCheckbox(id: "gemini-key-status", title: "Status da Chave", frame: NSRect(x: 14 + gColW * 2, y: geminiHudY, width: gColW, height: 18), in: geminiCard)
         
-        // 2. Antigravity Card
-        let antiCardH: CGFloat = 68
-        let antiCard = FlippedBox(frame: NSRect(x: 18, y: y, width: contentW - 36, height: antiCardH))
-        antiCard.boxType = .custom
-        antiCard.fillColor = colorCard
-        antiCard.borderColor = colorBorder
-        antiCard.borderWidth = 1
-        antiCard.cornerRadius = 8
-        view.addSubview(antiCard)
+        cy += geminiCardH + 12
         
-        let antiCfg = providers["antigravity"]
-        let antiBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
-        antiBtn.state = (antiCfg?.enabled ?? true) ? .on : .off
-        antiBtn.attributedTitle = NSAttributedString(
-            string: "  Antigravity IDE (Live & Headless Standalone)",
-            attributes: [
-                .foregroundColor: NSColor.white,
-                .font: NSFont.systemFont(ofSize: 12.5, weight: .semibold)
-            ]
-        )
-        antiBtn.frame = NSRect(x: 14, y: 12, width: antiCard.frame.width - 28, height: 20)
-        antiCard.addSubview(antiBtn)
-        self.antigravityCheck = antiBtn
-        
-        let antiDesc = NSTextField(labelWithString: "Detecta cotas do IDE em execução ou via sonda headless quando fechado.")
-        antiDesc.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
-        antiDesc.textColor = NSColor(white: 0.55, alpha: 1.0)
-        antiDesc.frame = NSRect(x: 36, y: 36, width: antiCard.frame.width - 50, height: 16)
-        antiCard.addSubview(antiDesc)
-        
-        y += antiCardH + 12
-        
-        // 3. OpenAI Card
+        // 4. OpenAI Card
         let openCardH: CGFloat = 88
-        let openCard = FlippedBox(frame: NSRect(x: 18, y: y, width: contentW - 36, height: openCardH))
+        let openCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: openCardH))
         openCard.boxType = .custom
         openCard.fillColor = colorCard
         openCard.borderColor = colorBorder
         openCard.borderWidth = 1
         openCard.cornerRadius = 8
-        view.addSubview(openCard)
+        scrollContent.addSubview(openCard)
         
         let openCfg = providers["openai"]
         let openBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -2035,32 +2251,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             string: "  OpenAI API (GPT-4o, o1, etc.)",
             attributes: [
                 .foregroundColor: NSColor.white,
-                .font: NSFont.systemFont(ofSize: 12.5, weight: .semibold)
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        openBtn.frame = NSRect(x: 14, y: 12, width: openCard.frame.width - 28, height: 20)
+        openBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         openCard.addSubview(openBtn)
         self.openaiCheck = openBtn
         
         let openField = makeCenteredDarkField(
-            frame: NSRect(x: 14, y: 38, width: openCard.frame.width - 28, height: 34),
+            frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
             placeholder: "Chave de API OpenAI (sk-...)",
             value: openCfg?.api_key ?? ""
         )
         openCard.addSubview(openField)
         self.openaiKeyField = openField
         
-        y += openCardH + 12
+        cy += openCardH + 12
         
-        // 4. Anthropic Claude Card
+        // 5. Anthropic Claude API Card
         let antCardH: CGFloat = 88
-        let antCard = FlippedBox(frame: NSRect(x: 18, y: y, width: contentW - 36, height: antCardH))
+        let antCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: antCardH))
         antCard.boxType = .custom
         antCard.fillColor = colorCard
         antCard.borderColor = colorBorder
         antCard.borderWidth = 1
         antCard.cornerRadius = 8
-        view.addSubview(antCard)
+        scrollContent.addSubview(antCard)
         
         let antCfg = providers["anthropic"]
         let antBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -2069,30 +2285,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             string: "  Anthropic Claude API (Sonnet, Opus)",
             attributes: [
                 .foregroundColor: NSColor.white,
-                .font: NSFont.systemFont(ofSize: 12.5, weight: .semibold)
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        antBtn.frame = NSRect(x: 14, y: 12, width: antCard.frame.width - 28, height: 20)
+        antBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         antCard.addSubview(antBtn)
         self.anthropicCheck = antBtn
         
         let antField = makeCenteredDarkField(
-            frame: NSRect(x: 14, y: 38, width: antCard.frame.width - 28, height: 34),
+            frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
             placeholder: "Chave de API Anthropic (sk-ant-...)",
             value: antCfg?.api_key ?? ""
         )
         antCard.addSubview(antField)
         self.anthropicKeyField = antField
         
-        y += antCardH + 18
+        cy += antCardH + 16
         
-        // Footer Buttons
+        scrollContent.setFrameSize(NSSize(width: winW, height: cy))
+        scrollView.documentView = scrollContent
+        mainView.addSubview(scrollView)
+        
+        // ----------------- RODAPÉ FIXO NA PARTE INFERIOR -----------------
+        let footerView = FlippedContentView(frame: NSRect(x: 0, y: winH - footerH, width: winW, height: footerH))
+        
+        let footerDiv = NSBox(frame: NSRect(x: 18, y: 0, width: winW - 36, height: 1))
+        footerDiv.boxType = .custom
+        footerDiv.fillColor = colorSep
+        footerDiv.borderColor = .clear
+        footerView.addSubview(footerDiv)
+        
         let saveBtn = NSButton(title: "Salvar e Atualizar", target: self, action: #selector(saveSettingsClicked))
         saveBtn.isBordered = false
         saveBtn.wantsLayer = true
         saveBtn.layer?.backgroundColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0).cgColor
         saveBtn.layer?.cornerRadius = 6
-        saveBtn.frame = NSRect(x: 18, y: y, width: 144, height: 34)
+        saveBtn.frame = NSRect(x: 18, y: 11, width: 144, height: 34)
         saveBtn.attributedTitle = NSAttributedString(
             string: "Salvar e Atualizar",
             attributes: [
@@ -2100,14 +2328,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .font: NSFont.systemFont(ofSize: 12, weight: .bold)
             ]
         )
-        view.addSubview(saveBtn)
+        footerView.addSubview(saveBtn)
         
         let cancelBtn = NSButton(title: "Cancelar", target: self, action: #selector(cancelSettingsClicked))
         cancelBtn.isBordered = false
         cancelBtn.wantsLayer = true
         cancelBtn.layer?.backgroundColor = NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x2E/255.0, alpha: 1.0).cgColor
         cancelBtn.layer?.cornerRadius = 6
-        cancelBtn.frame = NSRect(x: 172, y: y, width: 90, height: 34)
+        cancelBtn.frame = NSRect(x: 172, y: 11, width: 90, height: 34)
         cancelBtn.attributedTitle = NSAttributedString(
             string: "Cancelar",
             attributes: [
@@ -2115,11 +2343,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium)
             ]
         )
-        view.addSubview(cancelBtn)
+        footerView.addSubview(cancelBtn)
         
         let brandBtn = NSButton(title: "vh2c.com.br", target: self, action: #selector(brandClicked))
         brandBtn.isBordered = false
-        brandBtn.frame = NSRect(x: contentW - 140, y: y + 8, width: 120, height: 18)
+        brandBtn.frame = NSRect(x: winW - 140, y: 18, width: 120, height: 20)
         brandBtn.attributedTitle = NSAttributedString(
             string: "vh2c.com.br",
             attributes: [
@@ -2127,7 +2355,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .font: NSFont.systemFont(ofSize: 11, weight: .medium)
             ]
         )
-        view.addSubview(brandBtn)
+        footerView.addSubview(brandBtn)
+        
+        mainView.addSubview(footerView)
     }
     
     @objc func testGeminiKeyClicked() {
@@ -2204,22 +2434,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         var cfg = QuotaManager.loadConfig()
         if cfg.providers == nil { cfg.providers = [:] }
         
-        cfg.providers?["gemini"] = ProviderConfig(
-            enabled: geminiCheck?.state == .on,
-            api_key: geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        )
         cfg.providers?["antigravity"] = ProviderConfig(
             enabled: antigravityCheck?.state == .on,
-            api_key: nil
+            api_key: nil,
+            token: nil
+        )
+        cfg.providers?["claude_pro"] = ProviderConfig(
+            enabled: claudeProCheck?.state == .on,
+            api_key: nil,
+            token: claudeProTokenField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        cfg.providers?["gemini"] = ProviderConfig(
+            enabled: geminiCheck?.state == .on,
+            api_key: geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            token: nil
         )
         cfg.providers?["openai"] = ProviderConfig(
             enabled: openaiCheck?.state == .on,
-            api_key: openaiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            api_key: openaiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            token: nil
         )
         cfg.providers?["anthropic"] = ProviderConfig(
             enabled: anthropicCheck?.state == .on,
-            api_key: anthropicKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            api_key: anthropicKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            token: nil
         )
+        
+        var hiddenList: [String] = []
+        for (id, btn) in hudGaugeCheckboxes {
+            if btn.state == .off {
+                hiddenList.append(id)
+            }
+        }
+        cfg.hidden_hud_gauges = hiddenList
         
         QuotaManager.saveConfig(cfg)
         settingsWindow?.orderOut(nil)
