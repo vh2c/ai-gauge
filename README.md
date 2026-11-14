@@ -17,7 +17,9 @@
 
 <br/>
 
-**Gemini Gauge** is a lightweight, high-performance desktop application designed to monitor your AI model quotas and rate limits in real time. It operates **completely independently of any IDE**, aggregating usage across **Google Gemini API**, **Antigravity IDE (Live & Headless)**, **OpenAI**, and **Anthropic Claude**.
+**Gemini Gauge** is a lightweight, high-performance desktop application designed to monitor your AI model quotas and rate limits in real time across macOS, Linux, and Windows. It operates **completely independently of any IDE**, aggregating usage across **Antigravity IDE (Live & Headless)**, **Claude Pro (OAuth / Session)**, **Google Gemini API**, **OpenAI**, and **Anthropic Claude**.
+
+> 💡 **Unified Antigravity Quota Monitor**: Gemini Gauge is the unified, official evolution of the *Antigravity Quota Monitor*. It provides out-of-the-box monitoring for all Antigravity quotas (Claude 3.5 Sonnet / GPT-4o 5-hour rolling limits, Gemini Argon Weekly WTU) alongside Claude Pro and API providers in a single cross-platform application.
 
 </div>
 
@@ -26,15 +28,21 @@
 ## 🌟 Key Highlights
 
 - **🎯 True Multi-Provider Aggregation**:
+  - **Antigravity Quota Monitor (Live & Headless)**: Detects live running Antigravity IDE instances, or executes an instant standalone headless probe when closed. Tracks:
+    - 🕒 Claude 3.5 Sonnet / GPT-4o (3P 5-Hour rolling window)
+    - 📊 Gemini Argon WTU (Weekly consumption budget)
+    - 📅 Daily resets and rolling quota timers
+  - **Claude Pro (OAuth / Web Session)**: Dedicated tracking for Claude Pro accounts with branded `#D78C68` styling and real-time usage countdowns.
   - **Google Gemini API**: Direct connection to Google AI Studio (RPM, TPM, model availability).
-  - **Antigravity (Live & Headless)**: Detects live running IDE instances, or executes an instant standalone headless probe when closed.
   - **OpenAI API**: Tracks Request-Per-Minute (RPM) and Token-Per-Minute (TPM) limits (GPT-4o, o1, etc.).
   - **Anthropic Claude API**: Tracks Sonnet, Opus, and Haiku request/token quotas.
 - **⚡ Two Distinct Display Modes**:
-  - **Full Detailed Window**: Dark Obsidian theme (`#181818`), status progress bars, real-time counters, and countdown reset timers.
+  - **Full Detailed Window**: Dark Obsidian theme (`#181818`), status progress bars, real-time counters, provider cards, and countdown reset timers.
   - **Radial Tachometer HUD**: Sleek floating meter dock with circular analog gauges, ticks, needles, and status colors. Can be docked vertically or horizontally.
+- **🎛️ Customizable HUD Indicators**:
+  - Select exactly which gauges appear on your floating lateral HUD panel via the Settings menu (`Cmd+,` / `Ctrl+,`).
 - **⚙️ Integrated Graphical Settings**:
-  - Click the **Configurar (⚙️)** button to easily toggle providers and paste your API keys without editing raw JSON files.
+  - Click the **Configurar (⚙️)** button to easily toggle providers, choose HUD indicators, and paste API keys without editing raw JSON files.
 - **🚀 Zero-Friction Installation**:
   - Native installer scripts for macOS, Linux, and Windows that handle dependencies automatically.
 
@@ -109,12 +117,14 @@ cd gemini-gauge/linux
 
 ### Option A: Via GUI (Recommended)
 1. Launch **Gemini Gauge**.
-2. Click the **`Configurar (⚙️)`** button at the bottom of the window.
-3. Check the providers you want to monitor:
+2. Click the **`Configurar (⚙️)`** button at the bottom of the window (or press `Cmd+,` / `Ctrl+,`).
+3. Select your active providers and indicators:
+   - **Antigravity**: Check to monitor your IDE quotas (works automatically even when the IDE is closed).
+   - **Claude Pro**: Check to monitor your Claude Pro subscription limits (supports OAuth / session cookie).
+   - **Indicadores no HUD Lateral**: Select which specific quotas should be visible on the floating tachometer HUD (e.g., *Claude/GPT 5h*, *Gemini Argon*, *Claude Pro 5h*).
    - **Google Gemini API**: Paste your API key (get one free at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)).
-   - **Antigravity**: Keep checked to monitor your IDE quotas (works even when closed).
    - **OpenAI**: Paste your OpenAI API key (`sk-...`).
-   - **Anthropic**: Paste your Claude API key (`sk-ant-...`).
+   - **Anthropic API**: Paste your Claude API key (`sk-ant-...`).
 4. Click **Salvar e Atualizar**.
 
 ### Option B: Via Config File
@@ -125,6 +135,10 @@ Edit `~/.config/UniversalAIQuota/config.json`:
   "providers": {
     "antigravity": {
       "enabled": true
+    },
+    "claude_pro": {
+      "enabled": true,
+      "session_key": ""
     },
     "gemini": {
       "enabled": true,
@@ -139,6 +153,11 @@ Edit `~/.config/UniversalAIQuota/config.json`:
       "api_key": "sk-ant-..."
     }
   },
+  "hud_gauges": [
+    "3p-5h",
+    "gemini-argon-wtu-weekly",
+    "claude-pro-5h"
+  ],
   "refresh_interval_seconds": 30
 }
 ```
