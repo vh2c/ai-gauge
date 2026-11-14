@@ -426,7 +426,7 @@ class QuotaHubAppLinux:
 
         dlg = tk.Toplevel(self.root)
         dlg.title("Configurar Provedores de IA - Gemini Gauge")
-        dlg.geometry("500x560")
+        dlg.geometry("520x600")
         dlg.configure(bg="#181818")
         dlg.transient(self.root)
         dlg.grab_set()
@@ -437,6 +437,10 @@ class QuotaHubAppLinux:
         sub = tk.Label(dlg, text="Ative seus provedores e selecione os Gauges do seu Painel Lateral HUD:", font=("Sans", 8), fg="#999999", bg="#181818")
         sub.pack(fill="x", padx=16, pady=(0, 10))
 
+        # Bottom buttons bar (packed first with side="bottom" to guarantee visibility)
+        f_btns = tk.Frame(dlg, bg="#181818", padx=16, pady=12)
+        f_btns.pack(fill="x", side="bottom")
+
         # Canvas with scrollbar for cards
         c_frame = tk.Frame(dlg, bg="#181818")
         c_frame.pack(fill="both", expand=True, padx=12, pady=4)
@@ -444,10 +448,21 @@ class QuotaHubAppLinux:
         c_scrollbar = tk.Scrollbar(c_frame, orient="vertical", command=c_canvas.yview)
         cards_box = tk.Frame(c_canvas, bg="#181818")
         cards_box.bind("<Configure>", lambda e: c_canvas.configure(scrollregion=c_canvas.bbox("all")))
-        c_canvas.create_window((0, 0), window=cards_box, anchor="nw", width=460)
-        c_canvas.configure(yview_scrollcommand=c_scrollbar.set)
+        c_canvas.create_window((0, 0), window=cards_box, anchor="nw", width=480)
+        c_canvas.configure(yscrollcommand=c_scrollbar.set)
         c_canvas.pack(side="left", fill="both", expand=True)
         c_scrollbar.pack(side="right", fill="y")
+
+        def _on_mousewheel(event):
+            if event.num == 4:
+                c_canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                c_canvas.yview_scroll(1, "units")
+            elif event.delta:
+                c_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        c_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        c_canvas.bind_all("<Button-4>", _on_mousewheel)
+        c_canvas.bind_all("<Button-5>", _on_mousewheel)
 
         hud_vars = {}
         def add_hud_cb(parent, gid, label):
@@ -560,15 +575,12 @@ class QuotaHubAppLinux:
             dlg.destroy()
             self.refresh(True)
 
-        f_btns = tk.Frame(dlg, bg="#181818", padx=16, pady=10)
-        f_btns.pack(fill="x", side="bottom")
-
         btn_save = tk.Button(f_btns, text="Salvar e Atualizar", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699",
-                             relief="flat", padx=14, pady=5, cursor="hand2", command=do_save)
+                             activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=14, pady=6, cursor="hand2", command=do_save)
         btn_save.pack(side="left")
 
         btn_cancel = tk.Button(f_btns, text="Cancelar", font=("Sans", 9), fg="#CCCCCC", bg="#2A2A2A",
-                               relief="flat", padx=10, pady=5, cursor="hand2", command=dlg.destroy)
+                               activebackground="#3A3A3A", activeforeground="#FFFFFF", relief="flat", padx=12, pady=6, cursor="hand2", command=dlg.destroy)
         btn_cancel.pack(side="right")
 
     def setup_ui(self):
@@ -589,12 +601,40 @@ class QuotaHubAppLinux:
         quota = self.quota or {}
         groups = quota.get("groups", [])
 
-        w = 480
+        w = 500
         total_cards_h = sum(36 + len(g.get("buckets", [])) * 48 for g in groups)
         if total_cards_h == 0:
-            total_cards_h = 100
-        h = min(80 + total_cards_h + 60, 680)
+            h = 420
+        else:
+            h = max(380, min(100 + total_cards_h + 80, 720))
         self.root.geometry(f"{w}x{h}")
+
+        # Footer packed first with side="bottom" to guarantee it never gets cut off
+        footer = tk.Frame(self.root, bg="#181818", padx=20, pady=12)
+        footer.pack(fill="x", side="bottom")
+
+        btn_row = tk.Frame(footer, bg="#181818")
+        btn_row.pack(fill="x")
+
+        self.refresh_btn = tk.Button(btn_row, text="↻ Atualizar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+                                     activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
+                                     command=lambda: self.refresh(True))
+        self.refresh_btn.pack(side="left")
+
+        hud_btn = tk.Button(btn_row, text="⤢ Barra HUD", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+                            activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
+                            command=self.toggle_mode)
+        hud_btn.pack(side="left", padx=8)
+
+        cfg_btn = tk.Button(btn_row, text="⚙️ Configurar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+                            activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
+                            command=self.open_settings)
+        cfg_btn.pack(side="left", padx=2)
+
+        close_btn = tk.Button(btn_row, text="✕ Fechar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+                              activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
+                              command=self.root.destroy)
+        close_btn.pack(side="right")
 
         main_frame = tk.Frame(self.root, bg="#181818", padx=20, pady=16)
         main_frame.pack(fill="both", expand=True)
@@ -611,10 +651,10 @@ class QuotaHubAppLinux:
         if not groups:
             empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=24, highlightbackground="#2A2A2A", highlightthickness=1)
             empty_frame.pack(fill="both", expand=True, pady=10)
-            tk.Label(empty_frame, text="Nenhum provedor ativo ou com cotas detectadas.", font=("Sans", 10, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack()
-            tk.Label(empty_frame, text="Clique em 'Configurar' abaixo para adicionar sua chave da Gemini, OpenAI ou Claude.", font=("Sans", 8), fg="#888888", bg="#1F1F1F").pack(pady=4)
-            tk.Button(empty_frame, text="⚙️ Configurar Provedores Agora", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                      relief="flat", padx=12, pady=6, cursor="hand2", command=self.open_settings).pack(pady=10)
+            tk.Label(empty_frame, text="Nenhum provedor ativo ou com cotas detectadas.", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(12, 6))
+            tk.Label(empty_frame, text="Clique abaixo para configurar sua chave da Gemini, Claude Pro ou OpenAI:", font=("Sans", 9), fg="#999999", bg="#1F1F1F").pack(pady=(0, 16))
+            tk.Button(empty_frame, text="⚙️ Configurar Provedores de IA", font=("Sans", 10, "bold"), fg="#121212", bg="#00E699",
+                      activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=18, pady=8, cursor="hand2", command=self.open_settings).pack()
 
         for g in groups:
             prov = f" [{g.get('provider')}]" if g.get('provider') else ""
@@ -655,34 +695,9 @@ class QuotaHubAppLinux:
 
                 bar_canvas = tk.Canvas(card, bg="#2D2D2D", height=6, highlightthickness=0, bd=0)
                 bar_canvas.pack(fill="x", pady=(4, 2))
-                bar_w = 480 - 40 - 28
+                bar_w = 500 - 40 - 28
                 fill_w = max(4, int(bar_w * (pct / 100.0)))
                 bar_canvas.create_rectangle(0, 0, fill_w, 6, fill=val_col, outline="")
-
-        footer = tk.Frame(self.root, bg="#181818", padx=20, pady=10)
-        footer.pack(fill="x", side="bottom")
-
-        btn_row = tk.Frame(footer, bg="#181818")
-        btn_row.pack(fill="x")
-
-        self.refresh_btn = tk.Button(btn_row, text="↻ Atualizar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                                     activebackground="#FFFFFF", relief="flat", padx=10, pady=4, cursor="hand2",
-                                     command=lambda: self.refresh(True))
-        self.refresh_btn.pack(side="left")
-
-        hud_btn = tk.Button(btn_row, text="⤢ Barra HUD", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                            activebackground="#FFFFFF", relief="flat", padx=10, pady=4, cursor="hand2",
-                            command=self.toggle_mode)
-        hud_btn.pack(side="left", padx=8)
-
-        cfg_btn = tk.Button(btn_row, text="⚙️ Configurar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                            activebackground="#FFFFFF", relief="flat", padx=10, pady=4, cursor="hand2",
-                            command=self.open_settings)
-        cfg_btn.pack(side="left", padx=2)
-
-        close_btn = tk.Button(btn_row, text="✕ Fechar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                              activebackground="#FFFFFF", relief="flat", padx=12, pady=4, cursor="hand2",
-                              command=self.root.destroy)
         close_btn.pack(side="right")
 
         brand_lbl = tk.Label(footer, text="⚡ Gemini Gauge  •  Desenvolvido por vh2c.com.br", font=("Sans", 8, "bold"),
