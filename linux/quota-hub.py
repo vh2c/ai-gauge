@@ -328,6 +328,7 @@ class QuotaHubAppLinux:
                 pass
         self.mode = self.prefs.get("mode", "full")
         self.orientation = self.prefs.get("orientation", "vertical")
+        self.settings_dlg = None
 
         if "--hud" in sys.argv:
             self.mode = "hud"
@@ -385,7 +386,9 @@ class QuotaHubAppLinux:
         self.root.after(30000, self.auto_refresh)
 
     def auto_refresh(self):
-        self.refresh(animated=False)
+        # Do not refresh or rebuild UI while the user is actively configuring settings
+        if not (self.settings_dlg and self.settings_dlg.winfo_exists()):
+            self.refresh(animated=False)
         self.schedule_auto_refresh()
 
     def refresh(self, animated=True):
@@ -407,7 +410,9 @@ class QuotaHubAppLinux:
         self.is_refreshing = False
         if data:
             self.quota = data
-            self.setup_ui()
+            # If settings window is currently open, don't interrupt user typing
+            if not (self.settings_dlg and self.settings_dlg.winfo_exists()):
+                self.setup_ui()
 
     def toggle_mode(self):
         self.mode = "hud" if self.mode == "full" else "full"
@@ -420,16 +425,30 @@ class QuotaHubAppLinux:
         self.setup_ui()
 
     def open_settings(self):
+        if self.settings_dlg and self.settings_dlg.winfo_exists():
+            self.settings_dlg.lift()
+            self.settings_dlg.focus_force()
+            return
+
         cfg = load_config()
         pCfg = cfg.get("providers", {})
         hidden_set = set(cfg.get("hidden_hud_gauges", []))
 
         dlg = tk.Toplevel(self.root)
+        self.settings_dlg = dlg
         dlg.title("Configurar Provedores de IA - Gemini Gauge")
         dlg.geometry("520x600")
         dlg.configure(bg="#181818")
         dlg.transient(self.root)
         dlg.grab_set()
+
+        def close_dlg():
+            self.settings_dlg = None
+            try:
+                dlg.destroy()
+            except Exception:
+                pass
+        dlg.protocol("WM_DELETE_WINDOW", close_dlg)
 
         header = tk.Label(dlg, text="⚙️ Provedores de IA & Seleção de Gauges", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818")
         header.pack(fill="x", pady=(14, 4), padx=16)
@@ -572,7 +591,7 @@ class QuotaHubAppLinux:
                 "hidden_hud_gauges": hidden_list
             }
             save_config(new_cfg)
-            dlg.destroy()
+            close_dlg()
             self.refresh(True)
 
         btn_save = tk.Button(f_btns, text="Salvar e Atualizar", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699",
@@ -580,11 +599,13 @@ class QuotaHubAppLinux:
         btn_save.pack(side="left")
 
         btn_cancel = tk.Button(f_btns, text="Cancelar", font=("Sans", 9), fg="#CCCCCC", bg="#2A2A2A",
-                               activebackground="#3A3A3A", activeforeground="#FFFFFF", relief="flat", padx=12, pady=6, cursor="hand2", command=dlg.destroy)
+                               activebackground="#3A3A3A", activeforeground="#FFFFFF", relief="flat", padx=12, pady=6, cursor="hand2", command=close_dlg)
         btn_cancel.pack(side="right")
 
     def setup_ui(self):
         for widget in self.root.winfo_children():
+            if self.settings_dlg and widget == self.settings_dlg:
+                continue
             widget.destroy()
 
         if self.mode == "full":

@@ -1077,6 +1077,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func performRefresh(animated: Bool) {
+        // Pausar auto-refresh periódico em background enquanto o usuário estiver na tela de configurações
+        if !animated && settingsWindow != nil && settingsWindow?.isVisible == true {
+            return
+        }
         if isRefreshing { return }
         isRefreshing = true
         
@@ -1098,7 +1102,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.isRefreshing = false
                 if let quota = quota {
                     self.latestQuota = quota
-                    self.renderCurrentMode()
+                    // Não reconstruir UI nem roubar foco se o usuário estiver com as Configurações abertas
+                    if self.settingsWindow == nil || self.settingsWindow?.isVisible == false {
+                        self.renderCurrentMode()
+                    }
                     self.updateStatusItemTitle()
                 }
                 self.resetRefreshBtn()
@@ -1946,7 +1953,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         } else {
-            window.orderFront(nil)
+            // Evitar roubar foco da janela de configurações se o usuário estiver nela
+            if settingsWindow == nil || settingsWindow?.isVisible == false {
+                window.orderFront(nil)
+            }
         }
     }
     
@@ -1964,6 +1974,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             win.title = "Configurações - Gemini Gauge"
             win.backgroundColor = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
             win.isReleasedWhenClosed = false
+            win.level = .floating // Permanece flutuando sobre a janela principal sem ser ocultada
             win.center()
             settingsWindow = win
         }
