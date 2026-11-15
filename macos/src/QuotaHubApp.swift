@@ -981,6 +981,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if currentMode == .full {
+            switchToFullMode()
+            fullWindow?.makeKeyAndOrderFront(nil)
+        } else {
+            switchToHudMode()
+            hudWindow?.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        return true
+    }
+    
     func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
@@ -2071,18 +2083,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         mainView.addSubview(settingsBtn)
         
-        // 4. Botão '✕' Fechar Janela
-        let closeBtn = NSButton(title: "", target: self, action: #selector(closeWindowClicked))
+        // 4. Botão '✕' Fechar (Encerra o aplicativo)
+        let closeBtn = NSButton(title: "", target: self, action: #selector(closeClicked))
         closeBtn.isBordered = false
         closeBtn.wantsLayer = true
         closeBtn.layer?.backgroundColor = btnBg.cgColor
         closeBtn.layer?.cornerRadius = 6
         closeBtn.frame = NSRect(x: windowWidth - 76, y: footerY, width: 62, height: 28)
-        closeBtn.keyEquivalent = "w"
+        closeBtn.keyEquivalent = "q"
         closeBtn.keyEquivalentModifierMask = .command
         closeBtn.imagePosition = .imageLeading
         closeBtn.imageHugsTitle = true
-        closeBtn.toolTip = "Fechar Janela (✕)"
+        closeBtn.toolTip = "Encerrar Gemini Gauge (Cmd+Q)"
         closeBtn.attributedTitle = NSAttributedString(
             string: " Fechar",
             attributes: [
@@ -2674,7 +2686,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func windowWillClose(_ notification: Notification) {
-        // Red X closes the window but keeps the app alive in status bar
+        if let win = notification.object as? NSWindow, win == fullWindow {
+            closeClicked()
+        }
     }
 }
 
