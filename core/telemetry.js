@@ -10,7 +10,7 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 
-const ENDPOINT = 'https://api.vh2c.com.br/v1/geminigauje';
+const ENDPOINT = 'https://ai-gauge.vh2c.com.br/v1/geminigauje';
 
 function getTelemetryDir() {
   const dir = path.join(os.homedir(), '.config', 'UniversalAIQuota');
