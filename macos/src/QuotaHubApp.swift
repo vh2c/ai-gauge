@@ -640,24 +640,27 @@ class TachometerGaugeView: NSView {
         let sweepPctDeg = (pct / 100.0) * totalSweepDeg
         let currentAngleDeg = startAngleDeg - sweepPctDeg
         
-        let colorGreen: NSColor
+        let colorHealthy: NSColor
         if item.sectionTag == "STUDIO" {
-            colorGreen = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
+            colorHealthy = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
         } else if item.sectionTag == "CLAUDE_PRO" {
-            colorGreen = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
+            colorHealthy = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
+        } else if item.sectionTag == "CHATGPT" {
+            colorHealthy = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
         } else if item.sectionTag == "OPENAI" {
-            colorGreen = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
+            colorHealthy = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
         } else if item.sectionTag == "CLAUDE" {
-            colorGreen = NSColor(srgbRed: 0xD9/255.0, green: 0x77/255.0, blue: 0x06/255.0, alpha: 1.0)
+            colorHealthy = NSColor(srgbRed: 0xD9/255.0, green: 0x77/255.0, blue: 0x06/255.0, alpha: 1.0)
         } else {
-            colorGreen = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            // ANTIGRAVITY (#818CF8)
+            colorHealthy = NSColor(srgbRed: 0x81/255.0, green: 0x8C/255.0, blue: 0xF8/255.0, alpha: 1.0)
         }
         let colorYellow = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
         let colorRed = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
         
         let activeColor: NSColor
         if pct >= 50.0 {
-            activeColor = colorGreen
+            activeColor = colorHealthy
         } else if pct >= 20.0 {
             activeColor = colorYellow
         } else {
