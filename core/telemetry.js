@@ -48,7 +48,7 @@ function getMachineId() {
 function sendHeartbeat(extraData = {}) {
   const payload = JSON.stringify({
     app: 'gemini-gauge',
-    version: '1.0.0',
+    version: '1.1.0',
     os: os.platform(),
     os_release: os.release(),
     arch: os.arch(),

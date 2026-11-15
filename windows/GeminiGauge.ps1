@@ -38,7 +38,7 @@ function Send-TelemetryHeartbeat {
 
         $payload = @{
             app = "gemini-gauge"
-            version = "1.0.0"
+            version = "1.1.0"
             os = "Windows"
             arch = $env:PROCESSOR_ARCHITECTURE
             machine_id = $machineId

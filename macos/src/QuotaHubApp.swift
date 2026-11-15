@@ -1131,7 +1131,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let payload: [String: Any] = [
             "app": "gemini-gauge",
-            "version": "1.0.0",
+            "version": "1.1.0",
             "os": "macOS",
             "arch": "arm64",
             "machine_id": getMachineId(),

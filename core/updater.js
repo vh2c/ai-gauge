@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CURRENT_VERSION = '1.0.0';
+const CURRENT_VERSION = '1.1.0';
 const GITHUB_REPO = 'vh2c/gemini-gauge';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
