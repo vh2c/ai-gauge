@@ -249,8 +249,8 @@ function Render-UI ($data) {
         $gname = "$($g.name)".ToLower()
         $prov = "$($g.provider)".ToLower()
         
-        $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x3B, 0x82, 0xF6)))
-        $cR = 0x3B; $cG = 0x82; $cB = 0xF6
+        $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
+        $cR = 0x8F; $cG = 0xBC; $cB = 0xFF
         if ($gname.Contains("claude pro") -or $prov.Contains("claude pro")) {
             $cR = 0xD7; $cG = 0x8C; $cB = 0x68
             $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD7, 0x8C, 0x68)))
@@ -363,7 +363,7 @@ function Show-SettingsDialog {
             <TextBox Name="TxtGeminiKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
             <TextBlock Name="LinkAiStudio" Text="Obter chave gratuita no Google AI Studio ↗" Foreground="#EBEBEB" FontSize="9.5" Margin="0,0,0,12" Cursor="Hand"/>
             
-            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#3B82F6" FontWeight="Bold" Margin="0,0,0,12"/>
+            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#8FBCFF" FontWeight="Bold" Margin="0,0,0,12"/>
             
             <CheckBox Name="ChkClaudePro" Content="Claude Pro (Sessão Antigravity)" Foreground="#D78C68" FontWeight="Bold" Margin="0,0,0,2"/>
             <TextBox Name="TxtClaudeProToken" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>

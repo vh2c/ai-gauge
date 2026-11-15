@@ -153,7 +153,7 @@ extension QuotaData {
                 name: "Antigravity",
                 subtitle: "Live & Headless",
                 tag: "ANTIGRAVITY",
-                accentColor: NSColor(srgbRed: 0x3B/255.0, green: 0x82/255.0, blue: 0xF6/255.0, alpha: 1.0),
+                accentColor: NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -652,8 +652,8 @@ class TachometerGaugeView: NSView {
         } else if item.sectionTag == "CLAUDE" {
             colorHealthy = NSColor(srgbRed: 0xD9/255.0, green: 0x77/255.0, blue: 0x06/255.0, alpha: 1.0)
         } else {
-            // ANTIGRAVITY (AZUL: #3B82F6)
-            colorHealthy = NSColor(srgbRed: 0x3B/255.0, green: 0x82/255.0, blue: 0xF6/255.0, alpha: 1.0)
+            // ANTIGRAVITY (AZUL PASTEL: #8FBCFF)
+            colorHealthy = NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)
         }
         let colorYellow = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
         let colorRed = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
@@ -2012,7 +2012,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     accentColor = NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0)
                     tagText = "GOOGLE AI STUDIO"
                 } else {
-                    accentColor = NSColor(srgbRed: 0x3B/255.0, green: 0x82/255.0, blue: 0xF6/255.0, alpha: 1.0)
+                    accentColor = NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)
                     tagText = "ANTIGRAVITY"
                 }
                 

@@ -13,7 +13,7 @@ O projeto evoluiu de um monitor focado em Gemini para um cockpit universal de co
 * **Nome Oficial do Produto:** `AI GAUGE` (antigo *Gemini Gauge / Quota Hub*).
 * **Slogan:** *Universal AI Quota & Limits Cockpit for Developers*.
 * **Identidade Visual:** Fundo escuro (`#121212` / `#181818`), acentos temáticos por provedor:
-  - **Antigravity (IDE):** Azul vibrante (`#3B82F6`)
+  - **Antigravity (IDE):** Azul suave / pastel (`#8FBCFF`)
   - **Google AI Studio (Gemini API):** Off-White (`#EBEBEB`)
   - **Claude Pro (Sessão Antigravity):** Terracota/Laranja suave (`#D78C68`)
   - **ChatGPT Plus/Pro (Sessão Web):** Verde OpenAI (`#10A37F`)
