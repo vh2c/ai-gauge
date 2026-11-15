@@ -1,5 +1,5 @@
 /**
- * Gemini Gauge Update Checker & Announcement Hub
+ * AI Gauge Update Checker & Announcement Hub
  * Developed by VH2C • https://vh2c.com.br
  */
 
@@ -65,7 +65,7 @@ function fetchGithubRelease() {
       hostname: 'api.github.com',
       path: `/repos/${GITHUB_REPO}/releases/latest`,
       headers: {
-        'User-Agent': 'GeminiGauge-Desktop/1.0',
+        'User-Agent': 'AIGauge-Desktop/1.1',
         'Accept': 'application/vnd.github.v3+json'
       },
       timeout: 3500

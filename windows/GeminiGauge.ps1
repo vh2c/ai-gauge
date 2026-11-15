@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Gemini Gauge - Windows Edition (PowerShell + WPF)
+    AI Gauge - Windows Edition (PowerShell + WPF)
     Developed by VH2C • https://vh2c.com.br
 #>
 
@@ -84,7 +84,7 @@ function Get-QuotaData ($force = $false) {
 [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Gemini Gauge - AI Quota Monitor" Height="640" Width="470"
+        Title="AI Gauge - Universal AI Quota Cockpit" Height="640" Width="470"
         WindowStartupLocation="CenterScreen" Background="#181818" ResizeMode="CanMinimize">
     <Grid Margin="18">
         <Grid.RowDefinitions>
@@ -96,8 +96,8 @@ function Get-QuotaData ($force = $false) {
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="⚡ Gemini Gauge" Foreground="#00E699" FontSize="15" FontWeight="Bold"/>
-                <TextBlock Text=" • AI Quota Monitor" Foreground="#EEEEEE" FontSize="14" FontWeight="SemiBold"/>
+                <TextBlock Text="⚡ AI Gauge" Foreground="#00E699" FontSize="15" FontWeight="Bold"/>
+                <TextBlock Text=" • Universal AI Quota Cockpit" Foreground="#EEEEEE" FontSize="14" FontWeight="SemiBold"/>
             </StackPanel>
             <TextBlock Name="TxtAccount" Text="Carregando cotas..." Foreground="#888888" FontSize="11" Margin="0,4,0,0"/>
         </StackPanel>
@@ -120,7 +120,7 @@ function Get-QuotaData ($force = $false) {
             </Grid>
             
             <!-- Row 2: Brand Link -->
-            <TextBlock Name="TxtBrand" Text="⚡ Gemini Gauge  •  Desenvolvido por vh2c.com.br"
+            <TextBlock Name="TxtBrand" Text="⚡ AI Gauge  •  Desenvolvido por vh2c.com.br"
                        Foreground="#38BDF8" FontSize="10.5" FontWeight="SemiBold"
                        HorizontalAlignment="Center" Margin="0,10,0,0" Cursor="Hand"/>
         </StackPanel>
@@ -344,7 +344,7 @@ function Render-UI ($data) {
 function Show-SettingsDialog {
     [xml]$cfgXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        Title="Configurações - Gemini Gauge" Height="520" Width="420"
+        Title="Configurações - AI Gauge" Height="520" Width="420"
         WindowStartupLocation="CenterOwner" Background="#181818" ResizeMode="NoResize">
     <Grid Margin="18">
         <Grid.RowDefinitions>

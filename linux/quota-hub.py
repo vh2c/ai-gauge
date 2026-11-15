@@ -82,7 +82,7 @@ def send_telemetry_heartbeat():
                 data=payload,
                 headers={
                     "Content-Type": "application/json",
-                    "User-Agent": "GeminiGauge/1.0 (Linux; VH2C)"
+                    "User-Agent": "AIGauge/1.1 (Linux; VH2C)"
                 },
                 method="POST"
             )
@@ -301,7 +301,7 @@ except ImportError:
 class QuotaHubAppLinux:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Gemini Gauge - AI Quota Monitor")
+        self.root.title("AI Gauge - Universal AI Quota Cockpit")
         self.root.configure(bg="#181818")
 
         # Load App Icon
@@ -440,7 +440,7 @@ class QuotaHubAppLinux:
 
         dlg = tk.Toplevel(self.root)
         self.settings_dlg = dlg
-        dlg.title("Configurar Provedores de IA - Gemini Gauge")
+        dlg.title("Configurar Provedores de IA - AI Gauge")
         dlg.geometry("520x600")
         dlg.configure(bg="#181818")
         dlg.transient(self.root)
@@ -789,7 +789,7 @@ class QuotaHubAppLinux:
                 bar_canvas.create_rectangle(0, 0, fill_w, 6, fill=val_col, outline="")
         close_btn.pack(side="right")
 
-        brand_lbl = tk.Label(footer, text="⚡ Gemini Gauge  •  Desenvolvido por vh2c.com.br", font=("Sans", 8, "bold"),
+        brand_lbl = tk.Label(footer, text="⚡ AI Gauge  •  Desenvolvido por vh2c.com.br", font=("Sans", 8, "bold"),
                              fg="#38BDF8", bg="#181818", cursor="hand2")
         brand_lbl.pack(pady=(8, 2))
         brand_lbl.bind("<Button-1>", lambda e: webbrowser.open("https://vh2c.com.br"))
@@ -924,7 +924,7 @@ def main():
         print_cli(quota)
         return
 
-    print("⚡ Abrindo interface gráfica do Gemini Gauge...")
+    print("⚡ Abrindo interface gráfica do AI Gauge...")
     app = QuotaHubAppLinux()
     app.root.mainloop()
 

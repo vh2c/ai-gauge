@@ -24,7 +24,7 @@ class GeminiProvider {
       : `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`;
 
     const headers = {
-      'User-Agent': 'GeminiGauge/1.0 (vh2c.com.br)'
+      'User-Agent': 'AIGauge/1.1 (vh2c.com.br)'
     };
     if (isBearer) {
       headers['Authorization'] = `Bearer ${this.apiKey}`;

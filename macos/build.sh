@@ -3,14 +3,14 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-APP_BUNDLE="${SCRIPT_DIR}/Gemini Gauge.app"
+APP_BUNDLE="${SCRIPT_DIR}/AI Gauge.app"
 BIN_DIR="${APP_BUNDLE}/Contents/MacOS"
 RES_DIR="${APP_BUNDLE}/Contents/Resources"
 
 mkdir -p "${BIN_DIR}" "${RES_DIR}/core"
 
-echo "🔨 Compiling Swift binary for Gemini Gauge..."
-swiftc -O -target arm64-apple-macos11.0 "${SCRIPT_DIR}/src/QuotaHubApp.swift" -o "${BIN_DIR}/GeminiGauge"
+echo "🔨 Compiling Swift binary for AI Gauge..."
+swiftc -O -target arm64-apple-macos11.0 "${SCRIPT_DIR}/src/QuotaHubApp.swift" -o "${BIN_DIR}/AIGauge"
 
 echo "📦 Bundling core engine & assets..."
 cp -r "${REPO_DIR}/core/"* "${RES_DIR}/core/"
@@ -25,11 +25,11 @@ cat << 'PLIST' > "${APP_BUNDLE}/Contents/Info.plist"
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Gemini Gauge</string>
+    <string>AI Gauge</string>
     <key>CFBundleDisplayName</key>
-    <string>Gemini Gauge</string>
+    <string>AI Gauge</string>
     <key>CFBundleIdentifier</key>
-    <string>br.com.vh2c.gemini-gauge</string>
+    <string>br.com.vh2c.ai-gauge</string>
     <key>CFBundleShortVersionString</key>
     <string>1.1.0</string>
     <key>CFBundleVersion</key>
@@ -37,7 +37,7 @@ cat << 'PLIST' > "${APP_BUNDLE}/Contents/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
-    <string>GeminiGauge</string>
+    <string>AIGauge</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>NSHighResolutionCapable</key>

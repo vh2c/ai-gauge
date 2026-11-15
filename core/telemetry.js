@@ -1,5 +1,5 @@
 /**
- * Gemini Gauge Telemetry & Heartbeat
+ * AI Gauge Telemetry & Heartbeat
  * Developed by VH2C • https://vh2c.com.br
  */
 
@@ -69,7 +69,7 @@ function sendHeartbeat(extraData = {}) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(payload),
-        'User-Agent': 'GeminiGauge/1.0 (VH2C; Desktop)'
+        'User-Agent': 'AIGauge/1.1 (VH2C; Desktop)'
       },
       timeout: 2500
     };

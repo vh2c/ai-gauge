@@ -1,10 +1,10 @@
 [Desktop Entry]
-Name=Gemini Gauge
-Comment=AI Quota & Rate Limit Monitor (Google Gemini, Antigravity, OpenAI, Claude)
-Exec=quota-hub
-Icon=quota-hub
+Name=AI Gauge
+Comment=Universal AI Quota & Rate Limit Monitor (VH2C)
+Exec=ai-gauge
+Icon=ai-gauge
 Terminal=false
 Type=Application
 Categories=Development;Utility;
-Keywords=ai;quota;gauge;gemini;antigravity;openai;claude;
-StartupWMClass=Gemini Gauge
+Keywords=ai;quota;gauge;gemini;antigravity;openai;claude;chatgpt;
+StartupWMClass=AI Gauge

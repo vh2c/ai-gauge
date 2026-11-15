@@ -1099,7 +1099,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
-            if let img = NSImage(systemSymbolName: "gauge.with.needle", accessibilityDescription: "Gemini Gauge") {
+            if let img = NSImage(systemSymbolName: "gauge.with.needle", accessibilityDescription: "AI Gauge") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
                 button.image = img.withSymbolConfiguration(cfg)
             } else {
@@ -1126,11 +1126,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("GeminiGauge/1.0 (macOS; VH2C)", forHTTPHeaderField: "User-Agent")
+        request.setValue("AIGauge/1.1 (macOS; VH2C)", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 2.5
         
         let payload: [String: Any] = [
-            "app": "gemini-gauge",
+            "app": "ai-gauge",
             "version": "1.1.0",
             "os": "macOS",
             "arch": "arm64",
@@ -1149,9 +1149,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if event.type == .rightMouseUp {
             let menu = NSMenu()
-            let titleItem = NSMenuItem(title: "⚡ Gemini Gauge", action: nil, keyEquivalent: "")
+            let titleItem = NSMenuItem(title: "⚡ AI Gauge", action: nil, keyEquivalent: "")
             titleItem.attributedTitle = NSAttributedString(
-                string: "⚡ Gemini Gauge",
+                string: "⚡ AI Gauge",
                 attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .bold)]
             )
             menu.addItem(titleItem)
@@ -1160,9 +1160,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             menu.addItem(NSMenuItem(title: "Modo Barra HUD", action: #selector(switchToHudMode), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Configurações... (⚙️)", action: #selector(openSettings), keyEquivalent: ","))
             menu.addItem(NSMenuItem.separator())
-            menu.addItem(NSMenuItem(title: "Atualizar Agora", action: #selector(refreshClicked), keyEquivalent: "r"))
+            menu.addItem(NSMenuItem(title: "Atualizar Dados Agora", action: #selector(refreshClicked), keyEquivalent: "r"))
             menu.addItem(NSMenuItem.separator())
-            menu.addItem(NSMenuItem(title: "Encerrar Gemini Gauge", action: #selector(closeClicked), keyEquivalent: "q"))
+            menu.addItem(NSMenuItem(title: "Encerrar AI Gauge", action: #selector(closeClicked), keyEquivalent: "q"))
             for item in menu.items { item.target = self }
             statusItem?.menu = menu
             statusItem?.button?.performClick(nil)
@@ -1680,11 +1680,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func buildContextMenu() -> NSMenu {
-        let menu = NSMenu(title: "Opções Gemini Gauge")
+        let menu = NSMenu(title: "Opções AI Gauge")
         
-        let titleItem = NSMenuItem(title: "⚡ Gemini Gauge", action: nil, keyEquivalent: "")
+        let titleItem = NSMenuItem(title: "⚡ AI Gauge", action: nil, keyEquivalent: "")
         titleItem.attributedTitle = NSAttributedString(
-            string: "⚡ Gemini Gauge",
+            string: "⚡ AI Gauge",
             attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .bold)]
         )
         menu.addItem(titleItem)
@@ -1724,7 +1724,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         closeWinItem.target = self
         menu.addItem(closeWinItem)
         
-        let closeItem = NSMenuItem(title: "Encerrar Gemini Gauge", action: #selector(closeClicked), keyEquivalent: "q")
+        let closeItem = NSMenuItem(title: "Encerrar AI Gauge", action: #selector(closeClicked), keyEquivalent: "q")
         closeItem.target = self
         menu.addItem(closeItem)
         
@@ -1774,7 +1774,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            win.title = "Gemini Gauge - AI Quota Monitor"
+            win.title = "AI Gauge - Universal AI Quota Cockpit"
             win.isReleasedWhenClosed = false
             win.delegate = self
             win.level = .normal
@@ -1810,7 +1810,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         var y: CGFloat = 18
         
         // ----------------- HEADER COM ESPAÇAMENTO -----------------
-        let appTitle = NSTextField(labelWithString: "Gemini Gauge")
+        let appTitle = NSTextField(labelWithString: "AI Gauge")
         appTitle.font = NSFont.systemFont(ofSize: 15.5, weight: .bold)
         appTitle.textColor = .white
         appTitle.frame = NSRect(x: 20, y: y, width: 220, height: 20)
@@ -2220,7 +2220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         closeBtn.keyEquivalentModifierMask = .command
         closeBtn.imagePosition = .imageLeading
         closeBtn.imageHugsTitle = true
-        closeBtn.toolTip = "Encerrar Gemini Gauge (Cmd+Q)"
+        closeBtn.toolTip = "Encerrar AI Gauge (Cmd+Q)"
         closeBtn.attributedTitle = NSAttributedString(
             string: "Fechar",
             attributes: [
@@ -2277,7 +2277,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            win.title = "Configurações - Gemini Gauge"
+            win.title = "Configurações - AI Gauge"
             win.backgroundColor = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
             win.isReleasedWhenClosed = false
             win.level = .floating // Permanece flutuando sobre a janela principal sem ser ocultada
