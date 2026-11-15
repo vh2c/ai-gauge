@@ -153,7 +153,7 @@ extension QuotaData {
                 name: "Antigravity",
                 subtitle: "Live & Headless",
                 tag: "ANTIGRAVITY",
-                accentColor: NSColor(srgbRed: 0xE9/255.0, green: 0x00/255.0, blue: 0xFF/255.0, alpha: 1.0),
+                accentColor: NSColor(srgbRed: 0x81/255.0, green: 0x8C/255.0, blue: 0xF8/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -1966,7 +1966,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     accentColor = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
                     tagText = "GOOGLE AI STUDIO"
                 } else {
-                    accentColor = NSColor(srgbRed: 0xE9/255.0, green: 0x00/255.0, blue: 0xFF/255.0, alpha: 1.0)
+                    accentColor = NSColor(srgbRed: 0x81/255.0, green: 0x8C/255.0, blue: 0xF8/255.0, alpha: 1.0)
                     tagText = "ANTIGRAVITY"
                 }
                 // Group Title

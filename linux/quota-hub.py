@@ -204,10 +204,10 @@ def get_gauge_items(quota):
             accent = "#10A37F"
         elif "gemini 4" in gname or "argon" in gname:
             model = "Argon"
-            accent = "#E900FF"
+            accent = "#818CF8"
         elif "claude" in gname or "gpt" in gname:
             model = "Claude/GPT"
-            accent = "#E900FF"
+            accent = "#818CF8"
         elif "openai" in gname:
             model = "OpenAI"
             accent = "#10A37F"
@@ -219,7 +219,7 @@ def get_gauge_items(quota):
             accent = "#38BDF8"
         else:
             model = "Gemini"
-            accent = "#E900FF"
+            accent = "#818CF8"
 
         for b in g.get("buckets", []):
             bid = b.get("id", "")
@@ -253,7 +253,7 @@ def get_gauge_items(quota):
 
 def status_color(pct, custom_accent=None):
     if pct > 50:
-        return custom_accent if custom_accent else "#E900FF"
+        return custom_accent if custom_accent else "#818CF8"
     elif pct > 20:
         return "#F5A623"
     else:
@@ -755,7 +755,7 @@ class QuotaHubAppLinux:
             elif "studio" in prov_lower or "gemini api" in gname_lower:
                 accent_col = "#38BDF8"
             else:
-                accent_col = "#E900FF"
+                accent_col = "#818CF8"
 
             lbl_g = tk.Label(main_frame, text=(g.get("name", "Modelos") + prov).upper(), font=("Sans", 8, "bold"), fg=accent_col, bg="#181818", anchor="w")
             lbl_g.pack(fill="x", pady=(4, 2))
