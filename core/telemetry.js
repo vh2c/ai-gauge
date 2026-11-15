@@ -76,8 +76,26 @@ function sendHeartbeat(extraData = {}) {
 
     const client = url.protocol === 'https:' ? https : http;
     const req = client.request(options, (res) => {
-      // Drain data silently
-      res.on('data', () => {});
+      let body = '';
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const data = JSON.parse(body);
+            if (data && (data.latest_version || data.announcement || data.tier)) {
+              const { writeCache, CURRENT_VERSION, isNewer } = require('./updater');
+              writeCache({
+                current_version: CURRENT_VERSION,
+                latest_version: data.latest_version || CURRENT_VERSION,
+                update_available: isNewer(data.latest_version, CURRENT_VERSION),
+                download_url: data.download_url || 'https://github.com/vh2c/gemini-gauge/releases/latest',
+                tier: data.tier || 'free',
+                announcement: data.announcement || null
+              });
+            }
+          }
+        } catch (_) {}
+      });
     });
 
     req.on('error', () => {});

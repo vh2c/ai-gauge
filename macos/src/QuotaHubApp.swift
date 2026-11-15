@@ -16,6 +16,28 @@ struct Group: Codable {
     let buckets: [Bucket]
 }
 
+class UrlButton: NSButton {
+    var targetUrl: String?
+}
+
+struct UpdateInfo: Codable {
+    let current_version: String?
+    let latest_version: String?
+    let update_available: Bool?
+    let download_url: String?
+    let release_notes: String?
+}
+
+struct AnnouncementInfo: Codable {
+    let id: String?
+    let type: String? // "info", "promo", "warning"
+    let badge: String?
+    let title: String?
+    let message: String?
+    let action_label: String?
+    let action_url: String?
+}
+
 struct QuotaData: Codable {
     let account: String
     let plan: String?
@@ -26,6 +48,10 @@ struct QuotaData: Codable {
     var cache_age_seconds: Int?
     var timestamp: Double?
     var needs_setup: Bool?
+    var version: String?
+    var tier: String?
+    var update: UpdateInfo?
+    var announcement: AnnouncementInfo?
 }
 
 struct GaugeSection {
@@ -1575,6 +1601,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         calcContentH += 16 // Status e timestamp
         calcContentH += 18 // Divisor e espaçamento generoso antes dos cards
         
+        if quota.update?.update_available == true {
+            calcContentH += 42 + 12
+        }
+        if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
+            calcContentH += (ann.action_label != nil ? 68 : 46) + 12
+        }
+        
         if quota.groups.isEmpty {
             calcContentH += 110 + 16
         } else {
@@ -1661,6 +1694,88 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         contentView.addSubview(headerDivider)
         y += 16 // Espaçamento generoso entre o header e os primeiros indicadores de cota!
         
+        // ----------------- UPDATE BANNER -----------------
+        if let update = quota.update, update.update_available == true {
+            let bannerH: CGFloat = 42
+            let banner = NSBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: bannerH))
+            banner.boxType = .custom
+            banner.fillColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.15)
+            banner.borderColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.8)
+            banner.borderWidth = 1
+            banner.cornerRadius = 6
+            contentView.addSubview(banner)
+            
+            let upTitle = NSTextField(labelWithString: "🚀 Nova versão v\(update.latest_version ?? "") disponível!")
+            upTitle.font = NSFont.systemFont(ofSize: 11.5, weight: .bold)
+            upTitle.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            upTitle.frame = NSRect(x: 12, y: 12, width: 260, height: 18)
+            banner.addSubview(upTitle)
+            
+            let upBtn = UrlButton(frame: NSRect(x: banner.frame.width - 94, y: 8, width: 82, height: 26))
+            upBtn.bezelStyle = .inline
+            upBtn.isBordered = false
+            upBtn.wantsLayer = true
+            upBtn.layer?.backgroundColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0).cgColor
+            upBtn.layer?.cornerRadius = 4
+            upBtn.attributedTitle = NSAttributedString(
+                string: "Baixar",
+                attributes: [
+                    .foregroundColor: NSColor(srgbRed: 0x12/255.0, green: 0x12/255.0, blue: 0x12/255.0, alpha: 1.0),
+                    .font: NSFont.systemFont(ofSize: 11, weight: .bold)
+                ]
+            )
+            upBtn.targetUrl = update.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            upBtn.target = self
+            upBtn.action = #selector(openExternalUrl(_:))
+            banner.addSubview(upBtn)
+            
+            y += bannerH + 12
+        }
+
+        // ----------------- ANNOUNCEMENT / PRO STATUS -----------------
+        if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
+            let isInfo = ann.type == "info"
+            let annH: CGFloat = ann.action_label != nil ? 68 : 46
+            let annBox = NSBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: annH))
+            annBox.boxType = .custom
+            annBox.fillColor = isInfo ? NSColor(srgbRed: 0x1E/255.0, green: 0x29/255.0, blue: 0x3B/255.0, alpha: 0.5) : NSColor(srgbRed: 0x2D/255.0, green: 0x24/255.0, blue: 0x18/255.0, alpha: 0.5)
+            annBox.borderColor = isInfo ? NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.4) : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 0.4)
+            annBox.borderWidth = 1
+            annBox.cornerRadius = 6
+            contentView.addSubview(annBox)
+            
+            let badge = NSTextField(labelWithString: "[\(ann.badge ?? "AVISO")] \(ann.title ?? "")")
+            badge.font = NSFont.systemFont(ofSize: 11, weight: .bold)
+            badge.textColor = isInfo ? NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0) : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 1.0)
+            badge.frame = NSRect(x: 12, y: 10, width: annBox.frame.width - 24, height: 16)
+            annBox.addSubview(badge)
+            
+            let msgLabel = NSTextField(labelWithString: msg)
+            msgLabel.font = NSFont.systemFont(ofSize: 10, weight: .regular)
+            msgLabel.textColor = NSColor(white: 0.78, alpha: 1.0)
+            msgLabel.frame = NSRect(x: 12, y: 28, width: annBox.frame.width - 24, height: 14)
+            annBox.addSubview(msgLabel)
+            
+            if let actLabel = ann.action_label, let actUrl = ann.action_url {
+                let actBtn = UrlButton(frame: NSRect(x: 12, y: 44, width: 160, height: 18))
+                actBtn.bezelStyle = .inline
+                actBtn.isBordered = false
+                actBtn.attributedTitle = NSAttributedString(
+                    string: "✨ \(actLabel) →",
+                    attributes: [
+                        .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xC9/255.0, blue: 0xFF/255.0, alpha: 1.0),
+                        .font: NSFont.systemFont(ofSize: 10, weight: .semibold)
+                    ]
+                )
+                actBtn.targetUrl = actUrl
+                actBtn.target = self
+                actBtn.action = #selector(openExternalUrl(_:))
+                annBox.addSubview(actBtn)
+            }
+            
+            y += annH + 12
+        }
+
         // ----------------- CARDS POR PROVEDOR / GRUPO -----------------
         if quota.groups.isEmpty {
             let emptyH: CGFloat = 110
@@ -2490,6 +2605,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func brandClicked() {
         if let url = URL(string: "https://vh2c.com.br") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+    
+    @objc func openExternalUrl(_ sender: UrlButton) {
+        if let urlStr = sender.targetUrl, let url = URL(string: urlStr) {
             NSWorkspace.shared.open(url)
         }
     }

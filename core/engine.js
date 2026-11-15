@@ -15,6 +15,7 @@ const { ClaudeProProvider } = require('./providers/claude_pro');
 const { OpenAIProvider } = require('./providers/openai');
 const { AnthropicProvider } = require('./providers/anthropic');
 const { sendHeartbeat } = require('./telemetry');
+const { checkForUpdates, CURRENT_VERSION } = require('./updater');
 
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'UniversalAIQuota');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -70,6 +71,11 @@ class UniversalQuotaEngine {
     const results = await Promise.allSettled(providers);
     const valid = results.filter(r => r.status === 'fulfilled' && r.value !== null).map(r => r.value);
 
+    let updateData = null;
+    try {
+      updateData = await checkForUpdates();
+    } catch (_) {}
+
     if (valid.length === 0) {
       return {
         needs_setup: true,
@@ -77,6 +83,10 @@ class UniversalQuotaEngine {
         plan: 'Configurar',
         providers_count: 0,
         groups: [],
+        version: CURRENT_VERSION,
+        tier: updateData?.tier || 'free',
+        update: updateData || { current_version: CURRENT_VERSION, update_available: false },
+        announcement: updateData?.announcement || null,
         updated_at: new Date().toLocaleTimeString('pt-BR')
       };
     }
@@ -100,6 +110,10 @@ class UniversalQuotaEngine {
       plan: mainPlan,
       providers_count: valid.length,
       groups: allGroups,
+      version: CURRENT_VERSION,
+      tier: updateData?.tier || 'free',
+      update: updateData || { current_version: CURRENT_VERSION, update_available: false },
+      announcement: updateData?.announcement || null,
       updated_at: new Date().toLocaleTimeString('pt-BR')
     };
   }

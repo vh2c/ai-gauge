@@ -667,7 +667,50 @@ class QuotaHubAppLinux:
         time_status = "(Tempo real)" if not quota.get("from_cache") else f"(Cache {quota.get('cache_age_seconds', 0)}s)"
         time_text = f"Atualizado às {quota.get('updated_at', 'agora')} {time_status}"
         lbl_time = tk.Label(main_frame, text=time_text, font=("Sans", 9), fg="#A0A0A0", bg="#181818", anchor="w")
-        lbl_time.pack(fill="x", pady=(2, 12))
+        lbl_time.pack(fill="x", pady=(2, 8))
+
+        # Update Available Banner
+        update_info = quota.get("update", {})
+        if update_info.get("update_available"):
+            up_box = tk.Frame(main_frame, bg="#00E699", padx=10, pady=6)
+            up_box.pack(fill="x", pady=(0, 10))
+            new_v = update_info.get("latest_version", "")
+            up_lbl = tk.Label(up_box, text=f"🚀 Nova versão v{new_v} disponível!", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699")
+            up_lbl.pack(side="left")
+            d_url = update_info.get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
+            btn_up = tk.Button(up_box, text="Baixar Atualização", font=("Sans", 8, "bold"), fg="#FFFFFF", bg="#121212",
+                               relief="flat", padx=8, pady=2, cursor="hand2", command=lambda: webbrowser.open(d_url))
+            btn_up.pack(side="right")
+
+        # Announcement / Free vs PRO Notice Banner
+        announcement = quota.get("announcement")
+        if announcement and announcement.get("message"):
+            ann_type = announcement.get("type", "info")
+            ann_bg = "#1F2937" if ann_type == "info" else "#2D2418"
+            ann_border = "#3B82F6" if ann_type == "info" else "#F59E0B"
+            ann_badge_col = "#60A5FA" if ann_type == "info" else "#FBBF24"
+
+            ann_box = tk.Frame(main_frame, bg=ann_bg, padx=12, pady=8, highlightbackground=ann_border, highlightthickness=1)
+            ann_box.pack(fill="x", pady=(0, 10))
+            
+            top_row = tk.Frame(ann_box, bg=ann_bg)
+            top_row.pack(fill="x")
+            
+            badge_text = announcement.get("badge", "AVISO")
+            lbl_badge = tk.Label(top_row, text=f"[{badge_text}]", font=("Sans", 8, "bold"), fg=ann_badge_col, bg=ann_bg)
+            lbl_badge.pack(side="left")
+            
+            lbl_title = tk.Label(top_row, text=announcement.get("title", ""), font=("Sans", 8, "bold"), fg="#FFFFFF", bg=ann_bg)
+            lbl_title.pack(side="left", padx=6)
+            
+            lbl_msg = tk.Label(ann_box, text=announcement.get("message", ""), font=("Sans", 8), fg="#D1D5DB", bg=ann_bg, anchor="w", justify="left")
+            lbl_msg.pack(fill="x", pady=(4, 6))
+            
+            if announcement.get("action_label") and announcement.get("action_url"):
+                a_url = announcement.get("action_url")
+                btn_act = tk.Button(ann_box, text=f"✨ {announcement.get('action_label')}", font=("Sans", 8, "bold"), fg="#121212", bg=ann_badge_col,
+                                    relief="flat", padx=10, pady=3, cursor="hand2", command=lambda: webbrowser.open(a_url))
+                btn_act.pack(anchor="w")
 
         if not groups:
             empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=24, highlightbackground="#2A2A2A", highlightthickness=1)

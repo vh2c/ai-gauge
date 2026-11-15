@@ -170,6 +170,80 @@ function Render-UI ($data) {
     $txtAcc.Text = "$($data.account) • Plano $($data.plan) • Atualizado às $($data.updated_at)$cacheInfo"
     $cardsPanel.Children.Clear()
     
+    # ----------------- UPDATE BANNER -----------------
+    if ($data.update -and $data.update.update_available) {
+        $upBorder = New-Object System.Windows.Controls.Border
+        $upBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(40, 0, 0xE6, 0x99)))
+        $upBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
+        $upBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $upBorder.CornerRadius = (New-Object System.Windows.CornerRadius(6))
+        $upBorder.Padding = (New-Object System.Windows.Thickness(10, 8, 10, 8))
+        $upBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
+        
+        $upDock = New-Object System.Windows.Controls.DockPanel
+        
+        $btnDl = New-Object System.Windows.Controls.Button
+        $btnDl.Content = "Baixar"
+        $btnDl.Padding = (New-Object System.Windows.Thickness(12, 3, 12, 3))
+        $btnDl.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
+        $btnDl.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x12)))
+        $btnDl.FontWeight = [System.Windows.FontWeights]::Bold
+        [System.Windows.Controls.DockPanel]::SetDock($btnDl, [System.Windows.Controls.Dock]::Right)
+        $dlUrl = if ($data.update.download_url) { $data.update.download_url } else { "https://github.com/vh2c/gemini-gauge/releases/latest" }
+        $btnDl.Add_Click({ [System.Diagnostics.Process]::Start($dlUrl) })
+        $upDock.Children.Add($btnDl) | Out-Null
+        
+        $upTxt = New-Object System.Windows.Controls.TextBlock
+        $upTxt.Text = "🚀 Nova versão v$($data.update.latest_version) disponível!"
+        $upTxt.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
+        $upTxt.FontWeight = [System.Windows.FontWeights]::Bold
+        $upTxt.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        $upDock.Children.Add($upTxt) | Out-Null
+        
+        $upBorder.Child = $upDock
+        $cardsPanel.Children.Add($upBorder) | Out-Null
+    }
+
+    # ----------------- ANNOUNCEMENT / FREE VS PRO -----------------
+    if ($data.announcement -and $data.announcement.message) {
+        $annBorder = New-Object System.Windows.Controls.Border
+        $annBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(40, 0x38, 0xBD, 0xF8)))
+        $annBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
+        $annBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $annBorder.CornerRadius = (New-Object System.Windows.CornerRadius(6))
+        $annBorder.Padding = (New-Object System.Windows.Thickness(12, 8, 12, 8))
+        $annBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
+        
+        $annStack = New-Object System.Windows.Controls.StackPanel
+        $annHead = New-Object System.Windows.Controls.TextBlock
+        $annHead.Text = "[$($data.announcement.badge)] $($data.announcement.title)"
+        $annHead.FontWeight = [System.Windows.FontWeights]::Bold
+        $annHead.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
+        $annStack.Children.Add($annHead) | Out-Null
+        
+        $annMsg = New-Object System.Windows.Controls.TextBlock
+        $annMsg.Text = "$($data.announcement.message)"
+        $annMsg.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xCC)))
+        $annMsg.Margin = (New-Object System.Windows.Thickness(0, 2, 0, 4))
+        $annStack.Children.Add($annMsg) | Out-Null
+        
+        if ($data.announcement.action_label -and $data.announcement.action_url) {
+            $btnAct = New-Object System.Windows.Controls.Button
+            $btnAct.Content = "✨ $($data.announcement.action_label) →"
+            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+            $btnAct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xC9, 0xFF)))
+            $btnAct.Background = [System.Windows.Media.Brushes]::Transparent
+            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(0))
+            $btnAct.Cursor = [System.Windows.Input.Cursors]::Hand
+            $actUrl = $data.announcement.action_url
+            $btnAct.Add_Click({ [System.Diagnostics.Process]::Start($actUrl) })
+            $annStack.Children.Add($btnAct) | Out-Null
+        }
+        
+        $annBorder.Child = $annStack
+        $cardsPanel.Children.Add($annBorder) | Out-Null
+    }
+
     foreach ($g in $data.groups) {
         $gname = "$($g.name)".ToLower()
         $prov = "$($g.provider)".ToLower()
