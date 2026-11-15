@@ -21,7 +21,7 @@ class ClaudeProProvider {
         '-a', username,
         '-w',
         '-s', 'Claude Code-credentials'
-      ], { encoding: 'utf-8', timeout: 4000 }).trim();
+      ], { encoding: 'utf-8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
       const parsed = JSON.parse(raw);
       return parsed?.claudeAiOauth?.accessToken || null;
     } catch (_) {

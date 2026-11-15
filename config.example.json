@@ -2,7 +2,17 @@
   "providers": {
     "antigravity": {
       "enabled": true,
-      "description": "Auto-detects running Antigravity IDE or launches headless background language_server"
+      "description": "Auto-detecta o IDE Antigravity ou sonda headless local"
+    },
+    "claude_pro": {
+      "enabled": true,
+      "description": "Auto-detecta sessão OAuth no macOS Keychain ou aceita token manual",
+      "token": ""
+    },
+    "chatgpt_subscription": {
+      "enabled": true,
+      "description": "Acompanha limites da assinatura ChatGPT Plus/Pro/Team (GPT-4o janela 3h e o1 semanal)",
+      "token": ""
     },
     "gemini": {
       "enabled": false,

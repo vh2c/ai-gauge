@@ -91,6 +91,7 @@ extension QuotaData {
         
         var antiGroups: [Group] = []
         var claudeProGroups: [Group] = []
+        var chatgptGroups: [Group] = []
         var studioGroups: [Group] = []
         var openGroups: [Group] = []
         var antGroups: [Group] = []
@@ -101,6 +102,8 @@ extension QuotaData {
             let n = g.name.lowercased()
             if p.contains("claude pro") || n.contains("claude pro") {
                 claudeProGroups.append(g)
+            } else if p.contains("chatgpt") || n.contains("chatgpt") {
+                chatgptGroups.append(g)
             } else if p.contains("antigravity") || n.contains("antigravity") || n.contains("argon") || n.contains("claude and gpt") {
                 antiGroups.append(g)
             } else if p.contains("studio") || n.contains("google gemini api") || n.contains("ai studio") {
@@ -150,7 +153,7 @@ extension QuotaData {
                 name: "Antigravity",
                 subtitle: "Live & Headless",
                 tag: "ANTIGRAVITY",
-                accentColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
+                accentColor: NSColor(srgbRed: 0xE9/255.0, green: 0x00/255.0, blue: 0xFF/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -184,6 +187,39 @@ extension QuotaData {
                 subtitle: "Sessão Antigravity",
                 tag: "CLAUDE_PRO",
                 accentColor: NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0),
+                items: items
+            ))
+        }
+        
+        if !chatgptGroups.isEmpty {
+            var items: [GaugeItem] = []
+            for g in chatgptGroups {
+                for b in g.buckets {
+                    let limitTitle: String
+                    let lowerB = b.name.lowercased()
+                    let bId = (b.id ?? "").lowercased()
+                    if lowerB.contains("3") || bId.contains("3h") || bId.contains("4o") {
+                        limitTitle = "3 hours Limit"
+                    } else {
+                        limitTitle = "Weekly Limit"
+                    }
+                    items.append(GaugeItem(
+                        id: b.id ?? "chatgpt-sub",
+                        title: limitTitle,
+                        modelName: bId.contains("o1") ? "o1 Reasoning" : "GPT-4o",
+                        percentage: b.remaining_pct,
+                        resetIn: b.reset_in,
+                        detail: b.detail,
+                        provider: g.provider,
+                        sectionTag: "CHATGPT"
+                    ))
+                }
+            }
+            sections.append(GaugeSection(
+                name: "ChatGPT Plus/Pro",
+                subtitle: "Sessão Web",
+                tag: "CHATGPT",
+                accentColor: NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -348,6 +384,21 @@ class QuotaManager {
         }
     }
     
+    static func hasChatGPTKeychainSession() -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        task.arguments = ["find-generic-password", "-a", NSUserName(), "-w", "-s", "ChatGPT-credentials"]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+    
     static func loadConfig() -> AppConfig {
         var cfg: AppConfig
         if let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
@@ -358,6 +409,7 @@ class QuotaManager {
                 providers: [
                     "antigravity": ProviderConfig(enabled: true, api_key: nil, token: nil),
                     "claude_pro": ProviderConfig(enabled: true, api_key: nil, token: nil),
+                    "chatgpt_subscription": ProviderConfig(enabled: true, api_key: nil, token: nil),
                     "gemini": ProviderConfig(enabled: false, api_key: "", token: nil),
                     "openai": ProviderConfig(enabled: false, api_key: "", token: nil),
                     "anthropic": ProviderConfig(enabled: false, api_key: "", token: nil)
@@ -369,6 +421,10 @@ class QuotaManager {
         if cfg.providers?["claude_pro"] == nil {
             if cfg.providers == nil { cfg.providers = [:] }
             cfg.providers?["claude_pro"] = ProviderConfig(enabled: true, api_key: nil, token: nil)
+        }
+        if cfg.providers?["chatgpt_subscription"] == nil {
+            if cfg.providers == nil { cfg.providers = [:] }
+            cfg.providers?["chatgpt_subscription"] = ProviderConfig(enabled: true, api_key: nil, token: nil)
         }
         if cfg.hidden_hud_gauges == nil {
             cfg.hidden_hud_gauges = []
@@ -948,6 +1004,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var claudeProCheck: NSButton?
     var claudeProTokenField: NSTextField?
     var claudeProStatusLabel: NSTextField?
+    var chatgptCheck: NSButton?
+    var chatgptTokenField: NSTextField?
+    var chatgptStatusLabel: NSTextField?
     var openaiCheck: NSButton?
     var openaiKeyField: NSTextField?
     var anthropicCheck: NSButton?
@@ -1893,17 +1952,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let pLower = (g.provider ?? "").lowercased()
                 let isStudio = pLower.contains("studio") || g.name.lowercased().contains("gemini api")
                 let isClaudePro = pLower.contains("claude pro") || g.name.lowercased().contains("claude pro")
+                let isChatGpt = pLower.contains("chatgpt") || g.name.lowercased().contains("chatgpt")
                 
                 let accentColor: NSColor
                 let tagText: String
                 if isClaudePro {
                     accentColor = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
                     tagText = "CLAUDE PRO (SESSÃO)"
+                } else if isChatGpt {
+                    accentColor = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
+                    tagText = "CHATGPT (SESSÃO)"
                 } else if isStudio {
                     accentColor = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
                     tagText = "GOOGLE AI STUDIO"
                 } else {
-                    accentColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+                    accentColor = NSColor(srgbRed: 0xE9/255.0, green: 0x00/255.0, blue: 0xFF/255.0, alpha: 1.0)
                     tagText = "ANTIGRAVITY"
                 }
                 // Group Title
@@ -2342,7 +2405,56 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         cy += claudeCardH + 12
         
-        // 3. Google Gemini API Card
+        // 3. ChatGPT Plus / Pro Card (#10A37F)
+        let chatgptCardH: CGFloat = 154
+        let chatgptCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: chatgptCardH))
+        chatgptCard.boxType = .custom
+        chatgptCard.fillColor = colorCard
+        chatgptCard.borderColor = colorBorder
+        chatgptCard.borderWidth = 1
+        chatgptCard.cornerRadius = 8
+        scrollContent.addSubview(chatgptCard)
+        
+        let chatgptCfg = providers["chatgpt_subscription"]
+        let chatgptBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        chatgptBtn.state = (chatgptCfg?.enabled ?? true) ? .on : .off
+        chatgptBtn.attributedTitle = NSAttributedString(
+            string: "  ChatGPT Plus / Pro (Sessão Web & Limites)",
+            attributes: [
+                .foregroundColor: NSColor.white,
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+            ]
+        )
+        chatgptBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
+        chatgptCard.addSubview(chatgptBtn)
+        self.chatgptCheck = chatgptBtn
+        
+        let hasGptKeychain = QuotaManager.hasChatGPTKeychainSession()
+        let gptStatusMsg = hasGptKeychain
+            ? "✓ Sessão ativa detectada no macOS Keychain (ChatGPT / Codex)"
+            : "ℹ️ Acompanhe a janela de 3h do GPT-4o e cota semanal do o1:"
+        let gptStatus = NSTextField(labelWithString: gptStatusMsg)
+        gptStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+        gptStatus.textColor = hasGptKeychain ? NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0) : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+        gptStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
+        chatgptCard.addSubview(gptStatus)
+        self.chatgptStatusLabel = gptStatus
+        
+        let chatgptToken = makeCenteredDarkField(
+            frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
+            placeholder: hasGptKeychain ? "Token gerenciado automaticamente" : "Access Token / Session Token do ChatGPT",
+            value: chatgptCfg?.token ?? ""
+        )
+        chatgptCard.addSubview(chatgptToken)
+        self.chatgptTokenField = chatgptToken
+        
+        let gptHudY = createHudSectionLabel(y: 92, in: chatgptCard)
+        addCheckbox(id: "chatgpt-4o-3h", title: "GPT-4o (Janela de 3h)", frame: NSRect(x: 14, y: gptHudY, width: colW, height: 18), in: chatgptCard)
+        addCheckbox(id: "chatgpt-o1-weekly", title: "o1 Reasoning (Semanal)", frame: NSRect(x: 14 + colW, y: gptHudY, width: colW, height: 18), in: chatgptCard)
+        
+        cy += chatgptCardH + 12
+        
+        // 4. Google Gemini API Card
         let geminiCardH: CGFloat = 196
         let geminiCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: geminiCardH))
         geminiCard.boxType = .custom
@@ -2633,6 +2745,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             enabled: claudeProCheck?.state == .on,
             api_key: nil,
             token: claudeProTokenField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        cfg.providers?["chatgpt_subscription"] = ProviderConfig(
+            enabled: chatgptCheck?.state == .on,
+            api_key: nil,
+            token: chatgptTokenField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         cfg.providers?["gemini"] = ProviderConfig(
             enabled: geminiCheck?.state == .on,

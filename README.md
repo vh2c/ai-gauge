@@ -17,9 +17,9 @@
 
 <br/>
 
-**Gemini Gauge** is a lightweight, high-performance desktop application designed to monitor your AI model quotas and rate limits in real time across macOS, Linux, and Windows. It operates **completely independently of any IDE**, aggregating usage across **Antigravity IDE (Live & Headless)**, **Claude Pro (OAuth / Session)**, **Google Gemini API**, **OpenAI**, and **Anthropic Claude**.
+**Gemini Gauge** is a lightweight, high-performance desktop application designed to monitor your AI model quotas and rate limits in real time across macOS, Linux, and Windows. It operates **completely independently of any IDE**, aggregating usage across **Antigravity IDE (Live & Headless)**, **ChatGPT Plus / Pro (Web Session)**, **Claude Pro (OAuth / Session)**, **Google Gemini API**, **OpenAI**, and **Anthropic Claude**.
 
-> 💡 **Unified Antigravity Quota Monitor**: Gemini Gauge is the unified, official evolution of the *Antigravity Quota Monitor*. It provides out-of-the-box monitoring for all Antigravity quotas (Claude 3.5 Sonnet / GPT-4o 5-hour rolling limits, Gemini Argon Weekly WTU) alongside Claude Pro and API providers in a single cross-platform application.
+> 💡 **Unified Antigravity Quota Monitor**: Gemini Gauge is the unified, official evolution of the *Antigravity Quota Monitor*. It provides out-of-the-box monitoring for all Antigravity quotas (Claude 3.5 Sonnet / GPT-4o 5-hour rolling limits, Gemini Argon Weekly WTU) alongside ChatGPT Plus / Pro, Claude Pro and API providers in a single cross-platform application.
 
 </div>
 
@@ -28,12 +28,15 @@
 ## 🌟 Key Highlights
 
 - **🎯 True Multi-Provider Aggregation**:
-  - **Antigravity Quota Monitor (Live & Headless)**: Detects live running Antigravity IDE instances, or executes an instant standalone headless probe when closed. Tracks:
+  - **Antigravity Quota Monitor (Live & Headless)**: Branded in signature **Púrpura Neon (`#E900FF`)**. Detects live running Antigravity IDE instances, or executes an instant standalone headless probe when closed. Tracks:
     - 🕒 Claude 3.5 Sonnet / GPT-4o (3P 5-Hour rolling window)
     - 📊 Gemini Argon WTU (Weekly consumption budget)
     - 📅 Daily resets and rolling quota timers
-  - **Claude Pro (OAuth / Web Session)**: Dedicated tracking for Claude Pro accounts with branded `#D78C68` styling and real-time usage countdowns.
-  - **Google Gemini API**: Direct connection to Google AI Studio (RPM, TPM, model availability).
+  - **ChatGPT Plus / Pro (Web Session & Quotas)**: Branded in signature **Verde OpenAI (`#10A37F`)**. Tracks:
+    - ⏱️ **GPT-4o (Janela de 3 Horas)**: Dynamic 3-hour rolling limit counter.
+    - 🧠 **o1 Reasoning (Semanal)**: Weekly quota usage for advanced reasoning models.
+  - **Claude Pro (OAuth / Web Session)**: Branded in signature **Coral Anthropic (`#D78C68`)**. Dedicated tracking for Claude Pro accounts with 5-hour rolling window and 7-day quota timers.
+  - **Google Gemini API**: Branded in **Azul Sky (`#38BDF8`)**. Direct connection to Google AI Studio (RPM, TPM, model availability).
   - **OpenAI API**: Tracks Request-Per-Minute (RPM) and Token-Per-Minute (TPM) limits (GPT-4o, o1, etc.).
   - **Anthropic Claude API**: Tracks Sonnet, Opus, and Haiku request/token quotas.
 - **⚡ Two Distinct Display Modes**:

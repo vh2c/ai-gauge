@@ -249,11 +249,14 @@ function Render-UI ($data) {
         $gname = "$($g.name)".ToLower()
         $prov = "$($g.provider)".ToLower()
         
-        $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
-        $cR = 0; $cG = 0; $cB = 0
+        $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xE9, 0x00, 0xFF)))
+        $cR = 0xE9; $cG = 0x00; $cB = 0xFF
         if ($gname.Contains("claude pro") -or $prov.Contains("claude pro")) {
             $cR = 0xD7; $cG = 0x8C; $cB = 0x68
             $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD7, 0x8C, 0x68)))
+        } elseif ($gname.Contains("chatgpt") -or $prov.Contains("chatgpt")) {
+            $cR = 0x10; $cG = 0xA3; $cB = 0x7F
+            $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x10, 0xA3, 0x7F)))
         } elseif ($prov.Contains("studio") -or $gname.Contains("gemini api")) {
             $cR = 0x38; $cG = 0xBD; $cB = 0xF8
             $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
@@ -341,7 +344,7 @@ function Render-UI ($data) {
 function Show-SettingsDialog {
     [xml]$cfgXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        Title="Configurações - Gemini Gauge" Height="460" Width="420"
+        Title="Configurações - Gemini Gauge" Height="520" Width="420"
         WindowStartupLocation="CenterOwner" Background="#181818" ResizeMode="NoResize">
     <Grid Margin="18">
         <Grid.RowDefinitions>
@@ -352,7 +355,7 @@ function Show-SettingsDialog {
         
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
             <TextBlock Text="⚙️ Configurar Provedores de IA" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
-            <TextBlock Text="Marque os provedores e insira suas chaves de API:" Foreground="#888888" FontSize="10.5" Margin="0,3,0,0"/>
+            <TextBlock Text="Marque os provedores e insira suas chaves ou tokens de acesso:" Foreground="#888888" FontSize="10.5" Margin="0,3,0,0"/>
         </StackPanel>
         
         <StackPanel Grid.Row="1">
@@ -360,14 +363,18 @@ function Show-SettingsDialog {
             <TextBox Name="TxtGeminiKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
             <TextBlock Name="LinkAiStudio" Text="Obter chave gratuita no Google AI Studio ↗" Foreground="#38BDF8" FontSize="9.5" Margin="0,0,0,12" Cursor="Hand"/>
             
-            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#00E699" FontWeight="Bold" Margin="0,0,0,14"/>
+            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#E900FF" FontWeight="Bold" Margin="0,0,0,12"/>
             
             <CheckBox Name="ChkClaudePro" Content="Claude Pro (Sessão Antigravity)" Foreground="#D78C68" FontWeight="Bold" Margin="0,0,0,2"/>
             <TextBox Name="TxtClaudeProToken" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
-            <TextBlock Text="💡 Token OAuth opcional (detectado automaticamente se houver sessão)" Foreground="#888888" FontSize="9" Margin="0,0,0,14"/>
+            <TextBlock Text="💡 Token OAuth opcional (detectado automaticamente no Keychain)" Foreground="#888888" FontSize="9" Margin="0,0,0,12"/>
+            
+            <CheckBox Name="ChkChatGPT" Content="ChatGPT Plus / Pro (Sessão Web &amp; Limites)" Foreground="#10A37F" FontWeight="Bold" Margin="0,0,0,2"/>
+            <TextBox Name="TxtChatGPTToken" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
+            <TextBlock Text="💡 Token de Acesso / Sessão do ChatGPT (janela de 3h e cota semanal o1)" Foreground="#888888" FontSize="9" Margin="0,0,0,12"/>
             
             <CheckBox Name="ChkOpenAI" Content="OpenAI API (GPT-4o, o1)" Foreground="#FFFFFF" Margin="0,0,0,2"/>
-            <TextBox Name="TxtOpenAIKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,14"/>
+            <TextBox Name="TxtOpenAIKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,12"/>
             
             <CheckBox Name="ChkClaude" Content="Anthropic Claude API" Foreground="#FFFFFF" Margin="0,0,0,2"/>
             <TextBox Name="TxtClaudeKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
@@ -390,6 +397,8 @@ function Show-SettingsDialog {
     $chkAnti = $cfgWin.FindName("ChkAnti")
     $chkClaudePro = $cfgWin.FindName("ChkClaudePro")
     $txtClaudePro = $cfgWin.FindName("TxtClaudeProToken")
+    $chkChatGPT = $cfgWin.FindName("ChkChatGPT")
+    $txtChatGPT = $cfgWin.FindName("TxtChatGPTToken")
     $chkOpenAI = $cfgWin.FindName("ChkOpenAI")
     $txtOpenAI = $cfgWin.FindName("TxtOpenAIKey")
     $chkClaude = $cfgWin.FindName("ChkClaude")
@@ -409,6 +418,8 @@ function Show-SettingsDialog {
         $chkAnti.IsChecked = ($currentCfg.providers.antigravity.enabled -ne $false)
         $chkClaudePro.IsChecked = ($currentCfg.providers.claude_pro.enabled -ne $false)
         $txtClaudePro.Text = "$($currentCfg.providers.claude_pro.token)"
+        $chkChatGPT.IsChecked = ($currentCfg.providers.chatgpt_subscription.enabled -ne $false)
+        $txtChatGPT.Text = "$($currentCfg.providers.chatgpt_subscription.token)"
         $chkOpenAI.IsChecked = [bool]($currentCfg.providers.openai.enabled)
         $txtOpenAI.Text = "$($currentCfg.providers.openai.api_key)"
         $chkClaude.IsChecked = [bool]($currentCfg.providers.anthropic.enabled)
@@ -416,6 +427,7 @@ function Show-SettingsDialog {
     } else {
         $chkAnti.IsChecked = $true
         $chkClaudePro.IsChecked = $true
+        $chkChatGPT.IsChecked = $true
     }
     
     $linkAiStudio.Add_MouseDown({
@@ -435,6 +447,10 @@ function Show-SettingsDialog {
                 claude_pro = @{
                     enabled = [bool]$chkClaudePro.IsChecked
                     token = $txtClaudePro.Text.Trim()
+                }
+                chatgpt_subscription = @{
+                    enabled = [bool]$chkChatGPT.IsChecked
+                    token = $txtChatGPT.Text.Trim()
                 }
                 openai = @{
                     enabled = [bool]$chkOpenAI.IsChecked

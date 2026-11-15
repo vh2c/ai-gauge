@@ -110,6 +110,7 @@ def load_config():
         "providers": {
             "antigravity": {"enabled": True},
             "claude_pro": {"enabled": True},
+            "chatgpt_subscription": {"enabled": True},
             "gemini": {"enabled": False, "api_key": ""},
             "openai": {"enabled": False, "api_key": ""},
             "anthropic": {"enabled": False, "api_key": ""}
@@ -198,12 +199,15 @@ def get_gauge_items(quota):
         if "claude pro" in gname or "claude pro" in prov:
             model = "Claude Pro"
             accent = "#D78C68"
+        elif "chatgpt" in gname or "chatgpt" in prov:
+            model = "ChatGPT"
+            accent = "#10A37F"
         elif "gemini 4" in gname or "argon" in gname:
             model = "Argon"
-            accent = "#00E699"
+            accent = "#E900FF"
         elif "claude" in gname or "gpt" in gname:
             model = "Claude/GPT"
-            accent = "#00E699"
+            accent = "#E900FF"
         elif "openai" in gname:
             model = "OpenAI"
             accent = "#10A37F"
@@ -215,7 +219,7 @@ def get_gauge_items(quota):
             accent = "#38BDF8"
         else:
             model = "Gemini"
-            accent = "#00E699"
+            accent = "#E900FF"
 
         for b in g.get("buckets", []):
             bid = b.get("id", "")
@@ -249,7 +253,7 @@ def get_gauge_items(quota):
 
 def status_color(pct, custom_accent=None):
     if pct > 50:
-        return custom_accent if custom_accent else "#00E699"
+        return custom_accent if custom_accent else "#E900FF"
     elif pct > 20:
         return "#F5A623"
     else:
@@ -527,7 +531,25 @@ class QuotaHubAppLinux:
         add_hud_cb(r_cpro, "claude-pro-5h", "Janela de 5h")
         add_hud_cb(r_cpro, "claude-pro-7d", "Cota Semanal (7d)")
 
-        # 3. Gemini Card
+        # 3. ChatGPT Plus / Pro Card (#10A37F)
+        gpt_cfg = pCfg.get("chatgpt_subscription", {})
+        f_gpt = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#10A37F", highlightthickness=1)
+        f_gpt.pack(fill="x", pady=5)
+        var_chatgpt = tk.BooleanVar(value=gpt_cfg.get("enabled", True))
+        cb_gpt = tk.Checkbutton(f_gpt, text="ChatGPT Plus / Pro (Sessão Web & Limites)", variable=var_chatgpt,
+                                font=("Sans", 9, "bold"), fg="#10A37F", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#10A37F")
+        cb_gpt.pack(anchor="w")
+        ent_chatgpt_token = tk.Entry(f_gpt, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_chatgpt_token.insert(0, gpt_cfg.get("token", ""))
+        ent_chatgpt_token.pack(fill="x", pady=2)
+        tk.Label(f_gpt, text="💡 Token de Acesso / Sessão do ChatGPT (janela de 3h e cota o1)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_gpt, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#10A37F", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        r_gpt = tk.Frame(f_gpt, bg="#1F1F1F")
+        r_gpt.pack(anchor="w")
+        add_hud_cb(r_gpt, "chatgpt-4o-3h", "GPT-4o (3h)")
+        add_hud_cb(r_gpt, "chatgpt-o1-weekly", "o1 Semanal")
+
+        # 4. Gemini Card
         gem_cfg = pCfg.get("gemini", {})
         var_gem = tk.BooleanVar(value=gem_cfg.get("enabled", False))
         f_gem = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
@@ -583,6 +605,7 @@ class QuotaHubAppLinux:
                 "providers": {
                     "antigravity": {"enabled": var_anti.get()},
                     "claude_pro": {"enabled": var_claude_pro.get(), "token": ent_claude_token.get().strip()},
+                    "chatgpt_subscription": {"enabled": var_chatgpt.get(), "token": ent_chatgpt_token.get().strip()},
                     "gemini": {"enabled": var_gem.get() or bool(ent_gem.get().strip()), "api_key": ent_gem.get().strip()},
                     "openai": {"enabled": var_oa.get() or bool(ent_oa.get().strip()), "api_key": ent_oa.get().strip()},
                     "anthropic": {"enabled": var_ant.get() or bool(ent_ant.get().strip()), "api_key": ent_ant.get().strip()}
@@ -727,10 +750,12 @@ class QuotaHubAppLinux:
             
             if "claude pro" in gname_lower or "claude pro" in prov_lower:
                 accent_col = "#D78C68"
+            elif "chatgpt" in gname_lower or "chatgpt" in prov_lower:
+                accent_col = "#10A37F"
             elif "studio" in prov_lower or "gemini api" in gname_lower:
                 accent_col = "#38BDF8"
             else:
-                accent_col = "#00E699"
+                accent_col = "#E900FF"
 
             lbl_g = tk.Label(main_frame, text=(g.get("name", "Modelos") + prov).upper(), font=("Sans", 8, "bold"), fg=accent_col, bg="#181818", anchor="w")
             lbl_g.pack(fill="x", pady=(4, 2))
