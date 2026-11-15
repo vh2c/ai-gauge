@@ -672,17 +672,17 @@ class QuotaHubAppLinux:
         # Update Available Banner
         update_info = quota.get("update", {})
         if update_info.get("update_available"):
-            up_box = tk.Frame(main_frame, bg="#00E699", padx=10, pady=6)
+            up_box = tk.Frame(main_frame, bg="#00E699", padx=12, pady=7)
             up_box.pack(fill="x", pady=(0, 10))
             new_v = update_info.get("latest_version", "")
-            up_lbl = tk.Label(up_box, text=f"🚀 Nova versão v{new_v} disponível!", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699")
+            up_lbl = tk.Label(up_box, text=f"Nova versão v{new_v} disponível", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699")
             up_lbl.pack(side="left")
             d_url = update_info.get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
-            btn_up = tk.Button(up_box, text="Baixar Atualização", font=("Sans", 8, "bold"), fg="#FFFFFF", bg="#121212",
-                               relief="flat", padx=8, pady=2, cursor="hand2", command=lambda: webbrowser.open(d_url))
+            btn_up = tk.Button(up_box, text="Baixar", font=("Sans", 8, "bold"), fg="#121212", bg="#FFFFFF",
+                               activebackground="#EEEEEE", activeforeground="#121212", relief="flat", padx=10, pady=2, cursor="hand2", command=lambda: webbrowser.open(d_url))
             btn_up.pack(side="right")
 
-        # Announcement / Free vs PRO Notice Banner
+        # Announcement / Free vs PRO Notice Banner (only shown if an announcement message exists)
         announcement = quota.get("announcement")
         if announcement and announcement.get("message"):
             ann_type = announcement.get("type", "info")
@@ -703,12 +703,12 @@ class QuotaHubAppLinux:
             lbl_title = tk.Label(top_row, text=announcement.get("title", ""), font=("Sans", 8, "bold"), fg="#FFFFFF", bg=ann_bg)
             lbl_title.pack(side="left", padx=6)
             
-            lbl_msg = tk.Label(ann_box, text=announcement.get("message", ""), font=("Sans", 8), fg="#D1D5DB", bg=ann_bg, anchor="w", justify="left")
+            lbl_msg = tk.Label(ann_box, text=announcement.get("message", ""), font=("Sans", 8), fg="#D1D5DB", bg=ann_bg, anchor="w", justify="left", wraplength=440)
             lbl_msg.pack(fill="x", pady=(4, 6))
             
             if announcement.get("action_label") and announcement.get("action_url"):
                 a_url = announcement.get("action_url")
-                btn_act = tk.Button(ann_box, text=f"✨ {announcement.get('action_label')}", font=("Sans", 8, "bold"), fg="#121212", bg=ann_badge_col,
+                btn_act = tk.Button(ann_box, text=f"{announcement.get('action_label')} →", font=("Sans", 8, "bold"), fg="#121212", bg=ann_badge_col,
                                     relief="flat", padx=10, pady=3, cursor="hand2", command=lambda: webbrowser.open(a_url))
                 btn_act.pack(anchor="w")
 
@@ -836,12 +836,21 @@ class QuotaHubAppLinux:
             for item in items:
                 self.draw_gauge(canvas, 52, cur_y + 44, item)
                 cur_y += 96
-            canvas.create_text(52, h - 8, text="vh2c.com.br", font=("Sans", 7), fill="#555555")
+            if quota.get("update", {}).get("update_available"):
+                t_id = canvas.create_text(52, h - 8, text="● NOVA VERSÃO", font=("Sans", 7, "bold"), fill="#FF4D4F")
+                d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
+                canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
+            else:
+                canvas.create_text(52, h - 8, text="vh2c.com.br", font=("Sans", 7), fill="#555555")
         else:
             cur_x = 28
             for item in items:
                 self.draw_gauge(canvas, cur_x + 48, 54, item)
                 cur_x += 96
+            if quota.get("update", {}).get("update_available"):
+                t_id = canvas.create_text(w - 44, h - 8, text="● NOVA VERSÃO", font=("Sans", 7, "bold"), fill="#FF4D4F")
+                d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
+                canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
 
     def draw_gauge(self, canvas, cx, cy, item):
         pct = item.get("pct", 100)

@@ -127,19 +127,10 @@ async function checkForUpdates(force = false) {
     release_notes: remoteData?.release_notes || '',
     
     // Tier structure: 'free' (default) or 'pro'
-    tier: 'free',
+    tier: remoteData?.tier || 'free',
     
-    // Logical announcement structure (customizable via remote API / VH2C backend)
-    announcement: {
-      id: 'tier-status-free',
-      type: 'info', // 'info' | 'promo' | 'warning'
-      badge: 'FREE',
-      title: 'Plano Gratuito',
-      message: 'Você está no Gemini Gauge Edição Livre. Monitore Antigravity, Claude Pro e Gemini sem limites.',
-      action_label: 'Conheça o Plano PRO',
-      action_url: 'https://vh2c.com.br',
-      dismissible: true
-    }
+    // Announcement only exists when explicitly sent by the remote API / backend
+    announcement: remoteData?.announcement || null
   };
 
   writeCache(result);

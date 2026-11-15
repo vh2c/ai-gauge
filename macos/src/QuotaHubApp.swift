@@ -1416,17 +1416,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 container.addSubview(scrollView)
             }
             
-            let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
-            brandBtn.isBordered = false
-            brandBtn.frame = NSRect(x: 4, y: 3, width: hudW - 8, height: 16)
-            brandBtn.attributedTitle = NSAttributedString(
-                string: "vh2c.com.br",
-                attributes: [
-                    .foregroundColor: NSColor(white: 0.45, alpha: 1.0),
-                    .font: NSFont.systemFont(ofSize: 8.5, weight: .medium)
-                ]
-            )
-            container.addSubview(brandBtn)
+            if quota.update?.update_available == true {
+                let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
+                upBtn.isBordered = false
+                upBtn.targetUrl = quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+                upBtn.frame = NSRect(x: 2, y: 3, width: hudW - 4, height: 16)
+                upBtn.toolTip = "Nova versão v\(quota.update?.latest_version ?? "") disponível. Clique para baixar."
+                upBtn.attributedTitle = NSAttributedString(
+                    string: "● NOVA VERSÃO",
+                    attributes: [
+                        .foregroundColor: NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0),
+                        .font: NSFont.systemFont(ofSize: 8.0, weight: .heavy)
+                    ]
+                )
+                container.addSubview(upBtn)
+            } else {
+                let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
+                brandBtn.isBordered = false
+                brandBtn.frame = NSRect(x: 4, y: 3, width: hudW - 8, height: 16)
+                brandBtn.attributedTitle = NSAttributedString(
+                    string: "vh2c.com.br",
+                    attributes: [
+                        .foregroundColor: NSColor(white: 0.45, alpha: 1.0),
+                        .font: NSFont.systemFont(ofSize: 8.5, weight: .medium)
+                    ]
+                )
+                container.addSubview(brandBtn)
+            }
         } else {
             // Horizontal HUD
             if totalItems == 0 {
@@ -1510,17 +1526,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             container.addSubview(menuBtn)
             
-            let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
-            brandBtn.isBordered = false
-            brandBtn.frame = NSRect(x: 12, y: 2, width: 90, height: 12)
-            brandBtn.attributedTitle = NSAttributedString(
-                string: "vh2c.com.br",
-                attributes: [
-                    .foregroundColor: NSColor(white: 0.40, alpha: 1.0),
-                    .font: NSFont.systemFont(ofSize: 8.0, weight: .medium)
-                ]
-            )
-            container.addSubview(brandBtn)
+            if quota.update?.update_available == true {
+                let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
+                upBtn.isBordered = false
+                upBtn.targetUrl = quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+                upBtn.frame = NSRect(x: 12, y: 2, width: 100, height: 14)
+                upBtn.toolTip = "Nova versão v\(quota.update?.latest_version ?? "") disponível. Clique para baixar."
+                upBtn.attributedTitle = NSAttributedString(
+                    string: "● NOVA VERSÃO",
+                    attributes: [
+                        .foregroundColor: NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0),
+                        .font: NSFont.systemFont(ofSize: 8.5, weight: .heavy)
+                    ]
+                )
+                container.addSubview(upBtn)
+            } else {
+                let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
+                brandBtn.isBordered = false
+                brandBtn.frame = NSRect(x: 12, y: 2, width: 90, height: 12)
+                brandBtn.attributedTitle = NSAttributedString(
+                    string: "vh2c.com.br",
+                    attributes: [
+                        .foregroundColor: NSColor(white: 0.40, alpha: 1.0),
+                        .font: NSFont.systemFont(ofSize: 8.0, weight: .medium)
+                    ]
+                )
+                container.addSubview(brandBtn)
+            }
         }
         
         panel.contentView = container
@@ -1602,10 +1634,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         calcContentH += 18 // Divisor e espaçamento generoso antes dos cards
         
         if quota.update?.update_available == true {
-            calcContentH += 42 + 12
+            calcContentH += 46 + 12
         }
         if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
-            calcContentH += (ann.action_label != nil ? 68 : 46) + 12
+            calcContentH += (ann.action_label != nil ? 92 : 62) + 12
         }
         
         if quota.groups.isEmpty {
@@ -1696,22 +1728,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         // ----------------- UPDATE BANNER -----------------
         if let update = quota.update, update.update_available == true {
-            let bannerH: CGFloat = 42
-            let banner = NSBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: bannerH))
+            let bannerH: CGFloat = 46
+            let banner = FlippedBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: bannerH))
             banner.boxType = .custom
-            banner.fillColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.15)
-            banner.borderColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.8)
+            banner.fillColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.12)
+            banner.borderColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.7)
             banner.borderWidth = 1
             banner.cornerRadius = 6
             contentView.addSubview(banner)
             
-            let upTitle = NSTextField(labelWithString: "🚀 Nova versão v\(update.latest_version ?? "") disponível!")
-            upTitle.font = NSFont.systemFont(ofSize: 11.5, weight: .bold)
-            upTitle.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
-            upTitle.frame = NSRect(x: 12, y: 12, width: 260, height: 18)
-            banner.addSubview(upTitle)
-            
-            let upBtn = UrlButton(frame: NSRect(x: banner.frame.width - 94, y: 8, width: 82, height: 26))
+            let btnW: CGFloat = 84
+            let btnH: CGFloat = 26
+            let btnY: CGFloat = ((bannerH - btnH) / 2.0).rounded()
+            let upBtn = UrlButton(frame: NSRect(x: banner.frame.width - btnW - 12, y: btnY, width: btnW, height: btnH))
             upBtn.bezelStyle = .inline
             upBtn.isBordered = false
             upBtn.wantsLayer = true
@@ -1721,7 +1750,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 string: "Baixar",
                 attributes: [
                     .foregroundColor: NSColor(srgbRed: 0x12/255.0, green: 0x12/255.0, blue: 0x12/255.0, alpha: 1.0),
-                    .font: NSFont.systemFont(ofSize: 11, weight: .bold)
+                    .font: NSFont.systemFont(ofSize: 11.5, weight: .bold)
                 ]
             )
             upBtn.targetUrl = update.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
@@ -1729,14 +1758,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             upBtn.action = #selector(openExternalUrl(_:))
             banner.addSubview(upBtn)
             
+            let titleH: CGFloat = 20
+            let titleY: CGFloat = ((bannerH - titleH) / 2.0).rounded()
+            
+            var textX: CGFloat = 14
+            if let sym = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil) {
+                let symConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+                let iconImg = sym.withSymbolConfiguration(symConfig)
+                let imgView = NSImageView(frame: NSRect(x: 12, y: ((bannerH - 16) / 2.0).rounded(), width: 16, height: 16))
+                imgView.image = iconImg
+                imgView.contentTintColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+                banner.addSubview(imgView)
+                textX = 34
+            }
+            
+            let upTitle = NSTextField(labelWithString: "Nova versão v\(update.latest_version ?? "") disponível")
+            upTitle.font = NSFont.systemFont(ofSize: 12.0, weight: .bold)
+            upTitle.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            upTitle.frame = NSRect(x: textX, y: titleY, width: banner.frame.width - btnW - textX - 16, height: titleH)
+            banner.addSubview(upTitle)
+            
             y += bannerH + 12
         }
 
         // ----------------- ANNOUNCEMENT / PRO STATUS -----------------
         if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
             let isInfo = ann.type == "info"
-            let annH: CGFloat = ann.action_label != nil ? 68 : 46
-            let annBox = NSBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: annH))
+            let annH: CGFloat = ann.action_label != nil ? 92 : 62
+            let annBox = FlippedBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: annH))
             annBox.boxType = .custom
             annBox.fillColor = isInfo ? NSColor(srgbRed: 0x1E/255.0, green: 0x29/255.0, blue: 0x3B/255.0, alpha: 0.5) : NSColor(srgbRed: 0x2D/255.0, green: 0x24/255.0, blue: 0x18/255.0, alpha: 0.5)
             annBox.borderColor = isInfo ? NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.4) : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 0.4)
@@ -1744,27 +1793,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             annBox.cornerRadius = 6
             contentView.addSubview(annBox)
             
+            // 1. Badge + Title
             let badge = NSTextField(labelWithString: "[\(ann.badge ?? "AVISO")] \(ann.title ?? "")")
             badge.font = NSFont.systemFont(ofSize: 11, weight: .bold)
             badge.textColor = isInfo ? NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0) : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 1.0)
             badge.frame = NSRect(x: 12, y: 10, width: annBox.frame.width - 24, height: 16)
             annBox.addSubview(badge)
             
-            let msgLabel = NSTextField(labelWithString: msg)
+            // 2. Multiline Message (Wrapping)
+            let msgLabel = NSTextField(wrappingLabelWithString: msg)
             msgLabel.font = NSFont.systemFont(ofSize: 10, weight: .regular)
             msgLabel.textColor = NSColor(white: 0.78, alpha: 1.0)
-            msgLabel.frame = NSRect(x: 12, y: 28, width: annBox.frame.width - 24, height: 14)
+            msgLabel.frame = NSRect(x: 12, y: 28, width: annBox.frame.width - 24, height: 32)
             annBox.addSubview(msgLabel)
             
+            // 3. Action Button (Monochrome, without colorful emoji)
             if let actLabel = ann.action_label, let actUrl = ann.action_url {
-                let actBtn = UrlButton(frame: NSRect(x: 12, y: 44, width: 160, height: 18))
+                let actBtn = UrlButton(frame: NSRect(x: 12, y: 64, width: 180, height: 18))
                 actBtn.bezelStyle = .inline
                 actBtn.isBordered = false
                 actBtn.attributedTitle = NSAttributedString(
-                    string: "✨ \(actLabel) →",
+                    string: "\(actLabel) →",
                     attributes: [
                         .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xC9/255.0, blue: 0xFF/255.0, alpha: 1.0),
-                        .font: NSFont.systemFont(ofSize: 10, weight: .semibold)
+                        .font: NSFont.systemFont(ofSize: 10.5, weight: .bold)
                     ]
                 )
                 actBtn.targetUrl = actUrl

@@ -194,7 +194,7 @@ function Render-UI ($data) {
         $upDock.Children.Add($btnDl) | Out-Null
         
         $upTxt = New-Object System.Windows.Controls.TextBlock
-        $upTxt.Text = "🚀 Nova versão v$($data.update.latest_version) disponível!"
+        $upTxt.Text = "Nova versão v$($data.update.latest_version) disponível"
         $upTxt.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
         $upTxt.FontWeight = [System.Windows.FontWeights]::Bold
         $upTxt.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
@@ -223,13 +223,14 @@ function Render-UI ($data) {
         
         $annMsg = New-Object System.Windows.Controls.TextBlock
         $annMsg.Text = "$($data.announcement.message)"
+        $annMsg.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $annMsg.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xCC)))
         $annMsg.Margin = (New-Object System.Windows.Thickness(0, 2, 0, 4))
         $annStack.Children.Add($annMsg) | Out-Null
         
         if ($data.announcement.action_label -and $data.announcement.action_url) {
             $btnAct = New-Object System.Windows.Controls.Button
-            $btnAct.Content = "✨ $($data.announcement.action_label) →"
+            $btnAct.Content = "$($data.announcement.action_label) →"
             $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
             $btnAct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xC9, 0xFF)))
             $btnAct.Background = [System.Windows.Media.Brushes]::Transparent
