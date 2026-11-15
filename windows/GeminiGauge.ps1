@@ -194,7 +194,7 @@ function Render-UI ($data) {
         $upDock.Children.Add($btnDl) | Out-Null
         
         $upTxt = New-Object System.Windows.Controls.TextBlock
-        $upTxt.Text = "Nova versão v$($data.update.latest_version) disponível"
+        $upTxt.Text = "New release v$($data.update.latest_version) available"
         $upTxt.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
         $upTxt.FontWeight = [System.Windows.FontWeights]::Bold
         $upTxt.VerticalAlignment = [System.Windows.VerticalAlignment]::Center

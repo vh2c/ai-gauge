@@ -1492,9 +1492,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 upBtn.isBordered = false
                 upBtn.targetUrl = quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
                 upBtn.frame = NSRect(x: 2, y: 3, width: hudW - 4, height: 16)
-                upBtn.toolTip = "Nova versão v\(quota.update?.latest_version ?? "") disponível. Clique para baixar."
+                upBtn.toolTip = "New release v\(quota.update?.latest_version ?? "") available. Click to download."
                 upBtn.attributedTitle = NSAttributedString(
-                    string: "● NOVA VERSÃO",
+                    string: "● NEW RELEASE",
                     attributes: [
                         .foregroundColor: NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 8.0, weight: .heavy)
@@ -1602,9 +1602,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 upBtn.isBordered = false
                 upBtn.targetUrl = quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
                 upBtn.frame = NSRect(x: 12, y: 2, width: 100, height: 14)
-                upBtn.toolTip = "Nova versão v\(quota.update?.latest_version ?? "") disponível. Clique para baixar."
+                upBtn.toolTip = "New release v\(quota.update?.latest_version ?? "") available. Click to download."
                 upBtn.attributedTitle = NSAttributedString(
-                    string: "● NOVA VERSÃO",
+                    string: "● NEW RELEASE",
                     attributes: [
                         .foregroundColor: NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 8.5, weight: .heavy)
@@ -1843,7 +1843,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 textX = 34
             }
             
-            let upTitle = NSTextField(labelWithString: "Nova versão v\(update.latest_version ?? "") disponível")
+            let upTitle = NSTextField(labelWithString: "New release v\(update.latest_version ?? "") available")
             upTitle.font = NSFont.systemFont(ofSize: 12.0, weight: .bold)
             upTitle.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
             upTitle.frame = NSRect(x: textX, y: titleY, width: banner.frame.width - btnW - textX - 16, height: titleH)

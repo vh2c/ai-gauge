@@ -698,7 +698,7 @@ class QuotaHubAppLinux:
             up_box = tk.Frame(main_frame, bg="#00E699", padx=12, pady=7)
             up_box.pack(fill="x", pady=(0, 10))
             new_v = update_info.get("latest_version", "")
-            up_lbl = tk.Label(up_box, text=f"Nova versão v{new_v} disponível", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699")
+            up_lbl = tk.Label(up_box, text=f"New release v{new_v} available", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699")
             up_lbl.pack(side="left")
             d_url = update_info.get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
             btn_up = tk.Button(up_box, text="Baixar", font=("Sans", 8, "bold"), fg="#121212", bg="#FFFFFF",
@@ -862,7 +862,7 @@ class QuotaHubAppLinux:
                 self.draw_gauge(canvas, 52, cur_y + 44, item)
                 cur_y += 96
             if quota.get("update", {}).get("update_available"):
-                t_id = canvas.create_text(52, h - 8, text="● NOVA VERSÃO", font=("Sans", 7, "bold"), fill="#FF4D4F")
+                t_id = canvas.create_text(52, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#FF4D4F")
                 d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
                 canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
             else:
@@ -873,7 +873,7 @@ class QuotaHubAppLinux:
                 self.draw_gauge(canvas, cur_x + 48, 54, item)
                 cur_x += 96
             if quota.get("update", {}).get("update_available"):
-                t_id = canvas.create_text(w - 44, h - 8, text="● NOVA VERSÃO", font=("Sans", 7, "bold"), fill="#FF4D4F")
+                t_id = canvas.create_text(w - 44, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#FF4D4F")
                 d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
                 canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
 
