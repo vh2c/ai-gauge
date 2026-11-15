@@ -1715,7 +1715,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             calcContentH += 110 + 16
         } else {
             for g in quota.groups {
-                calcContentH += 30 + CGFloat(g.buckets.count * 48 + 8) + 14
+                calcContentH += 44 + CGFloat(g.buckets.count * 44 + 6) + 14
             }
         }
         calcContentH += 16 // padding inferior
@@ -1902,7 +1902,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // ----------------- CARDS POR PROVEDOR / GRUPO -----------------
         if quota.groups.isEmpty {
             let emptyH: CGFloat = 110
-            let cardView = NSBox(frame: NSRect(x: 16, y: y, width: windowWidth - 32, height: emptyH))
+            let cardView = FlippedBox(frame: NSRect(x: 16, y: y, width: windowWidth - 32, height: emptyH))
             cardView.boxType = .custom
             cardView.fillColor = colorField1F
             cardView.borderColor = colorBorder
@@ -1940,8 +1940,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             y += emptyH + 14
         } else {
             for g in quota.groups {
-                let cardHeight = 30 + CGFloat(g.buckets.count * 48 + 8)
-                let cardView = NSBox(frame: NSRect(x: 16, y: y, width: windowWidth - 32, height: cardHeight))
+                let cardHeight = 44 + CGFloat(g.buckets.count * 44 + 6)
+                let cardView = FlippedBox(frame: NSRect(x: 16, y: y, width: windowWidth - 32, height: cardHeight))
                 cardView.boxType = .custom
                 cardView.fillColor = colorField1F
                 cardView.borderColor = colorBorder
@@ -1969,40 +1969,58 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     accentColor = NSColor(srgbRed: 0x81/255.0, green: 0x8C/255.0, blue: 0xF8/255.0, alpha: 1.0)
                     tagText = "ANTIGRAVITY"
                 }
-                // Group Title
+                
+                // Group Title (Top Left)
                 let gTitle = NSTextField(labelWithString: g.name)
                 gTitle.font = NSFont.systemFont(ofSize: 12.5, weight: .bold)
                 gTitle.textColor = NSColor(white: 0.95, alpha: 1.0)
-                gTitle.frame = NSRect(x: 14, y: 10, width: cardView.frame.width - 170, height: 16)
+                gTitle.frame = NSRect(x: 14, y: 12, width: cardView.frame.width - 170, height: 16)
                 cardView.addSubview(gTitle)
                 
+                // Group Tag (Top Right)
                 let tagLabel = NSTextField(labelWithString: tagText)
                 tagLabel.font = NSFont.systemFont(ofSize: 8.5, weight: .bold)
                 tagLabel.textColor = accentColor
                 tagLabel.alignment = .right
-                tagLabel.frame = NSRect(x: cardView.frame.width - 150, y: 10, width: 136, height: 16)
+                tagLabel.frame = NSRect(x: cardView.frame.width - 150, y: 12, width: 136, height: 16)
                 cardView.addSubview(tagLabel)
                 
-                var cardY: CGFloat = 32
+                // Header Separator
+                let hSep = NSBox(frame: NSRect(x: 14, y: 34, width: cardView.frame.width - 28, height: 1))
+                hSep.boxType = .custom
+                hSep.fillColor = colorSep
+                hSep.borderColor = .clear
+                cardView.addSubview(hSep)
+                
+                var cardY: CGFloat = 44
                 for (idx, b) in g.buckets.enumerated() {
                     if idx > 0 {
-                        let sep = NSBox(frame: NSRect(x: 14, y: cardY - 4, width: cardView.frame.width - 28, height: 1))
+                        let sep = NSBox(frame: NSRect(x: 14, y: cardY - 5, width: cardView.frame.width - 28, height: 1))
                         sep.boxType = .custom
                         sep.fillColor = colorSep
                         sep.borderColor = .clear
                         cardView.addSubview(sep)
+                        cardY += 4
                     }
                     
                     let bTitle = NSTextField(labelWithString: b.name)
                     bTitle.font = NSFont.systemFont(ofSize: 11.5, weight: .medium)
                     bTitle.textColor = .white
-                    bTitle.frame = NSRect(x: 14, y: cardY, width: 260, height: 16)
+                    bTitle.frame = NSRect(x: 14, y: cardY, width: cardView.frame.width - 210, height: 16)
                     cardView.addSubview(bTitle)
+                    
+                    if let reset = b.reset_in, !reset.isEmpty {
+                        let resetLabel = NSTextField(labelWithString: "Renova em \(reset)")
+                        resetLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
+                        resetLabel.textColor = NSColor(white: 0.50, alpha: 1.0)
+                        resetLabel.alignment = .right
+                        resetLabel.frame = NSRect(x: cardView.frame.width - 210, y: cardY + 2, width: 140, height: 13)
+                        cardView.addSubview(resetLabel)
+                    }
                     
                     let valStr = "\(b.remaining_pct)%"
                     let bVal = NSTextField(labelWithString: valStr)
                     bVal.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .bold)
-                    
                     if b.remaining_pct >= 50 {
                         bVal.textColor = accentColor
                     } else if b.remaining_pct >= 20 {
@@ -2011,21 +2029,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         bVal.textColor = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
                     }
                     bVal.alignment = .right
-                    bVal.frame = NSRect(x: cardView.frame.width - 150, y: cardY, width: 136, height: 16)
+                    bVal.frame = NSRect(x: cardView.frame.width - 66, y: cardY - 1, width: 52, height: 17)
                     cardView.addSubview(bVal)
                     
-                    cardY += 18
-                    
-                    if let reset = b.reset_in, !reset.isEmpty {
-                        let resetLabel = NSTextField(labelWithString: "Renova em \(reset)")
-                        resetLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
-                        resetLabel.textColor = NSColor(white: 0.50, alpha: 1.0)
-                        resetLabel.alignment = .right
-                        resetLabel.frame = NSRect(x: cardView.frame.width - 160, y: cardY - 4, width: 146, height: 12)
-                        cardView.addSubview(resetLabel)
-                    }
-                    
-                    let barBg = NSBox(frame: NSRect(x: 14, y: cardY + 12, width: cardView.frame.width - 28, height: 6))
+                    let barBg = NSBox(frame: NSRect(x: 14, y: cardY + 22, width: cardView.frame.width - 28, height: 6))
                     barBg.boxType = .custom
                     barBg.fillColor = colorTrack
                     barBg.borderColor = .clear
@@ -2033,14 +2040,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     cardView.addSubview(barBg)
                     
                     let fillWidth = max(CGFloat(barBg.frame.width) * CGFloat(b.remaining_pct) / 100.0, 4)
-                    let barFill = NSBox(frame: NSRect(x: 14, y: cardY + 12, width: fillWidth, height: 6))
+                    let barFill = NSBox(frame: NSRect(x: 14, y: cardY + 22, width: fillWidth, height: 6))
                     barFill.boxType = .custom
                     barFill.fillColor = bVal.textColor ?? NSColor.systemGreen
                     barFill.borderColor = .clear
                     barFill.cornerRadius = 3
                     cardView.addSubview(barFill)
                     
-                    cardY += 24
+                    cardY += 38
                 }
                 
                 y += cardHeight + 14
