@@ -249,8 +249,8 @@ function Render-UI ($data) {
         $gname = "$($g.name)".ToLower()
         $prov = "$($g.provider)".ToLower()
         
-        $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x81, 0x8C, 0xF8)))
-        $cR = 0x81; $cG = 0x8C; $cB = 0xF8
+        $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x3B, 0x82, 0xF6)))
+        $cR = 0x3B; $cG = 0x82; $cB = 0xF6
         if ($gname.Contains("claude pro") -or $prov.Contains("claude pro")) {
             $cR = 0xD7; $cG = 0x8C; $cB = 0x68
             $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD7, 0x8C, 0x68)))
@@ -258,8 +258,8 @@ function Render-UI ($data) {
             $cR = 0x10; $cG = 0xA3; $cB = 0x7F
             $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x10, 0xA3, 0x7F)))
         } elseif ($prov.Contains("studio") -or $gname.Contains("gemini api")) {
-            $cR = 0x38; $cG = 0xBD; $cB = 0xF8
-            $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
+            $cR = 0xEB; $cG = 0xEB; $cB = 0xEB
+            $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xEB, 0xEB, 0xEB)))
         }
         
         $gbTitle = New-Object System.Windows.Controls.TextBlock
@@ -359,11 +359,11 @@ function Show-SettingsDialog {
         </StackPanel>
         
         <StackPanel Grid.Row="1">
-            <CheckBox Name="ChkGemini" Content="Google Gemini API (Google AI Studio)" Foreground="#38BDF8" FontWeight="Bold" Margin="0,6,0,2"/>
+            <CheckBox Name="ChkGemini" Content="Google Gemini API (Google AI Studio)" Foreground="#EBEBEB" FontWeight="Bold" Margin="0,6,0,2"/>
             <TextBox Name="TxtGeminiKey" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
-            <TextBlock Name="LinkAiStudio" Text="Obter chave gratuita no Google AI Studio ↗" Foreground="#38BDF8" FontSize="9.5" Margin="0,0,0,12" Cursor="Hand"/>
+            <TextBlock Name="LinkAiStudio" Text="Obter chave gratuita no Google AI Studio ↗" Foreground="#EBEBEB" FontSize="9.5" Margin="0,0,0,12" Cursor="Hand"/>
             
-            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#818CF8" FontWeight="Bold" Margin="0,0,0,12"/>
+            <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#3B82F6" FontWeight="Bold" Margin="0,0,0,12"/>
             
             <CheckBox Name="ChkClaudePro" Content="Claude Pro (Sessão Antigravity)" Foreground="#D78C68" FontWeight="Bold" Margin="0,0,0,2"/>
             <TextBox Name="TxtClaudeProToken" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>

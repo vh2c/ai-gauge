@@ -204,10 +204,10 @@ def get_gauge_items(quota):
             accent = "#10A37F"
         elif "gemini 4" in gname or "argon" in gname:
             model = "Argon"
-            accent = "#818CF8"
+            accent = "#3B82F6"
         elif "claude" in gname or "gpt" in gname:
             model = "Claude/GPT"
-            accent = "#818CF8"
+            accent = "#3B82F6"
         elif "openai" in gname:
             model = "OpenAI"
             accent = "#10A37F"
@@ -216,10 +216,10 @@ def get_gauge_items(quota):
             accent = "#D97706"
         elif "studio" in prov or "gemini api" in gname:
             model = "Gemini Flash" if "flash" in gname else "Gemini Pro"
-            accent = "#38BDF8"
+            accent = "#EBEBEB"
         else:
             model = "Gemini"
-            accent = "#818CF8"
+            accent = "#3B82F6"
 
         for b in g.get("buckets", []):
             bid = b.get("id", "")
@@ -253,7 +253,7 @@ def get_gauge_items(quota):
 
 def status_color(pct, custom_accent=None):
     if pct > 50:
-        return custom_accent if custom_accent else "#818CF8"
+        return custom_accent if custom_accent else "#3B82F6"
     elif pct > 20:
         return "#F5A623"
     else:
@@ -753,9 +753,9 @@ class QuotaHubAppLinux:
             elif "chatgpt" in gname_lower or "chatgpt" in prov_lower:
                 accent_col = "#10A37F"
             elif "studio" in prov_lower or "gemini api" in gname_lower:
-                accent_col = "#38BDF8"
+                accent_col = "#EBEBEB"
             else:
-                accent_col = "#818CF8"
+                accent_col = "#3B82F6"
 
             lbl_g = tk.Label(main_frame, text=(g.get("name", "Modelos") + prov).upper(), font=("Sans", 8, "bold"), fg=accent_col, bg="#181818", anchor="w")
             lbl_g.pack(fill="x", pady=(4, 2))
@@ -862,7 +862,7 @@ class QuotaHubAppLinux:
                 self.draw_gauge(canvas, 52, cur_y + 44, item)
                 cur_y += 96
             if quota.get("update", {}).get("update_available"):
-                t_id = canvas.create_text(52, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#FF4D4F")
+                t_id = canvas.create_text(52, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#8AE39A")
                 d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
                 canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
             else:
@@ -873,7 +873,7 @@ class QuotaHubAppLinux:
                 self.draw_gauge(canvas, cur_x + 48, 54, item)
                 cur_x += 96
             if quota.get("update", {}).get("update_available"):
-                t_id = canvas.create_text(w - 44, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#FF4D4F")
+                t_id = canvas.create_text(w - 44, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#8AE39A")
                 d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
                 canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
 

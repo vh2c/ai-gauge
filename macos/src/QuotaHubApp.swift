@@ -153,7 +153,7 @@ extension QuotaData {
                 name: "Antigravity",
                 subtitle: "Live & Headless",
                 tag: "ANTIGRAVITY",
-                accentColor: NSColor(srgbRed: 0x81/255.0, green: 0x8C/255.0, blue: 0xF8/255.0, alpha: 1.0),
+                accentColor: NSColor(srgbRed: 0x3B/255.0, green: 0x82/255.0, blue: 0xF6/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -258,7 +258,7 @@ extension QuotaData {
                 name: "Google AI",
                 subtitle: "Gemini API",
                 tag: "AI STUDIO",
-                accentColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0),
+                accentColor: NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -642,7 +642,7 @@ class TachometerGaugeView: NSView {
         
         let colorHealthy: NSColor
         if item.sectionTag == "STUDIO" {
-            colorHealthy = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
+            colorHealthy = NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0)
         } else if item.sectionTag == "CLAUDE_PRO" {
             colorHealthy = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
         } else if item.sectionTag == "CHATGPT" {
@@ -652,8 +652,8 @@ class TachometerGaugeView: NSView {
         } else if item.sectionTag == "CLAUDE" {
             colorHealthy = NSColor(srgbRed: 0xD9/255.0, green: 0x77/255.0, blue: 0x06/255.0, alpha: 1.0)
         } else {
-            // ANTIGRAVITY (#818CF8)
-            colorHealthy = NSColor(srgbRed: 0x81/255.0, green: 0x8C/255.0, blue: 0xF8/255.0, alpha: 1.0)
+            // ANTIGRAVITY (AZUL: #3B82F6)
+            colorHealthy = NSColor(srgbRed: 0x3B/255.0, green: 0x82/255.0, blue: 0xF6/255.0, alpha: 1.0)
         }
         let colorYellow = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
         let colorRed = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
@@ -839,8 +839,49 @@ class FlippedContentView: NSView {
     override var isFlipped: Bool { return true }
 }
 
-class FlippedBox: NSBox {
+class FlippedBox: NSView {
     override var isFlipped: Bool { return true }
+    
+    var boxType: NSBox.BoxType = .custom
+    
+    var fillColor: NSColor = .clear {
+        didSet {
+            wantsLayer = true
+            layer?.backgroundColor = fillColor.cgColor
+        }
+    }
+    
+    var borderColor: NSColor = .clear {
+        didSet {
+            wantsLayer = true
+            layer?.borderColor = borderColor.cgColor
+        }
+    }
+    
+    var borderWidth: CGFloat = 0 {
+        didSet {
+            wantsLayer = true
+            layer?.borderWidth = borderWidth
+        }
+    }
+    
+    var cornerRadius: CGFloat = 0 {
+        didSet {
+            wantsLayer = true
+            layer?.cornerRadius = cornerRadius
+            layer?.masksToBounds = true
+        }
+    }
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+    }
 }
 
 class VerticallyCenteredTextFieldCell: NSTextFieldCell {
@@ -1499,7 +1540,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 upBtn.attributedTitle = NSAttributedString(
                     string: "● NEW RELEASE",
                     attributes: [
-                        .foregroundColor: NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0),
+                        .foregroundColor: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 8.0, weight: .heavy)
                     ]
                 )
@@ -1609,7 +1650,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 upBtn.attributedTitle = NSAttributedString(
                     string: "● NEW RELEASE",
                     attributes: [
-                        .foregroundColor: NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0),
+                        .foregroundColor: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 8.5, weight: .heavy)
                     ]
                 )
@@ -1803,12 +1844,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // ----------------- UPDATE BANNER -----------------
         if let update = quota.update, update.update_available == true {
             let bannerH: CGFloat = 46
-            let banner = FlippedBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: bannerH))
-            banner.boxType = .custom
-            banner.fillColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.12)
-            banner.borderColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.7)
-            banner.borderWidth = 1
-            banner.cornerRadius = 6
+            let banner = FlippedContentView(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: bannerH))
+            banner.wantsLayer = true
+            banner.layer?.backgroundColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.12).cgColor
+            banner.layer?.borderColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.7).cgColor
+            banner.layer?.borderWidth = 1
+            banner.layer?.cornerRadius = 6
             contentView.addSubview(banner)
             
             let btnW: CGFloat = 84
@@ -1839,7 +1880,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if let sym = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil) {
                 let symConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
                 let iconImg = sym.withSymbolConfiguration(symConfig)
-                let imgView = NSImageView(frame: NSRect(x: 12, y: ((bannerH - 16) / 2.0).rounded(), width: 16, height: 16))
+                let iconH: CGFloat = 16
+                let iconY: CGFloat = ((bannerH - iconH) / 2.0).rounded()
+                let imgView = NSImageView(frame: NSRect(x: 12, y: iconY, width: 16, height: iconH))
                 imgView.image = iconImg
                 imgView.contentTintColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
                 banner.addSubview(imgView)
@@ -1966,10 +2009,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     accentColor = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
                     tagText = "CHATGPT (SESSÃO)"
                 } else if isStudio {
-                    accentColor = NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0)
+                    accentColor = NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0)
                     tagText = "GOOGLE AI STUDIO"
                 } else {
-                    accentColor = NSColor(srgbRed: 0x81/255.0, green: 0x8C/255.0, blue: 0xF8/255.0, alpha: 1.0)
+                    accentColor = NSColor(srgbRed: 0x3B/255.0, green: 0x82/255.0, blue: 0xF6/255.0, alpha: 1.0)
                     tagText = "ANTIGRAVITY"
                 }
                 
@@ -2063,8 +2106,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let btnBg = NSColor(srgbRed: 0xEE/255.0, green: 0xEE/255.0, blue: 0xF0/255.0, alpha: 1.0)
         let btnText = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
         
-        // ----------------- RODAPÉ (Linha 1: Botões) -----------------
+        // ----------------- RODAPÉ (Linha 1: Botões com tamanho uniforme e distribuição igual) -----------------
         let footerY: CGFloat = 30
+        let footerMargin: CGFloat = 16
+        let footerGap: CGFloat = 8
+        let totalBtnCount: CGFloat = 4
+        let eachBtnW: CGFloat = floor((windowWidth - (footerMargin * 2) - (footerGap * (totalBtnCount - 1))) / totalBtnCount)
+        
+        let pStyle = NSMutableParagraphStyle()
+        pStyle.alignment = .center
         
         // 1. Atualizar
         let refreshBtn = NSButton(title: "", target: self, action: #selector(refreshClicked))
@@ -2072,7 +2122,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refreshBtn.wantsLayer = true
         refreshBtn.layer?.backgroundColor = btnBg.cgColor
         refreshBtn.layer?.cornerRadius = 6
-        refreshBtn.frame = NSRect(x: 14, y: footerY, width: 88, height: 28)
+        refreshBtn.frame = NSRect(x: footerMargin, y: footerY, width: eachBtnW, height: 28)
         refreshBtn.keyEquivalent = "r"
         refreshBtn.keyEquivalentModifierMask = .command
         refreshBtn.imagePosition = .imageLeading
@@ -2081,7 +2131,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             string: "Atualizar",
             attributes: [
                 .foregroundColor: btnText,
-                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
+                .paragraphStyle: pStyle
             ]
         )
         if let symbol = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Atualizar") {
@@ -2102,7 +2153,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hudBtn.wantsLayer = true
         hudBtn.layer?.backgroundColor = btnBg.cgColor
         hudBtn.layer?.cornerRadius = 6
-        hudBtn.frame = NSRect(x: 108, y: footerY, width: 110, height: 28)
+        hudBtn.frame = NSRect(x: footerMargin + (eachBtnW + footerGap), y: footerY, width: eachBtnW, height: 28)
         hudBtn.keyEquivalent = "m"
         hudBtn.keyEquivalentModifierMask = .command
         hudBtn.imagePosition = .imageLeading
@@ -2112,7 +2163,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             string: "Barra HUD",
             attributes: [
                 .foregroundColor: btnText,
-                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
+                .paragraphStyle: pStyle
             ]
         )
         if let symbol = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Alternar Modo") {
@@ -2132,7 +2184,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsBtn.wantsLayer = true
         settingsBtn.layer?.backgroundColor = btnBg.cgColor
         settingsBtn.layer?.cornerRadius = 6
-        settingsBtn.frame = NSRect(x: 224, y: footerY, width: 94, height: 28)
+        settingsBtn.frame = NSRect(x: footerMargin + 2 * (eachBtnW + footerGap), y: footerY, width: eachBtnW, height: 28)
         settingsBtn.keyEquivalent = ","
         settingsBtn.keyEquivalentModifierMask = .command
         settingsBtn.imagePosition = .imageLeading
@@ -2142,7 +2194,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             string: "Configurar",
             attributes: [
                 .foregroundColor: btnText,
-                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
+                .paragraphStyle: pStyle
             ]
         )
         if let symbol = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Configurações") {
@@ -2162,17 +2215,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         closeBtn.wantsLayer = true
         closeBtn.layer?.backgroundColor = btnBg.cgColor
         closeBtn.layer?.cornerRadius = 6
-        closeBtn.frame = NSRect(x: windowWidth - 76, y: footerY, width: 62, height: 28)
+        closeBtn.frame = NSRect(x: footerMargin + 3 * (eachBtnW + footerGap), y: footerY, width: eachBtnW, height: 28)
         closeBtn.keyEquivalent = "q"
         closeBtn.keyEquivalentModifierMask = .command
         closeBtn.imagePosition = .imageLeading
         closeBtn.imageHugsTitle = true
         closeBtn.toolTip = "Encerrar Gemini Gauge (Cmd+Q)"
         closeBtn.attributedTitle = NSAttributedString(
-            string: " Fechar",
+            string: "Fechar",
             attributes: [
                 .foregroundColor: btnText,
-                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
+                .paragraphStyle: pStyle
             ]
         )
         if let symbol = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Fechar") {
