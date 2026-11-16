@@ -153,11 +153,13 @@ if (Test-Path (Join-Path $RepoDir "assets\icon.ico")) {
 $WshShell = New-Object -ComObject WScript.Shell
 $IconPath = Join-Path $TargetDir "icon.ico"
 
+$targetVbs = if (Test-Path (Join-Path $TargetDir "AIGauge.vbs")) { "$TargetDir\AIGauge.vbs" } else { "$TargetDir\GeminiGauge.vbs" }
+
 # 1. Desktop Shortcut
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
 $DesktopShortcut = $WshShell.CreateShortcut((Join-Path $DesktopDir "AI Gauge.lnk"))
 $DesktopShortcut.TargetPath = "wscript.exe"
-$DesktopShortcut.Arguments = "`"$TargetDir\GeminiGauge.vbs`""
+$DesktopShortcut.Arguments = "`"$targetVbs`""
 $DesktopShortcut.WorkingDirectory = $TargetDir
 $DesktopShortcut.IconLocation = "$IconPath,0"
 $DesktopShortcut.Description = "AI Gauge - AI Quota & Rate Limit Monitor (VH2C)"
@@ -167,7 +169,7 @@ $DesktopShortcut.Save()
 $StartMenuDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
 $StartShortcut = $WshShell.CreateShortcut((Join-Path $StartMenuDir "AI Gauge.lnk"))
 $StartShortcut.TargetPath = "wscript.exe"
-$StartShortcut.Arguments = "`"$TargetDir\GeminiGauge.vbs`""
+$StartShortcut.Arguments = "`"$targetVbs`""
 $StartShortcut.WorkingDirectory = $TargetDir
 $StartShortcut.IconLocation = "$IconPath,0"
 $StartShortcut.Description = "AI Gauge - AI Quota & Rate Limit Monitor (VH2C)"
@@ -176,7 +178,7 @@ $StartShortcut.Save()
 Write-Host "✅ Atalhos criados com sucesso na Área de Trabalho e no Menu Iniciar!" -ForegroundColor Green
 Write-Host "🚀 Iniciando o AI Gauge..." -ForegroundColor Cyan
 
-Start-Process "wscript.exe" -ArgumentList "`"$TargetDir\GeminiGauge.vbs`""
+Start-Process "wscript.exe" -ArgumentList "`"$targetVbs`""
 
 Write-Host ""
 Write-Host "🎉 Instalação concluída com sucesso!" -ForegroundColor Green
