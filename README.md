@@ -19,9 +19,21 @@
 
 **AI Gauge** é um cockpit leve e de alto desempenho para monitorar em tempo real as cotas, limites de taxa (RPM/TPM) e janelas de renovação dos seus modelos de inteligência artificial no macOS, Linux e Windows. Funciona de forma **totalmente independente de IDEs**, agregando em um único painel **Antigravity**, **Claude**, **ChatGPT**, **Cursor**, **GitHub Copilot (VS Code)** e **Gemini**.
 
-> 💡 **Detecção Zero-Config (Plug & Play)**: Se você já utiliza os aplicativos no seu computador, o AI Gauge detecta as sessões locais de forma 100% automática. Não é necessário digitar tokens nem senhas para o **Antigravity**, **Claude**, **ChatGPT**, **Cursor** ou **GitHub Copilot**!
+> 💡 **Detecção Zero-Config (Plug & Play)**: Se você já utiliza os aplicativos no seu computador, o AI Gauge detecta as sessões locais de forma 100% automática. Não é necessário digitar tokens nem senhas para o **Antigravity**, **Claude**, **ChatGPT**, **Cursor** ou **Copilot**!
 
 </div>
+
+---
+
+## 📦 Downloads Prontos para Uso (v1.1)
+
+Para testadores e usuários leigos: **não é necessário compilar código**. Basta baixar o pacote correspondente ao seu sistema operacional:
+
+| Plataforma | Pacote (.zip / .tar.gz) | Tamanho | Como Instalar |
+| :--- | :--- | :---: | :--- |
+| 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](releases/v1.1/AI-Gauge-macOS-vh2c.zip?raw=true) | `2.5 MB` | Extraia e arraste o **AI Gauge.app** para a pasta `/Applications`, ou execute `./install.sh`. |
+| 🪟 **Windows** | [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true) | `5.7 MB` | Extraia o arquivo e execute o instalador interativo **`install.ps1`** com o PowerShell. |
+| 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.tar.gz**](releases/v1.1/AI-Gauge-Linux-vh2c.tar.gz?raw=true) | `5.9 MB` | Extraia o arquivo e execute **`./install.sh`** no terminal. |
 
 ---
 
@@ -108,8 +120,8 @@ Todos os relógios (gauges analógicos) do AI GAUGE operam como um **marcador de
 ## 🚀 Instalação Rápida
 
 ### 🍏 macOS (Apple Silicon & Intel)
-1. Baixe o release: [AI-Gauge-macOS-vh2c.zip](https://github.com/vh2c/gemini-gauge/releases/latest)
-2. Extraia o ZIP e mova o **`AI Gauge.app`** para a pasta `/Applications`.
+1. Baixe o pacote: [**AI-Gauge-macOS-vh2c.zip**](releases/v1.1/AI-Gauge-macOS-vh2c.zip?raw=true)
+2. Extraia o ZIP e mova o **`AI Gauge.app`** para a pasta `/Applications` (ou rode `./install.sh`).
 3. Abra o `AI Gauge` pelo Spotlight ou Launchpad.
 
 *Ou compile diretamente do código:*
@@ -122,18 +134,18 @@ cd gemini-gauge/ai_gauge_app/macos
 ---
 
 ### 🐧 Linux (Ubuntu, Debian, Fedora, Arch, Mint)
-O instalador do Linux é **100% autossuficiente** e configura automaticamente as dependências:
-
+1. Baixe o pacote: [**AI-Gauge-Linux-vh2c.tar.gz**](releases/v1.1/AI-Gauge-Linux-vh2c.tar.gz?raw=true)
+2. Extraia o arquivo e execute o script autossuficiente:
 ```bash
-git clone https://github.com/vh2c/gemini-gauge.git
-cd gemini-gauge/ai_gauge_app/linux
+tar -xzf AI-Gauge-Linux-vh2c.tar.gz
+cd AI-Gauge-Linux
 ./install.sh
 ```
 
 ---
 
 ### 🪟 Windows (Windows 10 / 11)
-1. Baixe o release: [AI-Gauge-Windows-vh2c.zip](https://github.com/vh2c/gemini-gauge/releases/latest)
+1. Baixe o pacote: [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true)
 2. Extraia o ZIP.
 3. Clique com o botão direito em **`install.ps1`** e selecione **"Executar com o PowerShell"** (ou execute `AIGauge.bat`).
 4. Os atalhos serão criados automaticamente na sua Área de Trabalho e Menu Iniciar.
