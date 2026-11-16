@@ -237,7 +237,7 @@ extension QuotaData {
                 name: "ChatGPT",
                 subtitle: "Sessão Web",
                 tag: "CHATGPT",
-                accentColor: NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0),
+                accentColor: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -288,7 +288,7 @@ extension QuotaData {
                     items.append(GaugeItem(
                         id: b.id ?? "",
                         title: limitTitle,
-                        modelName: "VS Code Copilot",
+                        modelName: "Copilot",
                         percentage: b.remaining_pct,
                         resetIn: b.reset_in,
                         detail: b.detail,
@@ -298,10 +298,10 @@ extension QuotaData {
                 }
             }
             sections.append(GaugeSection(
-                name: "GitHub Copilot",
+                name: "Copilot",
                 subtitle: "VS Code",
                 tag: "COPILOT",
-                accentColor: NSColor(srgbRed: 0x58/255.0, green: 0xA6/255.0, blue: 0xFF/255.0, alpha: 1.0),
+                accentColor: NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -808,7 +808,11 @@ class TachometerGaugeView: NSView {
         } else if item.sectionTag == "CLAUDE_PRO" {
             colorHealthy = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
         } else if item.sectionTag == "CHATGPT" {
-            colorHealthy = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
+            colorHealthy = NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0)
+        } else if item.sectionTag == "CURSOR" {
+            colorHealthy = NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0)
+        } else if item.sectionTag == "COPILOT" {
+            colorHealthy = NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0)
         } else if item.sectionTag == "OPENAI" {
             colorHealthy = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
         } else if item.sectionTag == "CLAUDE" {
@@ -2243,15 +2247,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let isStudio = pLower.contains("studio") || g.name.lowercased().contains("gemini api")
                 let isClaudePro = !isStudio && !pLower.contains("antigravity") && (pLower.contains("claude") || g.name.lowercased().contains("claude")) && !g.name.lowercased().contains("claude and gpt")
                 let isChatGpt = pLower.contains("chatgpt") || g.name.lowercased().contains("chatgpt")
+                let isCursor = pLower.contains("cursor") || g.name.lowercased().contains("cursor")
+                let isCopilot = pLower.contains("copilot") || g.name.lowercased().contains("copilot") || pLower.contains("github")
                 
                 let accentColor: NSColor
                 let tagText: String
                 if isClaudePro {
                     accentColor = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
-                    tagText = "CLAUDE (SESSÃO)"
+                    tagText = "CLAUDE"
                 } else if isChatGpt {
-                    accentColor = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
-                    tagText = "CHATGPT (SESSÃO)"
+                    accentColor = NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0)
+                    tagText = "CHATGPT"
+                } else if isCursor {
+                    accentColor = NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0)
+                    tagText = "CURSOR"
+                } else if isCopilot {
+                    accentColor = NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0)
+                    tagText = "COPILOT"
                 } else if isStudio {
                     accentColor = NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0)
                     tagText = "GEMINI"
@@ -2821,7 +2833,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let copilotBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
         copilotBtn.state = (copilotCfg?.enabled ?? true) ? .on : .off
         copilotBtn.attributedTitle = NSAttributedString(
-            string: "  GitHub Copilot (Visual Studio Code)",
+            string: "  Copilot (Visual Studio Code)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -2834,7 +2846,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let hasCopilot = QuotaManager.hasCopilot()
         let copilotStatus = NSTextField(labelWithString: hasCopilot ? "✓ Visual Studio Code & Copilot detectados no Mac" : "ℹ️ Copilot Chat e Code Completions do VS Code:")
         copilotStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
-        copilotStatus.textColor = hasCopilot ? NSColor(srgbRed: 0x58/255.0, green: 0xA6/255.0, blue: 0xFF/255.0, alpha: 1.0) : NSColor(white: 0.6, alpha: 1.0)
+        copilotStatus.textColor = hasCopilot ? NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0) : NSColor(white: 0.6, alpha: 1.0)
         copilotStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
         copilotCard.addSubview(copilotStatus)
         
@@ -3401,10 +3413,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.obCursorCheck = cursorBtn
         cy += cardH + 8
         
-        // 5. GitHub Copilot
+        // 5. Copilot
         let (copilotCard, copilotBtn) = buildAppCard(
             y: cy,
-            title: "GitHub Copilot",
+            title: "Copilot",
             subtitle: "Visual Studio Code (Copilot Chat & Completions)",
             detected: hasCopilot,
             detectedText: "✓ Detectado (VS Code)",

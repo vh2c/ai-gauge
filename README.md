@@ -42,7 +42,7 @@ As informações no HUD lateral flutuante são agrupadas por aplicativo/provedor
    - **Weekly Limit**: Cota semanal com contagem regressiva para renovação.
    - *Autenticação:* **Zero-Config** (captura do macOS Keychain com auto-renovação de token expirado).
 
-3. **`ChatGPT`** *(Verde OpenAI `#10A37F` - App Desktop OpenAI)*:
+3. **`ChatGPT`** *(Verde Menta `#8AE39A` - App Desktop OpenAI)*:
    - Monitora seu acesso à conta oficial do ChatGPT (Free, Plus, Pro, Team).
    - **GPT-4o (3h / Cota Ativa)**: Janela de mensagens e limite de taxa.
    - **o1 Reasoning (Semanal)**: Cota semanal para modelos com raciocínio avançado.
@@ -54,8 +54,8 @@ As informações no HUD lateral flutuante são agrupadas por aplicativo/provedor
    - **Ciclo Mensal**: Contagem regressiva até a renovação da cota da fatura mensal.
    - *Autenticação:* **Zero-Config** (extração automática do armazenamento local do Cursor em `state.vscdb`).
 
-5. **`GitHub Copilot`** *(Azul GitHub `#58A6FF` - Visual Studio Code)*:
-   - Monitora o status e limites do **GitHub Copilot** no VS Code.
+5. **`Copilot`** *(Coral Vibrante `#FF5265` - Visual Studio Code)*:
+   - Monitora o status e limites do **Copilot** no VS Code.
    - **Copilot Chat & Model Limits**: Cota de mensagens de chat e acesso a Claude 3.5 Sonnet / GPT-4o.
    - **Completions Rate Limits**: Limites de taxa de geração de código em tempo real.
    - *Autenticação:* **Zero-Config** (detecta o ambiente do VS Code, tokens da CLI `gh` ou credenciais locais).

@@ -15,9 +15,9 @@ O projeto evoluiu de um monitor focado em Gemini para um cockpit universal de co
 * **Identidade Visual e Seções do HUD:** Fundo escuro (`#121212` / `#181818`), acentos temáticos por provedor:
   - **Antigravity (IDE Dedicado):** Azul suave / pastel (`#8FBCFF`) - Gemini, Claude/GPT e Argon.
   - **Claude (Sessão Desktop):** Coral/Terracota (`#D78C68`) - Janela de 5h e cota semanal.
-  - **ChatGPT (Sessão Desktop):** Verde OpenAI (`#10A37F`) - Janela de 3h e cota semanal o1.
+  - **ChatGPT (Sessão Desktop):** Verde Menta (`#8AE39A`) - Janela de 3h e cota semanal o1.
   - **Cursor (Cursor IDE):** Roxo Neon (`#A855F7`) - Cota mensal de Fast Requests e ciclo de faturamento.
-  - **GitHub Copilot (VS Code):** Azul GitHub (`#58A6FF`) - Copilot Chat e Code Completions rate limits.
+  - **Copilot (VS Code):** Coral Vibrante (`#FF5265`) - Copilot Chat e Code Completions rate limits.
   - **Gemini (API):** Off-White / Prata (`#EBEBEB`) - Chave de API Google AI Studio.
   - **Status Saudável / HUD:** Verde suave (`#00E699` / `#8AE39A`).
   - **Alerta / Crítico:** Âmbar (`#F5A623`) e Vermelho (`#FF4D4F`).
@@ -27,7 +27,7 @@ O projeto evoluiu de um monitor focado em Gemini para um cockpit universal de co
 * **Claude:** 100% automático (leitura do macOS Keychain `Claude Code-credentials` com auto-renovação de tokens expirados).
 * **ChatGPT:** 100% automático (leitura da sessão ativa do app desktop macOS em `~/.codex/auth.json` com cabeçalho `ChatGPT-Account-ID`).
 * **Cursor:** 100% automático (leitura do token de sessão em `state.vscdb` do Cursor local com consulta à API `/api/usage`).
-* **GitHub Copilot:** 100% automático (detecção do ambiente VS Code, tokens de CLI `gh auth token` ou `hosts.json` com consulta a `/copilot_internal/v2/token`).
+* **Copilot:** 100% automático (detecção do ambiente VS Code, tokens de CLI `gh auth token` ou `hosts.json` com consulta a `/copilot_internal/v2/token`).
 * **Gemini (API):** Preenchimento manual da chave de API (`AIzaSy...`).
 * **Escala dos Relógios:** Modo tacômetro/marcador de combustível (100% = tanque cheio / cota restante, 0% = esgotado). Inverte a lógica de exibição de apps que mostram % consumida para garantir leitura intuitiva de disponibilidade.
 

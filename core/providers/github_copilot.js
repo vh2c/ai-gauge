@@ -88,9 +88,9 @@ class GitHubCopilotProvider {
       mode: 'ide',
       groups: [
         {
-          name: 'GitHub Copilot',
+          name: 'Copilot',
           description: 'Visual Studio Code • Copilot Chat & Completions',
-          provider: 'GitHub Copilot',
+          provider: 'Copilot',
           buckets: [
             {
               id: 'copilot-chat-limit',
@@ -145,9 +145,9 @@ class GitHubCopilotProvider {
                 mode: 'ide',
                 groups: [
                   {
-                    name: 'GitHub Copilot',
+                    name: 'Copilot',
                     description: `Visual Studio Code • ${skuLabel}`,
-                    provider: 'GitHub Copilot',
+                    provider: 'Copilot',
                     buckets: [
                       {
                         id: 'copilot-chat-limit',

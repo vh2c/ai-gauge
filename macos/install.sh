@@ -62,7 +62,7 @@ echo "  [1] ⚡ Antigravity:       $([ "$HAS_ANTIGRAVITY" = true ] && echo "✓ 
 echo "  [2] 🟣 Claude (Pro/Code): $([ "$HAS_CLAUDE" = true ] && echo "✓ Sessão / Token detectado" || echo "○ Não detectado (opcional)")"
 echo "  [3] 🟢 ChatGPT (Desktop): $([ "$HAS_CHATGPT" = true ] && echo "✓ Sessão Desktop / Codex detectada" || echo "○ Não detectado (opcional)")"
 echo "  [4] 🔮 Cursor (IDE):      $([ "$HAS_CURSOR" = true ] && echo "✓ Detectado no Mac" || echo "○ Não detectado (opcional)")"
-echo "  [5] 💻 GitHub Copilot:    $([ "$HAS_COPILOT" = true ] && echo "✓ Detectado no Mac (VS Code)" || echo "○ Não detectado (opcional)")"
+echo "  [5] 🔴 Copilot (VS Code): $([ "$HAS_COPILOT" = true ] && echo "✓ Detectado no Mac (VS Code)" || echo "○ Não detectado (opcional)")"
 echo "  [6] 🔷 Gemini (Studio):   $([ "$HAS_GEMINI" = true ] && echo "✓ Chave configurada" || echo "○ Chave de API (opcional)")"
 echo ""
 

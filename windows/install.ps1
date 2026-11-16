@@ -69,7 +69,7 @@ Write-Host "  [1] ⚡ Antigravity:       $(if ($HasAnti) {'✓ Detectado no sist
 Write-Host "  [2] 🟣 Claude (Pro/Code): $(if ($HasClaude) {'✓ Sessão / Token detectado'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasClaude) {'Green'} else {'Gray'})
 Write-Host "  [3] 🟢 ChatGPT (Desktop): $(if ($HasChatGPT) {'✓ Sessão Desktop / Codex detectada'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasChatGPT) {'Green'} else {'Gray'})
 Write-Host "  [4] 🔮 Cursor (IDE):      $(if ($HasCursor) {'✓ Detectado no sistema'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasCursor) {'Green'} else {'Gray'})
-Write-Host "  [5] 💻 GitHub Copilot:    $(if ($HasCopilot) {'✓ Detectado (VS Code)'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasCopilot) {'Green'} else {'Gray'})
+Write-Host "  [5] 🔴 Copilot (VS Code): $(if ($HasCopilot) {'✓ Detectado (VS Code)'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasCopilot) {'Green'} else {'Gray'})
 Write-Host "  [6] 🔷 Gemini (Studio):   $(if ($HasGemini) {'✓ Chave configurada'} else {'○ Chave de API (opcional)'})" -ForegroundColor $(if ($HasGemini) {'Green'} else {'Gray'})
 Write-Host ""
 
