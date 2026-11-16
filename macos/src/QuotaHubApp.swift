@@ -2487,7 +2487,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             eTitle.frame = NSRect(x: 16, y: 14, width: cardView.frame.width - 32, height: 18)
             cardView.addSubview(eTitle)
             
-            let eDesc = NSTextField(labelWithString: "O Antigravity IDE está fechado e nenhuma chave de API adicional (Gemini, OpenAI, Claude) foi configurada.")
+            let eDesc = NSTextField(labelWithString: "Não foram encontradas sessões ativas de IA (Antigravity, Claude, ChatGPT, Cursor, Copilot). Configure uma chave de API (Gemini, OpenAI, Claude) ou token de acesso:")
             eDesc.font = NSFont.systemFont(ofSize: 11, weight: .regular)
             eDesc.textColor = NSColor(white: 0.65, alpha: 1.0)
             eDesc.lineBreakMode = .byWordWrapping

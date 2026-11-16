@@ -371,9 +371,7 @@ function Toggle-HudMode {
             $window.Top = [Math]::Max(0, ($workArea.Height - 650) / 2)
         }
         
-        if ($global:currentData) {
-            Render-UI $global:currentData
-        }
+        Render-UI $global:currentData
     } else {
         # Switch to HUD Bar Mode
         $global:isHudMode = $true
@@ -389,10 +387,13 @@ function Toggle-HudMode {
                 if ($g.buckets) { $cardCount += $g.buckets.Count }
             }
         }
-        if ($cardCount -lt 1) { $cardCount = 2 }
         
-        $maxH = [Math]::Min(680, $workArea.Height - 60)
-        $hudH = [Math]::Min($maxH, [Math]::Max(160, 36 + ($cardCount * 110) + 20))
+        if ($cardCount -eq 0) {
+            $hudH = 175
+        } else {
+            $maxH = [Math]::Min(680, $workArea.Height - 60)
+            $hudH = [Math]::Min($maxH, [Math]::Max(160, 36 + ($cardCount * 110) + 20))
+        }
         
         $window.Title = "AI Gauge HUD"
         $window.Topmost = $true
@@ -401,9 +402,7 @@ function Toggle-HudMode {
         $window.Left = $workArea.Right - 130
         $window.Top = [Math]::Max(20, ($workArea.Height - $hudH) / 2)
         
-        if ($global:currentData) {
-            Render-HUD $global:currentData
-        }
+        Render-HUD $global:currentData
     }
 }
 
@@ -452,14 +451,135 @@ $window.Add_KeyDown({
 # 5. Render Full Cockpit UI
 function Render-UI ($data) {
     $global:currentData = $data
-    if (-not $data) {
-        $txtAcc.Text = "No active providers configured. Click Settings to configure."
+    $cardsPanel.Children.Clear()
+    
+    $hasGroups = ($data -and $data.groups -and $data.groups.Count -gt 0)
+    
+    # ----------------- EMPTY STATE (ONBOARDING) -----------------
+    if (-not $hasGroups) {
+        $txtAcc.Text = "Nenhuma conta ou quota de IA detectada localmente"
+        
+        $emptyBorder = New-Object System.Windows.Controls.Border
+        $emptyBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x1B, 0x1B, 0x22)))
+        $emptyBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2E, 0x2E, 0x3A)))
+        $emptyBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $emptyBorder.CornerRadius = (New-Object System.Windows.CornerRadius(10))
+        $emptyBorder.Padding = (New-Object System.Windows.Thickness(18, 16, 18, 18))
+        $emptyBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
+        
+        $emptyStack = New-Object System.Windows.Controls.StackPanel
+        
+        # 1. Title Row
+        $tRow = New-Object System.Windows.Controls.StackPanel
+        $tRow.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+        $tRow.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 6))
+        
+        $tIcon = New-Object System.Windows.Controls.TextBlock
+        $tIcon.Text = "🤖"
+        $tIcon.FontSize = 18
+        $tIcon.Margin = (New-Object System.Windows.Thickness(0, 0, 8, 0))
+        $tIcon.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        $tRow.Children.Add($tIcon) | Out-Null
+        
+        $tTitle = New-Object System.Windows.Controls.TextBlock
+        $tTitle.Text = "Nenhum Registro de IA Encontrado"
+        $tTitle.FontSize = 14
+        $tTitle.FontWeight = [System.Windows.FontWeights]::Bold
+        $tTitle.Foreground = [System.Windows.Media.Brushes]::White
+        $tTitle.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        $tRow.Children.Add($tTitle) | Out-Null
+        $emptyStack.Children.Add($tRow) | Out-Null
+        
+        # 2. Explanation
+        $tDesc = New-Object System.Windows.Controls.TextBlock
+        $tDesc.Text = "Não encontramos contas ou sessões ativas locais (Antigravity, Claude, ChatGPT, Cursor ou Copilot) nesta máquina."
+        $tDesc.TextWrapping = [System.Windows.TextWrapping]::Wrap
+        $tDesc.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xBB, 0xBB, 0xC4)))
+        $tDesc.FontSize = 11
+        $tDesc.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 12))
+        $emptyStack.Children.Add($tDesc) | Out-Null
+        
+        # 3. Guidance Box (How to connect via APIs or Tokens)
+        $guideBox = New-Object System.Windows.Controls.Border
+        $guideBox.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x14, 0x14, 0x18)))
+        $guideBox.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x25, 0x25, 0x30)))
+        $guideBox.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $guideBox.CornerRadius = (New-Object System.Windows.CornerRadius(6))
+        $guideBox.Padding = (New-Object System.Windows.Thickness(12, 10, 12, 10))
+        $guideBox.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 14))
+        
+        $guideStack = New-Object System.Windows.Controls.StackPanel
+        
+        $gHead = New-Object System.Windows.Controls.TextBlock
+        $gHead.Text = "Como direcionar e monitorar suas cotas:"
+        $gHead.FontWeight = [System.Windows.FontWeights]::Bold
+        $gHead.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
+        $gHead.FontSize = 10.5
+        $gHead.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 6))
+        $guideStack.Children.Add($gHead) | Out-Null
+        
+        $item1 = New-Object System.Windows.Controls.TextBlock
+        $item1.Text = "• Google Gemini (Recomendado): Crie uma chave gratuita no Google AI Studio (leva 30 segundos e não exige IDE instalada)."
+        $item1.TextWrapping = [System.Windows.TextWrapping]::Wrap
+        $item1.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
+        $item1.FontSize = 10
+        $item1.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 4))
+        $guideStack.Children.Add($item1) | Out-Null
+        
+        $item2 = New-Object System.Windows.Controls.TextBlock
+        $item2.Text = "• OpenAI & Anthropic: Adicione suas chaves de API sk-... para monitorar cotas e limites de requisição."
+        $item2.TextWrapping = [System.Windows.TextWrapping]::Wrap
+        $item2.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
+        $item2.FontSize = 10
+        $item2.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 4))
+        $guideStack.Children.Add($item2) | Out-Null
+        
+        $item3 = New-Object System.Windows.Controls.TextBlock
+        $item3.Text = "• Tokens de Sessão: Insira seu token de assinatura do Claude Pro, ChatGPT ou Cursor se assinar tais serviços."
+        $item3.TextWrapping = [System.Windows.TextWrapping]::Wrap
+        $item3.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
+        $item3.FontSize = 10
+        $guideStack.Children.Add($item3) | Out-Null
+        
+        $guideBox.Child = $guideStack
+        $emptyStack.Children.Add($guideBox) | Out-Null
+        
+        # 4. Action Buttons
+        $btnStack = New-Object System.Windows.Controls.StackPanel
+        
+        $btnConfig = New-Object System.Windows.Controls.Button
+        $btnConfig.Content = "⚙ Configurar Provedores e Chaves de API"
+        $btnConfig.Height = 32
+        $btnConfig.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
+        $btnConfig.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x14)))
+        $btnConfig.FontWeight = [System.Windows.FontWeights]::Bold
+        $btnConfig.FontSize = 11.5
+        $btnConfig.Cursor = [System.Windows.Input.Cursors]::Hand
+        $btnConfig.Add_Click({ Show-SettingsDialog })
+        $btnStack.Children.Add($btnConfig) | Out-Null
+        
+        $btnStudio = New-Object System.Windows.Controls.Button
+        $btnStudio.Content = "🔗 Obter Chave Gratuita no Google AI Studio (aistudio.google.com) ->"
+        $btnStudio.Height = 28
+        $btnStudio.Margin = (New-Object System.Windows.Thickness(0, 6, 0, 0))
+        $btnStudio.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x22, 0x22, 0x2B)))
+        $btnStudio.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
+        $btnStudio.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x32, 0x32, 0x40)))
+        $btnStudio.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $btnStudio.FontSize = 10
+        $btnStudio.FontWeight = [System.Windows.FontWeights]::SemiBold
+        $btnStudio.Cursor = [System.Windows.Input.Cursors]::Hand
+        $btnStudio.Add_Click({ [System.Diagnostics.Process]::Start("https://aistudio.google.com/app/apikey") })
+        $btnStack.Children.Add($btnStudio) | Out-Null
+        
+        $emptyStack.Children.Add($btnStack) | Out-Null
+        $emptyBorder.Child = $emptyStack
+        $cardsPanel.Children.Add($emptyBorder) | Out-Null
         return
     }
     
     $cacheInfo = if ($data.from_cache) { " (Cache)" } else { " (Live)" }
     $txtAcc.Text = "$($data.account) | Plan $($data.plan) | Updated at $($data.updated_at)$cacheInfo"
-    $cardsPanel.Children.Clear()
     
     # ----------------- UPDATE BANNER -----------------
     if ($data.update -and $data.update.update_available) {
@@ -653,8 +773,54 @@ function Render-UI ($data) {
 
 # 6. Render HUD UI (Signature Compact Tachometer Dials)
 function Render-HUD ($data) {
-    if (-not $data) { return }
     $hudCardsPanel.Children.Clear()
+    
+    $hasGroups = ($data -and $data.groups -and $data.groups.Count -gt 0)
+    
+    if (-not $hasGroups) {
+        $card = New-Object System.Windows.Controls.Border
+        $card.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x1B, 0x1B, 0x20)))
+        $card.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x28, 0x28, 0x32)))
+        $card.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $card.CornerRadius = (New-Object System.Windows.CornerRadius(8))
+        $card.Width = 98
+        $card.Height = 110
+        $card.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 6))
+        $card.Padding = (New-Object System.Windows.Thickness(6, 8, 6, 8))
+        $card.Cursor = [System.Windows.Input.Cursors]::Hand
+        $card.Add_MouseLeftButtonDown({ Show-SettingsDialog })
+        
+        $cardStack = New-Object System.Windows.Controls.StackPanel
+        $cardStack.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        
+        $icon = New-Object System.Windows.Controls.TextBlock
+        $icon.Text = "⚙"
+        $icon.FontSize = 18
+        $icon.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
+        $icon.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        $cardStack.Children.Add($icon) | Out-Null
+        
+        $t1 = New-Object System.Windows.Controls.TextBlock
+        $t1.Text = "SEM COTAS"
+        $t1.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
+        $t1.FontSize = 8.5
+        $t1.FontWeight = [System.Windows.FontWeights]::Bold
+        $t1.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        $t1.Margin = (New-Object System.Windows.Thickness(0, 3, 0, 2))
+        $cardStack.Children.Add($t1) | Out-Null
+        
+        $t2 = New-Object System.Windows.Controls.TextBlock
+        $t2.Text = "Clique aqui para configurar suas chaves ou tokens."
+        $t2.TextWrapping = [System.Windows.TextWrapping]::Wrap
+        $t2.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x94, 0xA3, 0xB8)))
+        $t2.FontSize = 7.5
+        $t2.TextAlignment = [System.Windows.TextAlignment]::Center
+        $cardStack.Children.Add($t2) | Out-Null
+        
+        $card.Child = $cardStack
+        $hudCardsPanel.Children.Add($card) | Out-Null
+        return
+    }
     
     foreach ($g in $data.groups) {
         $provKey = Get-ProviderKey $g.name $g.provider
@@ -1082,23 +1248,23 @@ function Refresh-Data {
     $window.Dispatcher.Invoke([Action]{}, "Background")
     
     $newData = Get-QuotaData -force $true
-    if ($newData) {
-        Render-UI $newData
-        if ($global:isHudMode) {
-            # Recalculate dynamic height in HUD mode
-            $cardCount = 0
-            if ($newData.groups) {
-                foreach ($g in $newData.groups) {
-                    if ($g.buckets) { $cardCount += $g.buckets.Count }
-                }
+    Render-UI $newData
+    if ($global:isHudMode) {
+        $cardCount = 0
+        if ($newData -and $newData.groups) {
+            foreach ($g in $newData.groups) {
+                if ($g.buckets) { $cardCount += $g.buckets.Count }
             }
-            if ($cardCount -lt 1) { $cardCount = 2 }
-            $workArea = [System.Windows.SystemParameters]::WorkArea
+        }
+        $workArea = [System.Windows.SystemParameters]::WorkArea
+        if ($cardCount -eq 0) {
+            $hudH = 175
+        } else {
             $maxH = [Math]::Min(680, $workArea.Height - 60)
             $hudH = [Math]::Min($maxH, [Math]::Max(160, 36 + ($cardCount * 110) + 20))
-            $window.Height = $hudH
-            Render-HUD $newData
         }
+        $window.Height = $hudH
+        Render-HUD $newData
     }
     $btnRefresh.Content = "↻ Refresh"
     $btnRefresh.IsEnabled = $true
@@ -1113,9 +1279,9 @@ $txtBrand.Add_MouseDown({
 
 # Initial Load
 $quota = Get-QuotaData
+Render-UI $quota
 if ($quota) {
-    Render-UI $quota
-    if ($quota.needs_setup -or -not $quota.groups) {
+    if ($quota.needs_setup -or -not $quota.groups -or $quota.groups.Count -eq 0) {
         Show-SettingsDialog
     }
 } else {

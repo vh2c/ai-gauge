@@ -786,12 +786,14 @@ class QuotaHubAppLinux:
                 btn_act.pack(anchor="center", pady=(2, 4))
 
         if not groups:
-            empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=24, highlightbackground="#2A2A2A", highlightthickness=1)
+            empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=20, highlightbackground="#2A2A2A", highlightthickness=1)
             empty_frame.pack(fill="both", expand=True, pady=10)
-            tk.Label(empty_frame, text="Nenhum provedor ativo ou com cotas detectadas.", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(12, 6))
-            tk.Label(empty_frame, text="Clique abaixo para configurar sua chave da Gemini, Claude Pro ou OpenAI:", font=("Sans", 9), fg="#999999", bg="#1F1F1F").pack(pady=(0, 16))
-            tk.Button(empty_frame, text="⚙️ Configurar Provedores de IA", font=("Sans", 10, "bold"), fg="#121212", bg="#00E699",
-                      activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=18, pady=8, cursor="hand2", command=self.open_settings).pack()
+            tk.Label(empty_frame, text="🤖 Nenhum Registro de IA Encontrado", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(8, 4))
+            tk.Label(empty_frame, text="Não foram encontradas sessões ativas locais (Antigravity, Claude, ChatGPT, Cursor, Copilot).\nConfigure uma chave de API (Gemini, OpenAI, Anthropic) ou token de sessão:", font=("Sans", 8.5), fg="#AAAAAA", bg="#1F1F1F", justify="center").pack(pady=(0, 12))
+            tk.Button(empty_frame, text="⚙️ Configurar Provedores e Chaves", font=("Sans", 9.5, "bold"), fg="#121212", bg="#00E699",
+                      activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=16, pady=6, cursor="hand2", command=self.open_settings).pack(pady=(0, 6))
+            tk.Button(empty_frame, text="🔗 Obter Chave Gratuita no Google AI Studio (aistudio.google.com) →", font=("Sans", 8), fg="#38BDF8", bg="#18181C",
+                      activebackground="#252530", activeforeground="#38BDF8", relief="flat", padx=10, pady=4, cursor="hand2", command=lambda: webbrowser.open("https://aistudio.google.com/app/apikey")).pack()
 
         cfg = load_config()
         sec_colors = cfg.get("section_colors", {})
