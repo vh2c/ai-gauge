@@ -38,6 +38,9 @@ struct AnnouncementInfo: Codable {
     let action_label: String?
     let action_url: String?
     let image_url: String?
+    let image_fit: String?
+    let image_position: String?
+    let image_scale: Double?
     let duracao_segundos: Int?
 }
 
@@ -2944,8 +2947,11 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
 
         let title = escapeHTML(ann.title ?? "AI Gauge Pro")
         let text = escapeHTML(ann.message ?? "")
+        let fit = escapeHTML(ann.image_fit ?? "cover")
+        let pos = escapeHTML(ann.image_position ?? "center")
+        let sc = ann.image_scale ?? 1.0
         let imgHtml = hasImage
-            ? "<div class=\"promo-media\" id=\"mediaBox\"><img src=\"\(escapeHTML(rawImg))\" alt=\"\" onerror=\"document.getElementById('mediaBox').style.display='none';\" /></div>"
+            ? "<div class=\"promo-media\" id=\"mediaBox\"><img src=\"\(escapeHTML(rawImg))\" alt=\"\" style=\"object-fit:\(fit); object-position:\(pos); transform:scale(\(sc)); transform-origin:\(pos);\" onerror=\"document.getElementById('mediaBox').style.display='none';\" /></div>"
             : ""
         let actionLabel = escapeHTML((ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : "Ver Detalhes")
         let actionUrl = escapeHTML(ann.action_url ?? "")
