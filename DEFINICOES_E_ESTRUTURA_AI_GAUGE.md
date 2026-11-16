@@ -16,6 +16,8 @@ O projeto evoluiu de um monitor focado em Gemini para um cockpit universal de co
   - **Antigravity (IDE Dedicado):** Azul suave / pastel (`#8FBCFF`) - Gemini, Claude/GPT e Argon.
   - **Claude (Sessão Desktop):** Coral/Terracota (`#D78C68`) - Janela de 5h e cota semanal.
   - **ChatGPT (Sessão Desktop):** Verde OpenAI (`#10A37F`) - Janela de 3h e cota semanal o1.
+  - **Cursor (Cursor IDE):** Roxo Neon (`#A855F7`) - Cota mensal de Fast Requests e ciclo de faturamento.
+  - **GitHub Copilot (VS Code):** Azul GitHub (`#58A6FF`) - Copilot Chat e Code Completions rate limits.
   - **Gemini (API):** Off-White / Prata (`#EBEBEB`) - Chave de API Google AI Studio.
   - **Status Saudável / HUD:** Verde suave (`#00E699` / `#8AE39A`).
   - **Alerta / Crítico:** Âmbar (`#F5A623`) e Vermelho (`#FF4D4F`).
@@ -24,11 +26,13 @@ O projeto evoluiu de um monitor focado em Gemini para um cockpit universal de co
 * **Antigravity:** 100% automático (inspeção de processos e sockets do IDE local).
 * **Claude:** 100% automático (leitura do macOS Keychain `Claude Code-credentials` com auto-renovação de tokens expirados).
 * **ChatGPT:** 100% automático (leitura da sessão ativa do app desktop macOS em `~/.codex/auth.json` com cabeçalho `ChatGPT-Account-ID`).
+* **Cursor:** 100% automático (leitura do token de sessão em `state.vscdb` do Cursor local com consulta à API `/api/usage`).
+* **GitHub Copilot:** 100% automático (detecção do ambiente VS Code, tokens de CLI `gh auth token` ou `hosts.json` com consulta a `/copilot_internal/v2/token`).
 * **Gemini (API):** Preenchimento manual da chave de API (`AIzaSy...`).
 * **Escala dos Relógios:** Modo tacômetro/marcador de combustível (100% = tanque cheio / cota restante, 0% = esgotado). Inverte a lógica de exibição de apps que mostram % consumida para garantir leitura intuitiva de disponibilidade.
 
 ### 1.2 Assistente de Boas-Vindas & Auto-Scan (Onboarding Wizard)
-* **Scan Automático de Provedores:** Na primeira execução ou instalação, o sistema faz uma varredura automática nos serviços instalados (Antigravity, Claude, ChatGPT, Gemini).
+* **Scan Automático de Provedores:** Na primeira execução ou instalação, o sistema faz uma varredura automática nos serviços instalados (Antigravity, Claude, ChatGPT, Cursor, GitHub Copilot, Gemini).
 * **Seleção de Quotas Inicial:** Interface gráfica (AppKit no Mac) ou terminal interativo (Linux/Windows) questiona ao usuário quais serviços ele deseja monitorar no seu Cockpit.
 * **Pre-configuração Transparente:** Grava imediatamente `~/.config/UniversalAIQuota/config.json` e marca `onboarding_completed: true`, deixando o app 100% funcional sem exigir setup posterior.
 * **Flexibilidade Total:** O usuário é informado de que pode adicionar, excluir ou ocultar gauges específicos a qualquer momento no menu de **Configurações (⌘,)**.

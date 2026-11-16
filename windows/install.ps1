@@ -31,6 +31,8 @@ if (-not (Test-Path $ConfigDir)) {
 $HasAnti = $false
 $HasClaude = $false
 $HasChatGPT = $false
+$HasCursor = $false
+$HasCopilot = $false
 $HasGemini = $false
 
 # 1. Antigravity
@@ -48,7 +50,17 @@ if ((Test-Path (Join-Path $env:USERPROFILE ".codex\auth.json")) -or (Test-Path (
     $HasChatGPT = $true
 }
 
-# 4. Gemini
+# 4. Cursor
+if ((Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or (Test-Path (Join-Path $env:APPDATA "Cursor")) -or (Get-Process "Cursor" -ErrorAction SilentlyContinue)) {
+    $HasCursor = $true
+}
+
+# 5. GitHub Copilot (VS Code)
+if ((Test-Path (Join-Path $env:APPDATA "Code\User\globalStorage\github.copilot-chat")) -or (Get-Command "gh.exe" -ErrorAction SilentlyContinue)) {
+    $HasCopilot = $true
+}
+
+# 6. Gemini
 if ($env:GEMINI_API_KEY) {
     $HasGemini = $true
 }
@@ -56,12 +68,16 @@ if ($env:GEMINI_API_KEY) {
 Write-Host "  [1] ⚡ Antigravity:       $(if ($HasAnti) {'✓ Detectado no sistema'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasAnti) {'Green'} else {'Gray'})
 Write-Host "  [2] 🟣 Claude (Pro/Code): $(if ($HasClaude) {'✓ Sessão / Token detectado'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasClaude) {'Green'} else {'Gray'})
 Write-Host "  [3] 🟢 ChatGPT (Desktop): $(if ($HasChatGPT) {'✓ Sessão Desktop / Codex detectada'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasChatGPT) {'Green'} else {'Gray'})
-Write-Host "  [4] 🔷 Gemini (Studio):   $(if ($HasGemini) {'✓ Chave configurada'} else {'○ Chave de API (opcional)'})" -ForegroundColor $(if ($HasGemini) {'Green'} else {'Gray'})
+Write-Host "  [4] 🔮 Cursor (IDE):      $(if ($HasCursor) {'✓ Detectado no sistema'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasCursor) {'Green'} else {'Gray'})
+Write-Host "  [5] 💻 GitHub Copilot:    $(if ($HasCopilot) {'✓ Detectado (VS Code)'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasCopilot) {'Green'} else {'Gray'})
+Write-Host "  [6] 🔷 Gemini (Studio):   $(if ($HasGemini) {'✓ Chave configurada'} else {'○ Chave de API (opcional)'})" -ForegroundColor $(if ($HasGemini) {'Green'} else {'Gray'})
 Write-Host ""
 
 $EnableAnti = $true
 $EnableClaude = $HasClaude
 $EnableChatGPT = $HasChatGPT
+$EnableCursor = $HasCursor
+$EnableCopilot = $HasCopilot
 $EnableGemini = $HasGemini
 
 # Check if interactive
@@ -76,7 +92,9 @@ if ($IsInteractive -and ((-not (Test-Path $ConfigFile)) -or ($args -contains "--
         $EnableAnti = $UserChoice -match "1"
         $EnableClaude = $UserChoice -match "2"
         $EnableChatGPT = $UserChoice -match "3"
-        $EnableGemini = $UserChoice -match "4"
+        $EnableCursor = $UserChoice -match "4"
+        $EnableCopilot = $UserChoice -match "5"
+        $EnableGemini = $UserChoice -match "6"
     }
     Write-Host ""
     Write-Host "💡 Informação: Você poderá adicionar ou excluir itens a qualquer momento depois no menu de configurações do app." -ForegroundColor Cyan
@@ -89,10 +107,16 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
             antigravity = @{ enabled = [bool]$EnableAnti }
             claude_pro = @{ enabled = [bool]$EnableClaude }
             chatgpt_subscription = @{ enabled = [bool]$EnableChatGPT }
+            cursor = @{ enabled = [bool]$EnableCursor }
+            github_copilot = @{ enabled = [bool]$EnableCopilot }
             gemini = @{ enabled = [bool]$EnableGemini; api_key = if ($env:GEMINI_API_KEY) { $env:GEMINI_API_KEY } else { "" } }
             openai = @{ enabled = $false; api_key = "" }
             anthropic = @{ enabled = $false; api_key = "" }
         }
+        refresh_interval_seconds = 30
+        hidden_hud_gauges = @()
+        onboarding_completed = $true
+    }
         refresh_interval_seconds = 30
         hidden_hud_gauges = @()
         onboarding_completed = $true

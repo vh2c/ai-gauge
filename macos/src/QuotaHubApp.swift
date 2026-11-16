@@ -104,6 +104,8 @@ extension QuotaData {
         var antiGroups: [Group] = []
         var claudeProGroups: [Group] = []
         var chatgptGroups: [Group] = []
+        var cursorGroups: [Group] = []
+        var copilotGroups: [Group] = []
         var studioGroups: [Group] = []
         var openGroups: [Group] = []
         var antGroups: [Group] = []
@@ -118,6 +120,10 @@ extension QuotaData {
                 claudeProGroups.append(g)
             } else if p.contains("chatgpt") || n.contains("chatgpt") {
                 chatgptGroups.append(g)
+            } else if p.contains("cursor") || n.contains("cursor") {
+                cursorGroups.append(g)
+            } else if p.contains("copilot") || n.contains("copilot") || p.contains("github") {
+                copilotGroups.append(g)
             } else if p.contains("studio") || n.contains("google gemini api") || n.contains("ai studio") {
                 studioGroups.append(g)
             } else if p.contains("openai") || n.contains("openai") {
@@ -232,6 +238,70 @@ extension QuotaData {
                 subtitle: "Sessão Web",
                 tag: "CHATGPT",
                 accentColor: NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0),
+                items: items
+            ))
+        }
+        
+        if !cursorGroups.isEmpty {
+            var items: [GaugeItem] = []
+            for g in cursorGroups {
+                for b in g.buckets {
+                    let limitTitle: String
+                    let lowerB = b.name.lowercased()
+                    if lowerB.contains("fast") || lowerB.contains("claude") {
+                        limitTitle = "Fast Requests"
+                    } else {
+                        limitTitle = "Ciclo Mensal"
+                    }
+                    items.append(GaugeItem(
+                        id: b.id ?? "",
+                        title: limitTitle,
+                        modelName: "Cursor Pro",
+                        percentage: b.remaining_pct,
+                        resetIn: b.reset_in,
+                        detail: b.detail,
+                        provider: g.provider,
+                        sectionTag: "CURSOR"
+                    ))
+                }
+            }
+            sections.append(GaugeSection(
+                name: "Cursor",
+                subtitle: "Cursor IDE",
+                tag: "CURSOR",
+                accentColor: NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0),
+                items: items
+            ))
+        }
+        
+        if !copilotGroups.isEmpty {
+            var items: [GaugeItem] = []
+            for g in copilotGroups {
+                for b in g.buckets {
+                    let limitTitle: String
+                    let lowerB = b.name.lowercased()
+                    if lowerB.contains("chat") || lowerB.contains("model") {
+                        limitTitle = "Copilot Chat"
+                    } else {
+                        limitTitle = "Completions"
+                    }
+                    items.append(GaugeItem(
+                        id: b.id ?? "",
+                        title: limitTitle,
+                        modelName: "VS Code Copilot",
+                        percentage: b.remaining_pct,
+                        resetIn: b.reset_in,
+                        detail: b.detail,
+                        provider: g.provider,
+                        sectionTag: "COPILOT"
+                    ))
+                }
+            }
+            sections.append(GaugeSection(
+                name: "GitHub Copilot",
+                subtitle: "VS Code",
+                tag: "COPILOT",
+                accentColor: NSColor(srgbRed: 0x58/255.0, green: 0xA6/255.0, blue: 0xFF/255.0, alpha: 1.0),
                 items: items
             ))
         }
@@ -420,6 +490,32 @@ class QuotaManager {
         return false
     }
     
+    static func hasCursor() -> Bool {
+        let appPath = "/Applications/Cursor.app"
+        let cursorDir = NSString(string: "~/Library/Application Support/Cursor").expandingTildeInPath
+        if FileManager.default.fileExists(atPath: appPath) || FileManager.default.fileExists(atPath: cursorDir) {
+            return true
+        }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        task.arguments = ["-i", "Cursor"]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+    
+    static func hasCopilot() -> Bool {
+        let vsApp = "/Applications/Visual Studio Code.app"
+        let copilotStorage = NSString(string: "~/Library/Application Support/Code/User/globalStorage/github.copilot-chat").expandingTildeInPath
+        return FileManager.default.fileExists(atPath: vsApp) || FileManager.default.fileExists(atPath: copilotStorage)
+    }
+    
     static func hasClaudeProKeychainSession() -> Bool {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/security")
@@ -480,6 +576,14 @@ class QuotaManager {
         if cfg.providers?["chatgpt_subscription"] == nil {
             if cfg.providers == nil { cfg.providers = [:] }
             cfg.providers?["chatgpt_subscription"] = ProviderConfig(enabled: true, api_key: nil, token: nil)
+        }
+        if cfg.providers?["cursor"] == nil {
+            if cfg.providers == nil { cfg.providers = [:] }
+            cfg.providers?["cursor"] = ProviderConfig(enabled: true, api_key: nil, token: nil)
+        }
+        if cfg.providers?["github_copilot"] == nil {
+            if cfg.providers == nil { cfg.providers = [:] }
+            cfg.providers?["github_copilot"] = ProviderConfig(enabled: true, api_key: nil, token: nil)
         }
         if cfg.hidden_hud_gauges == nil {
             cfg.hidden_hud_gauges = []
@@ -1112,6 +1216,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var chatgptCheck: NSButton?
     var chatgptTokenField: NSTextField?
     var chatgptStatusLabel: NSTextField?
+    var cursorCheck: NSButton?
+    var cursorTokenField: NSTextField?
+    var copilotCheck: NSButton?
+    var copilotTokenField: NSTextField?
     var openaiCheck: NSButton?
     var openaiKeyField: NSTextField?
     var anthropicCheck: NSButton?
@@ -1124,6 +1232,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var obAntigravityCheck: NSButton?
     var obClaudeCheck: NSButton?
     var obChatgptCheck: NSButton?
+    var obCursorCheck: NSButton?
+    var obCopilotCheck: NSButton?
     var obGeminiCheck: NSButton?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -2479,7 +2589,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollView.drawsBackground = false
         scrollView.autohidesScrollers = true
         
-        let scrollContent = FlippedContentView(frame: NSRect(x: 0, y: 0, width: winW, height: 750))
+        let scrollContent = FlippedContentView(frame: NSRect(x: 0, y: 0, width: winW, height: 1100))
         
         var cy: CGFloat = 12.0
         
@@ -2651,6 +2761,96 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         addCheckbox(id: "chatgpt-o1-weekly", title: "o1 Reasoning (Semanal)", frame: NSRect(x: 14 + colW, y: gptHudY, width: colW, height: 18), in: chatgptCard)
         
         cy += chatgptCardH + 12
+        
+        // 4. Cursor IDE Card
+        let cursorCardH: CGFloat = 138
+        let cursorCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: cursorCardH))
+        cursorCard.boxType = .custom
+        cursorCard.fillColor = colorCard
+        cursorCard.borderColor = colorBorder
+        cursorCard.borderWidth = 1
+        cursorCard.cornerRadius = 8
+        scrollContent.addSubview(cursorCard)
+        
+        let cursorCfg = providers["cursor"]
+        let cursorBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        cursorBtn.state = (cursorCfg?.enabled ?? true) ? .on : .off
+        cursorBtn.attributedTitle = NSAttributedString(
+            string: "  Cursor IDE (Fast Requests & Pro)",
+            attributes: [
+                .foregroundColor: NSColor.white,
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+            ]
+        )
+        cursorBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
+        cursorCard.addSubview(cursorBtn)
+        self.cursorCheck = cursorBtn
+        
+        let hasCursor = QuotaManager.hasCursor()
+        let cursorStatus = NSTextField(labelWithString: hasCursor ? "✓ Editor Cursor detectado no Mac (Claude 3.5 & GPT-4o)" : "ℹ️ Cota mensal de Fast Requests do plano Pro:")
+        cursorStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+        cursorStatus.textColor = hasCursor ? NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0) : NSColor(white: 0.6, alpha: 1.0)
+        cursorStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
+        cursorCard.addSubview(cursorStatus)
+        
+        let cursorToken = makeCenteredDarkField(
+            frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
+            placeholder: "Token de Sessão do Cursor (opcional se logado no Cursor)",
+            value: cursorCfg?.token ?? ""
+        )
+        cursorCard.addSubview(cursorToken)
+        self.cursorTokenField = cursorToken
+        
+        let cursorHudY = createHudSectionLabel(y: 92, in: cursorCard)
+        addCheckbox(id: "cursor-fast-requests", title: "Fast Requests", frame: NSRect(x: 14, y: cursorHudY, width: colW, height: 18), in: cursorCard)
+        addCheckbox(id: "cursor-monthly-cycle", title: "Ciclo Mensal", frame: NSRect(x: 14 + colW, y: cursorHudY, width: colW, height: 18), in: cursorCard)
+        
+        cy += cursorCardH + 12
+        
+        // 5. GitHub Copilot (VS Code) Card
+        let copilotCardH: CGFloat = 138
+        let copilotCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: copilotCardH))
+        copilotCard.boxType = .custom
+        copilotCard.fillColor = colorCard
+        copilotCard.borderColor = colorBorder
+        copilotCard.borderWidth = 1
+        copilotCard.cornerRadius = 8
+        scrollContent.addSubview(copilotCard)
+        
+        let copilotCfg = providers["github_copilot"]
+        let copilotBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        copilotBtn.state = (copilotCfg?.enabled ?? true) ? .on : .off
+        copilotBtn.attributedTitle = NSAttributedString(
+            string: "  GitHub Copilot (Visual Studio Code)",
+            attributes: [
+                .foregroundColor: NSColor.white,
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+            ]
+        )
+        copilotBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
+        copilotCard.addSubview(copilotBtn)
+        self.copilotCheck = copilotBtn
+        
+        let hasCopilot = QuotaManager.hasCopilot()
+        let copilotStatus = NSTextField(labelWithString: hasCopilot ? "✓ Visual Studio Code & Copilot detectados no Mac" : "ℹ️ Copilot Chat e Code Completions do VS Code:")
+        copilotStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+        copilotStatus.textColor = hasCopilot ? NSColor(srgbRed: 0x58/255.0, green: 0xA6/255.0, blue: 0xFF/255.0, alpha: 1.0) : NSColor(white: 0.6, alpha: 1.0)
+        copilotStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
+        copilotCard.addSubview(copilotStatus)
+        
+        let copilotToken = makeCenteredDarkField(
+            frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
+            placeholder: "GitHub Personal Access Token (opcional)",
+            value: copilotCfg?.token ?? ""
+        )
+        copilotCard.addSubview(copilotToken)
+        self.copilotTokenField = copilotToken
+        
+        let copilotHudY = createHudSectionLabel(y: 92, in: copilotCard)
+        addCheckbox(id: "copilot-chat-limit", title: "Copilot Chat Limits", frame: NSRect(x: 14, y: copilotHudY, width: colW, height: 18), in: copilotCard)
+        addCheckbox(id: "copilot-completions-rate", title: "Completions Rate Limits", frame: NSRect(x: 14 + colW, y: copilotHudY, width: colW, height: 18), in: copilotCard)
+        
+        cy += copilotCardH + 12
         
         // 4. Google Gemini API Card
         let geminiCardH: CGFloat = 196
@@ -2964,6 +3164,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             api_key: nil,
             token: chatgptTokenField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         )
+        cfg.providers?["cursor"] = ProviderConfig(
+            enabled: cursorCheck?.state == .on,
+            api_key: nil,
+            token: cursorTokenField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        cfg.providers?["github_copilot"] = ProviderConfig(
+            enabled: copilotCheck?.state == .on,
+            api_key: nil,
+            token: copilotTokenField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
         cfg.providers?["gemini"] = ProviderConfig(
             enabled: geminiCheck?.state == .on,
             api_key: geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
@@ -3025,7 +3235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func openOnboarding() {
         if onboardingWindow == nil {
             let w: CGFloat = 520
-            let h: CGFloat = 530
+            let h: CGFloat = 670
             let win = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: w, height: h),
                 styleMask: [.titled, .closable],
@@ -3086,10 +3296,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let hasAnti = QuotaManager.hasAntigravity()
         let hasClaude = QuotaManager.hasClaudePro()
         let hasChatgpt = QuotaManager.hasChatGPT()
+        let hasCursor = QuotaManager.hasCursor()
+        let hasCopilot = QuotaManager.hasCopilot()
         let hasGemini = QuotaManager.hasGemini()
         
         let cardW = winW - 48
-        let cardH: CGFloat = 62
+        let cardH: CGFloat = 58
         var cy: CGFloat = 94
         
         func buildAppCard(y: CGFloat, title: String, subtitle: String, detected: Bool, detectedText: String, defaultChecked: Bool) -> (NSView, NSButton) {
@@ -3105,29 +3317,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 string: " " + title,
                 attributes: [
                     .foregroundColor: NSColor.white,
-                    .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+                    .font: NSFont.systemFont(ofSize: 12, weight: .bold)
                 ]
             )
             btn.state = defaultChecked ? .on : .off
-            btn.frame = NSRect(x: 14, y: 12, width: 220, height: 20)
+            btn.frame = NSRect(x: 12, y: 10, width: 220, height: 20)
             card.addSubview(btn)
             
             let desc = NSTextField(labelWithString: subtitle)
-            desc.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+            desc.font = NSFont.systemFont(ofSize: 10, weight: .regular)
             desc.textColor = NSColor(white: 0.55, alpha: 1.0)
-            desc.frame = NSRect(x: 36, y: 34, width: 280, height: 16)
+            desc.frame = NSRect(x: 34, y: 32, width: 280, height: 15)
             card.addSubview(desc)
             
             // Badge
             let badgeW: CGFloat = 145
             let badgeH: CGFloat = 22
-            let badge = FlippedBox(frame: NSRect(x: cardW - badgeW - 14, y: 20, width: badgeW, height: badgeH))
+            let badge = FlippedBox(frame: NSRect(x: cardW - badgeW - 12, y: 18, width: badgeW, height: badgeH))
             badge.wantsLayer = true
             badge.layer?.cornerRadius = 11
             badge.layer?.backgroundColor = (detected ? colorGreenBg : colorGrayBg).cgColor
             
             let badgeLbl = NSTextField(labelWithString: detected ? detectedText : "○ Opcional")
-            badgeLbl.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
+            badgeLbl.font = NSFont.systemFont(ofSize: 9.5, weight: .semibold)
             badgeLbl.textColor = detected ? colorGreen : NSColor(white: 0.6, alpha: 1.0)
             badgeLbl.alignment = .center
             badgeLbl.frame = NSRect(x: 0, y: 3, width: badgeW, height: 16)
@@ -3148,7 +3360,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         mainView.addSubview(antiCard)
         self.obAntigravityCheck = antiBtn
-        cy += cardH + 10
+        cy += cardH + 8
         
         // 2. Claude
         let (claudeCard, claudeBtn) = buildAppCard(
@@ -3161,7 +3373,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         mainView.addSubview(claudeCard)
         self.obClaudeCheck = claudeBtn
-        cy += cardH + 10
+        cy += cardH + 8
         
         // 3. ChatGPT
         let (chatgptCard, chatgptBtn) = buildAppCard(
@@ -3174,9 +3386,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         mainView.addSubview(chatgptCard)
         self.obChatgptCheck = chatgptBtn
-        cy += cardH + 10
+        cy += cardH + 8
         
-        // 4. Gemini
+        // 4. Cursor
+        let (cursorCard, cursorBtn) = buildAppCard(
+            y: cy,
+            title: "Cursor",
+            subtitle: "Cursor IDE (Claude 3.5 & GPT-4o Fast Requests)",
+            detected: hasCursor,
+            detectedText: "✓ Detectado no Mac",
+            defaultChecked: hasCursor
+        )
+        mainView.addSubview(cursorCard)
+        self.obCursorCheck = cursorBtn
+        cy += cardH + 8
+        
+        // 5. GitHub Copilot
+        let (copilotCard, copilotBtn) = buildAppCard(
+            y: cy,
+            title: "GitHub Copilot",
+            subtitle: "Visual Studio Code (Copilot Chat & Completions)",
+            detected: hasCopilot,
+            detectedText: "✓ Detectado (VS Code)",
+            defaultChecked: hasCopilot
+        )
+        mainView.addSubview(copilotCard)
+        self.obCopilotCheck = copilotBtn
+        cy += cardH + 8
+        
+        // 6. Gemini
         let (geminiCard, geminiBtn) = buildAppCard(
             y: cy,
             title: "Gemini",
@@ -3187,10 +3425,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         mainView.addSubview(geminiCard)
         self.obGeminiCheck = geminiBtn
-        cy += cardH + 16
+        cy += cardH + 12
         
         // Notice Info Box
-        let infoBox = FlippedBox(frame: NSRect(x: 24, y: cy, width: cardW, height: 46))
+        let infoBox = FlippedBox(frame: NSRect(x: 24, y: cy, width: cardW, height: 44))
         infoBox.wantsLayer = true
         infoBox.layer?.backgroundColor = NSColor(srgbRed: 0x14/255.0, green: 0x22/255.0, blue: 0x36/255.0, alpha: 0.6).cgColor
         infoBox.layer?.borderColor = NSColor(srgbRed: 0x20/255.0, green: 0x3A/255.0, blue: 0x5C/255.0, alpha: 0.8).cgColor
@@ -3198,12 +3436,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         infoBox.layer?.cornerRadius = 6
         
         let infoLbl = NSTextField(wrappingLabelWithString: "💡 Você pode adicionar, remover ou ocultar gauges específicos a qualquer momento nas Configurações (⌘,) pelo ícone da barra de menus.")
-        infoLbl.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+        infoLbl.font = NSFont.systemFont(ofSize: 10, weight: .regular)
         infoLbl.textColor = NSColor(srgbRed: 0x90/255.0, green: 0xC0/255.0, blue: 0xF0/255.0, alpha: 1.0)
-        infoLbl.frame = NSRect(x: 12, y: 7, width: cardW - 24, height: 32)
+        infoLbl.frame = NSRect(x: 12, y: 6, width: cardW - 24, height: 32)
         infoBox.addSubview(infoLbl)
         mainView.addSubview(infoBox)
-        cy += 46 + 18
+        cy += 44 + 14
         
         // Footer Buttons
         let allBtn = NSButton(title: "Ativar Todos", target: self, action: #selector(onboardingEnableAllClicked))
@@ -3252,11 +3490,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let antiEnabled = all ? true : (obAntigravityCheck?.state == .on)
         let claudeEnabled = all ? true : (obClaudeCheck?.state == .on)
         let chatgptEnabled = all ? true : (obChatgptCheck?.state == .on)
+        let cursorEnabled = all ? true : (obCursorCheck?.state == .on)
+        let copilotEnabled = all ? true : (obCopilotCheck?.state == .on)
         let geminiEnabled = all ? true : (obGeminiCheck?.state == .on)
         
         cfg.providers?["antigravity"] = ProviderConfig(enabled: antiEnabled, api_key: nil, token: nil)
         cfg.providers?["claude_pro"] = ProviderConfig(enabled: claudeEnabled, api_key: nil, token: nil)
         cfg.providers?["chatgpt_subscription"] = ProviderConfig(enabled: chatgptEnabled, api_key: nil, token: nil)
+        cfg.providers?["cursor"] = ProviderConfig(enabled: cursorEnabled, api_key: nil, token: nil)
+        cfg.providers?["github_copilot"] = ProviderConfig(enabled: copilotEnabled, api_key: nil, token: nil)
         if cfg.providers?["gemini"] == nil {
             cfg.providers?["gemini"] = ProviderConfig(enabled: geminiEnabled, api_key: "", token: nil)
         } else {

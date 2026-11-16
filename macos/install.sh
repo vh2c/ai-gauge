@@ -22,6 +22,8 @@ mkdir -p "${CONFIG_DIR}"
 HAS_ANTIGRAVITY=false
 HAS_CLAUDE=false
 HAS_CHATGPT=false
+HAS_CURSOR=false
+HAS_COPILOT=false
 HAS_GEMINI=false
 
 # Antigravity (App, process, or local config)
@@ -39,6 +41,16 @@ if [ -f "$HOME/.codex/auth.json" ] || /usr/bin/security find-generic-password -a
     HAS_CHATGPT=true
 fi
 
+# Cursor (App, support directory, or running process)
+if [ -d "/Applications/Cursor.app" ] || [ -d "$HOME/Library/Application Support/Cursor" ] || pgrep -i Cursor >/dev/null 2>&1; then
+    HAS_CURSOR=true
+fi
+
+# GitHub Copilot (Visual Studio Code or Copilot storage)
+if [ -d "/Applications/Visual Studio Code.app" ] || [ -d "$HOME/Library/Application Support/Code/User/globalStorage/github.copilot-chat" ] || command -v gh >/dev/null 2>&1; then
+    HAS_COPILOT=true
+fi
+
 # Gemini (API Key configured in environment or existing config)
 if [ -n "$GEMINI_API_KEY" ]; then
     HAS_GEMINI=true
@@ -49,7 +61,9 @@ fi
 echo "  [1] ⚡ Antigravity:       $([ "$HAS_ANTIGRAVITY" = true ] && echo "✓ Detectado no Mac" || echo "○ Não detectado (opcional)")"
 echo "  [2] 🟣 Claude (Pro/Code): $([ "$HAS_CLAUDE" = true ] && echo "✓ Sessão / Token detectado" || echo "○ Não detectado (opcional)")"
 echo "  [3] 🟢 ChatGPT (Desktop): $([ "$HAS_CHATGPT" = true ] && echo "✓ Sessão Desktop / Codex detectada" || echo "○ Não detectado (opcional)")"
-echo "  [4] 🔷 Gemini (Studio):   $([ "$HAS_GEMINI" = true ] && echo "✓ Chave configurada" || echo "○ Chave de API (opcional)")"
+echo "  [4] 🔮 Cursor (IDE):      $([ "$HAS_CURSOR" = true ] && echo "✓ Detectado no Mac" || echo "○ Não detectado (opcional)")"
+echo "  [5] 💻 GitHub Copilot:    $([ "$HAS_COPILOT" = true ] && echo "✓ Detectado no Mac (VS Code)" || echo "○ Não detectado (opcional)")"
+echo "  [6] 🔷 Gemini (Studio):   $([ "$HAS_GEMINI" = true ] && echo "✓ Chave configurada" || echo "○ Chave de API (opcional)")"
 echo ""
 
 # ----------------------------------------------------
@@ -58,6 +72,8 @@ echo ""
 ENABLE_ANTI=true
 ENABLE_CLAUDE=$HAS_CLAUDE
 ENABLE_CHATGPT=$HAS_CHATGPT
+ENABLE_CURSOR=$HAS_CURSOR
+ENABLE_COPILOT=$HAS_COPILOT
 ENABLE_GEMINI=$HAS_GEMINI
 
 if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
@@ -70,11 +86,15 @@ if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
         ENABLE_ANTI=false
         ENABLE_CLAUDE=false
         ENABLE_CHATGPT=false
+        ENABLE_CURSOR=false
+        ENABLE_COPILOT=false
         ENABLE_GEMINI=false
         [[ "$USER_CHOICE" =~ 1 ]] && ENABLE_ANTI=true
         [[ "$USER_CHOICE" =~ 2 ]] && ENABLE_CLAUDE=true
         [[ "$USER_CHOICE" =~ 3 ]] && ENABLE_CHATGPT=true
-        [[ "$USER_CHOICE" =~ 4 ]] && ENABLE_GEMINI=true
+        [[ "$USER_CHOICE" =~ 4 ]] && ENABLE_CURSOR=true
+        [[ "$USER_CHOICE" =~ 5 ]] && ENABLE_COPILOT=true
+        [[ "$USER_CHOICE" =~ 6 ]] && ENABLE_GEMINI=true
     fi
     echo ""
     echo "💡 Informação: Você poderá adicionar ou excluir itens a qualquer momento depois nas Configurações (⌘,) do app."
@@ -91,6 +111,8 @@ cfg = {
         'antigravity': {'enabled': $ENABLE_ANTI},
         'claude_pro': {'enabled': $ENABLE_CLAUDE},
         'chatgpt_subscription': {'enabled': $ENABLE_CHATGPT},
+        'cursor': {'enabled': $ENABLE_CURSOR},
+        'github_copilot': {'enabled': $ENABLE_COPILOT},
         'gemini': {'enabled': $ENABLE_GEMINI, 'api_key': os.environ.get('GEMINI_API_KEY', '')},
         'openai': {'enabled': False, 'api_key': ''},
         'anthropic': {'enabled': False, 'api_key': ''}

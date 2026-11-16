@@ -13,6 +13,8 @@ const { AntigravityProvider } = require('./providers/antigravity');
 const { GeminiProvider } = require('./providers/gemini');
 const { ClaudeProProvider } = require('./providers/claude_pro');
 const { ChatGPTSubscriptionProvider } = require('./providers/chatgpt_subscription');
+const { CursorProvider } = require('./providers/cursor');
+const { GitHubCopilotProvider } = require('./providers/github_copilot');
 const { OpenAIProvider } = require('./providers/openai');
 const { AnthropicProvider } = require('./providers/anthropic');
 const { sendHeartbeat } = require('./telemetry');
@@ -32,6 +34,8 @@ function loadConfig() {
       antigravity: { enabled: true },
       claude_pro: { enabled: true },
       chatgpt_subscription: { enabled: true },
+      cursor: { enabled: true },
+      github_copilot: { enabled: true },
       gemini: { enabled: Boolean(process.env.GEMINI_API_KEY), api_key: process.env.GEMINI_API_KEY || '' },
       openai: { enabled: Boolean(process.env.OPENAI_API_KEY), api_key: process.env.OPENAI_API_KEY || '' },
       anthropic: { enabled: Boolean(process.env.ANTHROPIC_API_KEY), api_key: process.env.ANTHROPIC_API_KEY || '' }
@@ -62,6 +66,12 @@ class UniversalQuotaEngine {
     }
     if (pCfg.chatgpt_subscription?.enabled !== false) {
       providers.push(new ChatGPTSubscriptionProvider(pCfg.chatgpt_subscription?.token).fetch());
+    }
+    if (pCfg.cursor?.enabled !== false) {
+      providers.push(new CursorProvider(pCfg.cursor?.token).fetch());
+    }
+    if (pCfg.github_copilot?.enabled !== false) {
+      providers.push(new GitHubCopilotProvider(pCfg.github_copilot?.token).fetch());
     }
     if (pCfg.gemini?.enabled && pCfg.gemini?.api_key) {
       providers.push(new GeminiProvider(pCfg.gemini.api_key).fetch());

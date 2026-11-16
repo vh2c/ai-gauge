@@ -17,9 +17,9 @@
 
 <br/>
 
-**AI Gauge** é um cockpit leve e de alto desempenho para monitorar em tempo real as cotas, limites de taxa (RPM/TPM) e janelas de renovação dos seus modelos de inteligência artificial no macOS, Linux e Windows. Funciona de forma **totalmente independente de IDEs**, agregando em um único painel **Antigravity**, **Claude**, **ChatGPT** e **Gemini**.
+**AI Gauge** é um cockpit leve e de alto desempenho para monitorar em tempo real as cotas, limites de taxa (RPM/TPM) e janelas de renovação dos seus modelos de inteligência artificial no macOS, Linux e Windows. Funciona de forma **totalmente independente de IDEs**, agregando em um único painel **Antigravity**, **Claude**, **ChatGPT**, **Cursor**, **GitHub Copilot (VS Code)** e **Gemini**.
 
-> 💡 **Detecção Zero-Config (Plug & Play)**: Se você já utiliza os aplicativos no seu computador, o AI Gauge detecta as sessões locais de forma 100% automática. Não é necessário digitar tokens nem senhas para o **Antigravity**, **Claude** ou **ChatGPT**!
+> 💡 **Detecção Zero-Config (Plug & Play)**: Se você já utiliza os aplicativos no seu computador, o AI Gauge detecta as sessões locais de forma 100% automática. Não é necessário digitar tokens nem senhas para o **Antigravity**, **Claude**, **ChatGPT**, **Cursor** ou **GitHub Copilot**!
 
 </div>
 
@@ -48,7 +48,19 @@ As informações no HUD lateral flutuante são agrupadas por aplicativo/provedor
    - **o1 Reasoning (Semanal)**: Cota semanal para modelos com raciocínio avançado.
    - *Autenticação:* **Zero-Config** (detecta automaticamente a sessão do app em `~/.codex/auth.json`).
 
-4. **`Gemini`** *(Branco/Prata `#EBEBEB` - API Google AI Studio)*:
+4. **`Cursor`** *(Roxo Neon `#A855F7` - Cursor IDE)*:
+   - Monitora as cotas da sua assinatura Cursor (Pro / Business / Fast Requests).
+   - **Fast Requests**: Cota mensal de requisições rápidas de modelos premium (Claude 3.5 Sonnet & GPT-4o).
+   - **Ciclo Mensal**: Contagem regressiva até a renovação da cota da fatura mensal.
+   - *Autenticação:* **Zero-Config** (extração automática do armazenamento local do Cursor em `state.vscdb`).
+
+5. **`GitHub Copilot`** *(Azul GitHub `#58A6FF` - Visual Studio Code)*:
+   - Monitora o status e limites do **GitHub Copilot** no VS Code.
+   - **Copilot Chat & Model Limits**: Cota de mensagens de chat e acesso a Claude 3.5 Sonnet / GPT-4o.
+   - **Completions Rate Limits**: Limites de taxa de geração de código em tempo real.
+   - *Autenticação:* **Zero-Config** (detecta o ambiente do VS Code, tokens da CLI `gh` ou credenciais locais).
+
+6. **`Gemini`** *(Branco/Prata `#EBEBEB` - API Google AI Studio)*:
    - Monitoramento das chaves de API diretas de desenvolvedor.
    - **Flash RPM & Pro RPM**: Limites de requisições por minuto e status de chave.
    - *Autenticação:* Requer preenchimento da chave de API (`AIzaSy...`) obtida no [Google AI Studio](https://aistudio.google.com).
