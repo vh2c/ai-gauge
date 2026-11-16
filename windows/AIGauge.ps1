@@ -202,8 +202,8 @@ function Get-QuotaData ($force = $false) {
             </Grid>
             
             <!-- Row 2: Brand Link -->
-            <TextBlock Name="TxtBrand" Text="⚡ AI Gauge  •  Desenvolvido por vh2c.com.br"
-                       Foreground="#38BDF8" FontSize="10.5" FontWeight="SemiBold"
+            <TextBlock Name="TxtBrand" Text="⚡ AI Gauge  •  Developed by vh2c.com.br"
+                       Foreground="#9CA3AF" FontSize="10.5" FontWeight="Normal"
                        HorizontalAlignment="Center" Margin="0,10,0,0" Cursor="Hand"/>
         </StackPanel>
     </Grid>

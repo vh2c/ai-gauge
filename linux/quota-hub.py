@@ -845,8 +845,8 @@ class QuotaHubAppLinux:
                 bar_canvas.create_rectangle(0, 0, fill_w, 6, fill=val_col, outline="")
         close_btn.pack(side="right")
 
-        brand_lbl = tk.Label(footer, text="⚡ AI Gauge  •  Desenvolvido por vh2c.com.br", font=("Sans", 8, "bold"),
-                             fg="#38BDF8", bg="#181818", cursor="hand2")
+        brand_lbl = tk.Label(footer, text="⚡ AI Gauge  •  Developed by vh2c.com.br", font=("Sans", 8),
+                             fg="#9CA3AF", bg="#181818", cursor="hand2")
         brand_lbl.pack(pady=(8, 2))
         brand_lbl.bind("<Button-1>", lambda e: webbrowser.open("https://vh2c.com.br"))
 

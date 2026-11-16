@@ -2792,12 +2792,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
         brandBtn.isBordered = false
         brandBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
-        brandBtn.toolTip = "Acesse vh2c.com.br"
+        brandBtn.toolTip = "Visit vh2c.com.br"
         brandBtn.attributedTitle = NSAttributedString(
-            string: "Desenvolvido por vh2c.com.br",
+            string: "Developed by vh2c.com.br",
             attributes: [
-                .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.95),
-                .font: NSFont.systemFont(ofSize: 12.0, weight: .semibold)
+                .foregroundColor: NSColor(srgbRed: 0x9C/255.0, green: 0xA3/255.0, blue: 0xAF/255.0, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .medium)
             ]
         )
         mainView.addSubview(brandBtn)
