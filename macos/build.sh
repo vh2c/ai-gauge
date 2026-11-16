@@ -10,7 +10,8 @@ RES_DIR="${APP_BUNDLE}/Contents/Resources"
 mkdir -p "${BIN_DIR}" "${RES_DIR}/core"
 
 echo "🔨 Compiling Swift binary for AI Gauge..."
-swiftc -O -target arm64-apple-macos11.0 "${SCRIPT_DIR}/src/QuotaHubApp.swift" -o "${BIN_DIR}/AIGauge"
+cp "${SCRIPT_DIR}/src/QuotaHubApp.swift" /tmp/QuotaHubApp.swift
+swiftc -O -target arm64-apple-macos11.0 /tmp/QuotaHubApp.swift -o "${BIN_DIR}/AIGauge"
 
 echo "📦 Bundling core engine & assets..."
 cp -r "${REPO_DIR}/core/"* "${RES_DIR}/core/"

@@ -95,11 +95,70 @@ struct AppConfig: Codable {
     var refresh_interval_seconds: Int?
     var hidden_hud_gauges: [String]?
     var onboarding_completed: Bool?
+    var section_colors: [String: String]?
+}
+
+struct PastelColor {
+    let name: String
+    let hex: String
+    let color: NSColor
+}
+
+struct PastelTheme {
+    static let palette: [PastelColor] = [
+        PastelColor(name: "Azul Céu", hex: "#8FBCFF", color: NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)),
+        PastelColor(name: "Menta", hex: "#8AE39A", color: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0)),
+        PastelColor(name: "Coral", hex: "#FF5265", color: NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0)),
+        PastelColor(name: "Terracota", hex: "#D78C68", color: NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)),
+        PastelColor(name: "Lavanda", hex: "#C084FC", color: NSColor(srgbRed: 0xC0/255.0, green: 0x84/255.0, blue: 0xFC/255.0, alpha: 1.0)),
+        PastelColor(name: "Pêssego", hex: "#FDBA74", color: NSColor(srgbRed: 0xFD/255.0, green: 0xBA/255.0, blue: 0x74/255.0, alpha: 1.0)),
+        PastelColor(name: "Ciano", hex: "#67E8F9", color: NSColor(srgbRed: 0x67/255.0, green: 0xE8/255.0, blue: 0xF9/255.0, alpha: 1.0)),
+        PastelColor(name: "Rosa", hex: "#F472B6", color: NSColor(srgbRed: 0xF4/255.0, green: 0x72/255.0, blue: 0xB6/255.0, alpha: 1.0)),
+        PastelColor(name: "Amarelo", hex: "#FDE047", color: NSColor(srgbRed: 0xFD/255.0, green: 0xE0/255.0, blue: 0x47/255.0, alpha: 1.0)),
+        PastelColor(name: "Prata", hex: "#E2E8F0", color: NSColor(srgbRed: 0xE2/255.0, green: 0xE8/255.0, blue: 0xF0/255.0, alpha: 1.0))
+    ]
+    
+    static let defaultColors: [String: String] = [
+        "antigravity": "#8FBCFF",
+        "claude_pro": "#D78C68",
+        "chatgpt_subscription": "#8AE39A",
+        "cursor": "#C084FC",
+        "github_copilot": "#FF5265",
+        "gemini": "#67E8F9"
+    ]
+    
+    static func parseColor(hex: String?, fallbackHex: String) -> NSColor {
+        let h = (hex?.isEmpty == false) ? hex! : fallbackHex
+        var str = h.trimmingCharacters(in: .whitespacesAndNewlines)
+        if str.hasPrefix("#") { str = String(str.dropFirst()) }
+        if str.count == 6 {
+            let r = Double(Int(str.prefix(2), radix: 16) ?? 0) / 255.0
+            let g = Double(Int(str.dropFirst(2).prefix(2), radix: 16) ?? 0) / 255.0
+            let b = Double(Int(str.suffix(2), radix: 16) ?? 0) / 255.0
+            return NSColor(srgbRed: r, green: g, blue: b, alpha: 1.0)
+        }
+        return NSColor.white
+    }
+    
+    static func getColor(for key: String, in colors: [String: String]?) -> NSColor {
+        let fallback = defaultColors[key] ?? "#8FBCFF"
+        let chosen = colors?[key]
+        return parseColor(hex: chosen, fallbackHex: fallback)
+    }
 }
 
 extension QuotaData {
     var gaugeSections: [GaugeSection] {
         var sections: [GaugeSection] = []
+        let customColors = QuotaManager.loadConfig().section_colors
+        let antiColor = PastelTheme.getColor(for: "antigravity", in: customColors)
+        let claudeColor = PastelTheme.getColor(for: "claude_pro", in: customColors)
+        let chatgptColor = PastelTheme.getColor(for: "chatgpt_subscription", in: customColors)
+        let cursorColor = PastelTheme.getColor(for: "cursor", in: customColors)
+        let copilotColor = PastelTheme.getColor(for: "github_copilot", in: customColors)
+        let geminiColor = PastelTheme.getColor(for: "gemini", in: customColors)
+        let openColor = PastelTheme.getColor(for: "openai", in: customColors)
+        let antColor = PastelTheme.getColor(for: "anthropic", in: customColors)
         
         var antiGroups: [Group] = []
         var claudeProGroups: [Group] = []
@@ -171,7 +230,7 @@ extension QuotaData {
                 name: "Antigravity",
                 subtitle: "Live & Headless",
                 tag: "ANTIGRAVITY",
-                accentColor: NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0),
+                accentColor: antiColor,
                 items: items
             ))
         }
@@ -204,7 +263,7 @@ extension QuotaData {
                 name: "Claude",
                 subtitle: "Sessão Desktop",
                 tag: "CLAUDE_PRO",
-                accentColor: NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0),
+                accentColor: claudeColor,
                 items: items
             ))
         }
@@ -237,7 +296,7 @@ extension QuotaData {
                 name: "ChatGPT",
                 subtitle: "Sessão Web",
                 tag: "CHATGPT",
-                accentColor: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0),
+                accentColor: chatgptColor,
                 items: items
             ))
         }
@@ -269,7 +328,7 @@ extension QuotaData {
                 name: "Cursor",
                 subtitle: "Cursor IDE",
                 tag: "CURSOR",
-                accentColor: NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0),
+                accentColor: cursorColor,
                 items: items
             ))
         }
@@ -301,7 +360,7 @@ extension QuotaData {
                 name: "Copilot",
                 subtitle: "VS Code",
                 tag: "COPILOT",
-                accentColor: NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0),
+                accentColor: copilotColor,
                 items: items
             ))
         }
@@ -340,7 +399,7 @@ extension QuotaData {
                 name: "Gemini",
                 subtitle: "Gemini API",
                 tag: "AI STUDIO",
-                accentColor: NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0),
+                accentColor: geminiColor,
                 items: items
             ))
         }
@@ -365,7 +424,7 @@ extension QuotaData {
                 name: "OpenAI API",
                 subtitle: "GPT Models",
                 tag: "OPENAI",
-                accentColor: NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0),
+                accentColor: openColor,
                 items: items
             ))
         }
@@ -390,7 +449,7 @@ extension QuotaData {
                 name: "Anthropic Claude",
                 subtitle: "Claude API",
                 tag: "CLAUDE",
-                accentColor: NSColor(srgbRed: 0xD9/255.0, green: 0x77/255.0, blue: 0x06/255.0, alpha: 1.0),
+                accentColor: antColor,
                 items: items
             ))
         }
@@ -802,24 +861,24 @@ class TachometerGaugeView: NSView {
         let sweepPctDeg = (pct / 100.0) * totalSweepDeg
         let currentAngleDeg = startAngleDeg - sweepPctDeg
         
+        let customColors = QuotaManager.loadConfig().section_colors
         let colorHealthy: NSColor
-        if item.sectionTag == "STUDIO" {
-            colorHealthy = NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0)
+        if item.sectionTag == "STUDIO" || item.sectionTag == "AI STUDIO" || item.sectionTag == "GEMINI" {
+            colorHealthy = PastelTheme.getColor(for: "gemini", in: customColors)
         } else if item.sectionTag == "CLAUDE_PRO" {
-            colorHealthy = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
+            colorHealthy = PastelTheme.getColor(for: "claude_pro", in: customColors)
         } else if item.sectionTag == "CHATGPT" {
-            colorHealthy = NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0)
+            colorHealthy = PastelTheme.getColor(for: "chatgpt_subscription", in: customColors)
         } else if item.sectionTag == "CURSOR" {
-            colorHealthy = NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0)
+            colorHealthy = PastelTheme.getColor(for: "cursor", in: customColors)
         } else if item.sectionTag == "COPILOT" {
-            colorHealthy = NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0)
+            colorHealthy = PastelTheme.getColor(for: "github_copilot", in: customColors)
         } else if item.sectionTag == "OPENAI" {
-            colorHealthy = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
+            colorHealthy = PastelTheme.getColor(for: "openai", in: customColors)
         } else if item.sectionTag == "CLAUDE" {
-            colorHealthy = NSColor(srgbRed: 0xD9/255.0, green: 0x77/255.0, blue: 0x06/255.0, alpha: 1.0)
+            colorHealthy = PastelTheme.getColor(for: "anthropic", in: customColors)
         } else {
-            // ANTIGRAVITY (AZUL PASTEL: #8FBCFF)
-            colorHealthy = NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)
+            colorHealthy = PastelTheme.getColor(for: "antigravity", in: customColors)
         }
         let colorYellow = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
         let colorRed = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
@@ -1251,6 +1310,68 @@ class ContrastCheckbox: NSButton {
     }
 }
 
+class PastelColorPickerView: NSView {
+    var selectedHex: String {
+        didSet {
+            updateSelection()
+        }
+    }
+    var onColorChanged: ((String) -> Void)?
+    private var buttons: [NSButton] = []
+    
+    init(frame: NSRect, selectedHex: String, onColorChanged: @escaping (String) -> Void) {
+        self.selectedHex = selectedHex.uppercased()
+        self.onColorChanged = onColorChanged
+        super.init(frame: frame)
+        self.wantsLayer = true
+        setupSwatches()
+    }
+    
+    required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
+    
+    private func setupSwatches() {
+        subviews.forEach { $0.removeFromSuperview() }
+        buttons.removeAll()
+        
+        let swatchSize: CGFloat = 13
+        let gap: CGFloat = 4
+        var x: CGFloat = 0
+        
+        for pc in PastelTheme.palette {
+            let hexNorm = pc.hex.uppercased()
+            let isSelected = (hexNorm == selectedHex)
+            let btn = NSButton(frame: NSRect(x: x, y: (bounds.height - swatchSize) / 2.0, width: swatchSize, height: swatchSize))
+            btn.isBordered = false
+            btn.wantsLayer = true
+            btn.layer?.cornerRadius = swatchSize / 2.0
+            btn.layer?.backgroundColor = pc.color.cgColor
+            btn.layer?.borderColor = isSelected ? NSColor.white.cgColor : NSColor(white: 0.28, alpha: 1.0).cgColor
+            btn.layer?.borderWidth = isSelected ? 2.0 : 1.0
+            btn.toolTip = "\(pc.name) (\(pc.hex))"
+            btn.target = self
+            btn.action = #selector(swatchClicked(_:))
+            btn.identifier = NSUserInterfaceItemIdentifier(hexNorm)
+            addSubview(btn)
+            buttons.append(btn)
+            x += swatchSize + gap
+        }
+    }
+    
+    private func updateSelection() {
+        for btn in buttons {
+            let isSel = (btn.identifier?.rawValue == selectedHex)
+            btn.layer?.borderColor = isSel ? NSColor.white.cgColor : NSColor(white: 0.28, alpha: 1.0).cgColor
+            btn.layer?.borderWidth = isSel ? 2.0 : 1.0
+        }
+    }
+    
+    @objc private func swatchClicked(_ sender: NSButton) {
+        guard let hex = sender.identifier?.rawValue else { return }
+        selectedHex = hex
+        onColorChanged?(hex)
+    }
+}
+
 class SectionFrameView: NSView {
     let title: String
     let accentColor: NSColor
@@ -1381,6 +1502,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var anthropicKeyField: NSTextField?
     
     var hudGaugeCheckboxes: [String: NSButton] = [:]
+    var selectedSectionColors: [String: String] = [:]
     
     // Onboarding fields
     var onboardingWindow: NSWindow?
@@ -1466,7 +1588,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func sendTelemetryHeartbeat() {
-        guard let url = URL(string: "https://api.vh2c.com.br/v1/geminigauje") else { return }
+        guard let url = URL(string: "https://ai-gauge.vh2c.com.br/v1/geminigauje") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -2403,25 +2525,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let isCursor = pLower.contains("cursor") || g.name.lowercased().contains("cursor")
                 let isCopilot = pLower.contains("copilot") || g.name.lowercased().contains("copilot") || pLower.contains("github")
                 
+                let customColors = QuotaManager.loadConfig().section_colors
                 let accentColor: NSColor
                 let tagText: String
                 if isClaudePro {
-                    accentColor = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
+                    accentColor = PastelTheme.getColor(for: "claude_pro", in: customColors)
                     tagText = "CLAUDE"
                 } else if isChatGpt {
-                    accentColor = NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0)
+                    accentColor = PastelTheme.getColor(for: "chatgpt_subscription", in: customColors)
                     tagText = "CHATGPT"
                 } else if isCursor {
-                    accentColor = NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0)
+                    accentColor = PastelTheme.getColor(for: "cursor", in: customColors)
                     tagText = "CURSOR"
                 } else if isCopilot {
-                    accentColor = NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0)
+                    accentColor = PastelTheme.getColor(for: "github_copilot", in: customColors)
                     tagText = "COPILOT"
                 } else if isStudio {
-                    accentColor = NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0)
+                    accentColor = PastelTheme.getColor(for: "gemini", in: customColors)
                     tagText = "GEMINI"
                 } else {
-                    accentColor = NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)
+                    accentColor = PastelTheme.getColor(for: "antigravity", in: customColors)
                     tagText = "ANTIGRAVITY"
                 }
                 
