@@ -2957,9 +2957,23 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
         let actionUrl = escapeHTML(ann.action_url ?? "")
         let tempo = ann.duracao_segundos ?? 0
 
-        let primaryBtnHtml = !actionUrl.isEmpty
+        var appIconTag = ""
+        if let iconUrl = Bundle.main.url(forResource: "icon", withExtension: "png"),
+           let iconData = try? Data(contentsOf: iconUrl) {
+            let b64 = iconData.base64EncodedString()
+            appIconTag = "<img src=\"data:image/png;base64,\(b64)\" width=\"16\" height=\"16\" style=\"display:block; object-fit:contain;\" />"
+        } else if let iconImg = NSApp.applicationIconImage,
+           let tiff = iconImg.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff),
+           let png = rep.representation(using: .png, properties: [:]) {
+            let b64 = png.base64EncodedString()
+            appIconTag = "<img src=\"data:image/png;base64,\(b64)\" width=\"16\" height=\"16\" style=\"display:block; object-fit:contain;\" />"
+        }
+
+        let hasAction = !actionUrl.isEmpty
+        let primaryBtnHtml = hasAction
             ? "<a href=\"#\" class=\"btn-primary\" onclick=\"openAction('\(actionUrl)');return false;\">\(actionLabel)</a>"
-            : "<button class=\"btn-primary\" onclick=\"closePromo()\">OK</button>"
+            : ""
 
         let html = """
         <!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -2986,38 +3000,23 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
           padding: 14px 18px 18px;
           box-shadow: 0 20px 45px rgba(0,0,0,0.6);
         }
-        .card-header-bar {
-          position: relative;
+        .card-header-brand {
           display: flex;
-          justify-content: center;
           align-items: center;
-          height: 16px;
+          gap: 8px;
+          height: 20px;
           margin-bottom: 12px;
-        }
-        .card-handle {
-          width: 40px;
-          height: 4px;
-          background: rgba(255, 255, 255, 0.22);
-          border-radius: 2px;
-        }
-        .card-close-btn {
-          position: absolute;
-          right: 0;
-          top: -2px;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.06);
-          border: none;
+          font-size: 11.5px;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
           color: var(--text-secondary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: background 0.15s, color 0.15s;
         }
-        .card-close-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
-        .card-close-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .card-header-brand img {
+          width: 16px;
+          height: 16px;
+          object-fit: contain;
+        }
         .promo-media {
           width: 100%;
           height: 185px;
@@ -3030,7 +3029,6 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
         .promo-media img {
           width: 100%;
           height: 100%;
-          object-fit: cover;
           display: block;
         }
         .promo-content {
@@ -3104,11 +3102,9 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
         .btn-primary:active { transform: scale(0.98); }
         </style></head><body>
         <div class="card-container">
-          <div class="card-header-bar">
-            <div class="card-handle"></div>
-            <button id="btnClose" class="card-close-btn" onclick="closePromo()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            </button>
+          <div class="card-header-brand">
+            \(appIconTag)
+            <span>AI GAUGE - Advertising</span>
           </div>
           \(imgHtml)
           <div class="promo-content">
@@ -3122,7 +3118,6 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
         </div>
         <script>
           let rem = \(tempo);
-          const btnClose = document.getElementById('btnClose');
           const btnLater = document.getElementById('btnLater');
           function closePromo() {
             if (rem > 0) return;
@@ -3136,14 +3131,12 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
             }
           }
           if (rem > 0) {
-            if (btnClose) btnClose.disabled = true;
             btnLater.disabled = true;
             btnLater.innerText = 'Agora não (' + rem + 's)';
             const t = setInterval(() => {
               rem--;
               if (rem <= 0) {
                 clearInterval(t);
-                if (btnClose) btnClose.disabled = false;
                 btnLater.disabled = false;
                 btnLater.innerText = 'Agora não';
               } else {

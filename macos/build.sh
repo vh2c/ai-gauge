@@ -19,6 +19,10 @@ if [ -f "${REPO_DIR}/assets/AppIcon.icns" ]; then
     cp "${REPO_DIR}/assets/AppIcon.icns" "${RES_DIR}/AppIcon.icns"
 fi
 
+if [ -f "${REPO_DIR}/assets/icon.png" ]; then
+    cp "${REPO_DIR}/assets/icon.png" "${RES_DIR}/icon.png"
+fi
+
 cat << 'PLIST' > "${APP_BUNDLE}/Contents/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
