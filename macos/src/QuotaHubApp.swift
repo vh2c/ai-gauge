@@ -1100,6 +1100,157 @@ func makeCenteredDarkField(frame: NSRect, placeholder: String, value: String) ->
     return field
 }
 
+class ContrastCheckbox: NSButton {
+    var checkAccentColor: NSColor = NSColor(srgbRed: 0x0A/255.0, green: 0x84/255.0, blue: 0xFF/255.0, alpha: 1.0)
+    private var isHovered: Bool = false
+    private var trackingArea: NSTrackingArea?
+    
+    override var isFlipped: Bool { true }
+    override var acceptsFirstResponder: Bool { true }
+    
+    override var state: NSControl.StateValue {
+        didSet {
+            needsDisplay = true
+        }
+    }
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        commonInit()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        commonInit()
+    }
+    
+    private func commonInit() {
+        self.isBordered = false
+        self.wantsLayer = true
+        self.focusRingType = .none
+    }
+    
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let ta = trackingArea { removeTrackingArea(ta) }
+        let ta = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil)
+        addTrackingArea(ta)
+        trackingArea = ta
+    }
+    
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        needsDisplay = true
+    }
+    
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        needsDisplay = true
+    }
+    
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        state = (state == .on) ? .off : .on
+        needsDisplay = true
+        if let action = action {
+            NSApp.sendAction(action, to: target, from: self)
+        }
+    }
+    
+    override func keyDown(with event: NSEvent) {
+        if event.characters == " " {
+            guard isEnabled else { return }
+            state = (state == .on) ? .off : .on
+            needsDisplay = true
+            if let action = action {
+                NSApp.sendAction(action, to: target, from: self)
+            }
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+    
+    override func draw(_ dirtyRect: NSRect) {
+        let boxSize: CGFloat = min(16, max(14, bounds.height - 4))
+        let boxY = (bounds.height - boxSize) / 2.0
+        let boxX: CGFloat = 1.0
+        let boxRect = NSRect(x: boxX, y: boxY, width: boxSize, height: boxSize)
+        let cornerRadius: CGFloat = 3.5
+        let boxPath = NSBezierPath(roundedRect: boxRect, xRadius: cornerRadius, yRadius: cornerRadius)
+        
+        let isChecked = (state == .on)
+        
+        if isChecked {
+            // Marcado: fundo de destaque + borda refinada + checkmark branco puro
+            checkAccentColor.setFill()
+            boxPath.fill()
+            
+            let strokeColor = isHovered ? NSColor.white : (checkAccentColor.blended(withFraction: 0.25, of: .white) ?? checkAccentColor)
+            strokeColor.setStroke()
+            boxPath.lineWidth = 1.2
+            boxPath.stroke()
+            
+            let check = NSBezierPath()
+            check.move(to: NSPoint(x: boxRect.minX + boxSize * 0.22, y: boxRect.minY + boxSize * 0.50))
+            check.line(to: NSPoint(x: boxRect.minX + boxSize * 0.44, y: boxRect.minY + boxSize * 0.74))
+            check.line(to: NSPoint(x: boxRect.minX + boxSize * 0.78, y: boxRect.minY + boxSize * 0.26))
+            check.lineWidth = 2.0
+            check.lineCapStyle = .round
+            check.lineJoinStyle = .round
+            NSColor.white.setStroke()
+            check.stroke()
+        } else {
+            // DESMARCADO: ALTO CONTRASTE - Fundo escuro visível + Borda de aço/platina bem destacada
+            let bgFill = isHovered
+                ? NSColor(srgbRed: 0x36/255.0, green: 0x3C/255.0, blue: 0x4A/255.0, alpha: 1.0)
+                : NSColor(srgbRed: 0x24/255.0, green: 0x28/255.0, blue: 0x32/255.0, alpha: 1.0)
+            bgFill.setFill()
+            boxPath.fill()
+            
+            let borderColor = isHovered
+                ? NSColor(white: 0.95, alpha: 1.0)
+                : NSColor(srgbRed: 0x88/255.0, green: 0x94/255.0, blue: 0xA8/255.0, alpha: 1.0)
+            borderColor.setStroke()
+            boxPath.lineWidth = 1.6
+            boxPath.stroke()
+        }
+        
+        let textX = boxRect.maxX + 8.0
+        let maxTextW = max(0, bounds.width - textX)
+        if attributedTitle.length > 0 {
+            let attr = attributedTitle
+            let plain = attr.string
+            let trimmed = plain.trimmingCharacters(in: .whitespaces)
+            let drawAttr: NSAttributedString
+            if trimmed != plain {
+                let font = attr.attribute(.font, at: 0, effectiveRange: nil) as? NSFont ?? NSFont.systemFont(ofSize: 11, weight: .medium)
+                let color = attr.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor ?? NSColor.white
+                drawAttr = NSAttributedString(string: trimmed, attributes: [.font: font, .foregroundColor: color])
+            } else {
+                drawAttr = attr
+            }
+            let size = drawAttr.size()
+            let textY = max(0, (bounds.height - size.height) / 2.0)
+            drawAttr.draw(in: NSRect(x: textX, y: textY, width: maxTextW, height: size.height))
+        } else if !title.isEmpty {
+            let font = self.font ?? NSFont.systemFont(ofSize: 11, weight: .medium)
+            let textColor = isEnabled ? NSColor(white: 0.9, alpha: 1.0) : NSColor(white: 0.5, alpha: 1.0)
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: textColor
+            ]
+            let size = (title as NSString).size(withAttributes: attrs)
+            let textY = max(0, (bounds.height - size.height) / 2.0)
+            (title as NSString).draw(in: NSRect(x: textX, y: textY, width: maxTextW, height: size.height), withAttributes: attrs)
+        }
+    }
+}
+
 class SectionFrameView: NSView {
     let title: String
     let accentColor: NSColor
@@ -1267,8 +1418,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.latestQuota = initialQuota
             renderCurrentMode()
             startAutoRefreshTimer()
-            if initialQuota.needs_setup == true || initialQuota.groups.isEmpty {
+            if CommandLine.arguments.contains("--settings") || initialQuota.needs_setup == true || initialQuota.groups.isEmpty {
                 openSettings()
+            } else if CommandLine.arguments.contains("--onboarding") {
+                openOnboarding()
             }
         } else {
             openSettings()
@@ -2534,6 +2687,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 defer: false
             )
             win.title = "Configurações - AI Gauge"
+            win.appearance = NSAppearance(named: .darkAqua)
             win.backgroundColor = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
             win.isReleasedWhenClosed = false
             win.level = .floating // Permanece flutuando sobre a janela principal sem ser ocultada
@@ -2542,6 +2696,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         guard let win = settingsWindow else { return }
+        win.appearance = NSAppearance(named: .darkAqua)
         setupSettingsUI(in: win)
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -2621,16 +2776,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         func addCheckbox(id: String, title: String, frame: NSRect, in parent: NSView) {
-            let btn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+            let btn = ContrastCheckbox(frame: frame)
             btn.attributedTitle = NSAttributedString(
-                string: " " + title,
+                string: title,
                 attributes: [
-                    .foregroundColor: NSColor(white: 0.88, alpha: 1.0),
+                    .foregroundColor: NSColor(white: 0.92, alpha: 1.0),
                     .font: NSFont.systemFont(ofSize: 10.5, weight: .medium)
                 ]
             )
             btn.state = hiddenSet.contains(id) ? .off : .on
-            btn.frame = frame
             parent.addSubview(btn)
             self.hudGaugeCheckboxes[id] = btn
         }
@@ -2648,16 +2802,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(antiCard)
         
         let antiCfg = providers["antigravity"]
-        let antiBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let antiBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         antiBtn.state = (antiCfg?.enabled ?? true) ? .on : .off
         antiBtn.attributedTitle = NSAttributedString(
-            string: "  Antigravity IDE (Live & Headless Standalone)",
+            string: "Antigravity IDE (Live & Headless Standalone)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        antiBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         antiCard.addSubview(antiBtn)
         self.antigravityCheck = antiBtn
         
@@ -2687,16 +2840,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(claudeCard)
         
         let claudeCfg = providers["claude_pro"]
-        let claudeBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let claudeBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         claudeBtn.state = (claudeCfg?.enabled ?? true) ? .on : .off
         claudeBtn.attributedTitle = NSAttributedString(
-            string: "  Claude (Sessão & Limites)",
+            string: "Claude (Sessão & Limites)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        claudeBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         claudeCard.addSubview(claudeBtn)
         self.claudeProCheck = claudeBtn
         
@@ -2736,16 +2888,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(chatgptCard)
         
         let chatgptCfg = providers["chatgpt_subscription"]
-        let chatgptBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let chatgptBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         chatgptBtn.state = (chatgptCfg?.enabled ?? true) ? .on : .off
         chatgptBtn.attributedTitle = NSAttributedString(
-            string: "  ChatGPT (Sessão & Limites)",
+            string: "ChatGPT (Sessão & Limites)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        chatgptBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         chatgptCard.addSubview(chatgptBtn)
         self.chatgptCheck = chatgptBtn
         
@@ -2785,16 +2936,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(cursorCard)
         
         let cursorCfg = providers["cursor"]
-        let cursorBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let cursorBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         cursorBtn.state = (cursorCfg?.enabled ?? true) ? .on : .off
         cursorBtn.attributedTitle = NSAttributedString(
-            string: "  Cursor IDE (Fast Requests & Pro)",
+            string: "Cursor IDE (Fast Requests & Pro)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        cursorBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         cursorCard.addSubview(cursorBtn)
         self.cursorCheck = cursorBtn
         
@@ -2830,16 +2980,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(copilotCard)
         
         let copilotCfg = providers["github_copilot"]
-        let copilotBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let copilotBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         copilotBtn.state = (copilotCfg?.enabled ?? true) ? .on : .off
         copilotBtn.attributedTitle = NSAttributedString(
-            string: "  Copilot (Visual Studio Code)",
+            string: "Copilot (Visual Studio Code)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        copilotBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         copilotCard.addSubview(copilotBtn)
         self.copilotCheck = copilotBtn
         
@@ -2875,16 +3024,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(geminiCard)
         
         let geminiCfg = providers["gemini"]
-        let geminiBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let geminiBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         geminiBtn.state = (geminiCfg?.enabled ?? false) ? .on : .off
         geminiBtn.attributedTitle = NSAttributedString(
-            string: "  Google Gemini API (Google AI Studio)",
+            string: "Google Gemini API (Google AI Studio)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        geminiBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         geminiCard.addSubview(geminiBtn)
         self.geminiCheck = geminiBtn
         
@@ -2957,16 +3105,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(openCard)
         
         let openCfg = providers["openai"]
-        let openBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let openBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         openBtn.state = (openCfg?.enabled ?? false) ? .on : .off
         openBtn.attributedTitle = NSAttributedString(
-            string: "  OpenAI API (GPT-4o, o1, etc.)",
+            string: "OpenAI API (GPT-4o, o1, etc.)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        openBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         openCard.addSubview(openBtn)
         self.openaiCheck = openBtn
         
@@ -2991,16 +3138,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(antCard)
         
         let antCfg = providers["anthropic"]
-        let antBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        let antBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
         antBtn.state = (antCfg?.enabled ?? false) ? .on : .off
         antBtn.attributedTitle = NSAttributedString(
-            string: "  Anthropic Claude API (Sonnet, Opus)",
+            string: "Anthropic Claude API (Sonnet, Opus)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
             ]
         )
-        antBtn.frame = NSRect(x: 14, y: 12, width: cardW - 28, height: 20)
         antCard.addSubview(antBtn)
         self.anthropicCheck = antBtn
         
@@ -3255,6 +3401,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 defer: false
             )
             win.title = "AI Gauge - Assistente de Configuração"
+            win.appearance = NSAppearance(named: .darkAqua)
             win.backgroundColor = NSColor(srgbRed: 0x14/255.0, green: 0x14/255.0, blue: 0x18/255.0, alpha: 1.0)
             win.isReleasedWhenClosed = false
             win.level = .floating
@@ -3324,16 +3471,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             card.layer?.borderWidth = 1
             card.layer?.cornerRadius = 8
             
-            let btn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+            let btn = ContrastCheckbox(frame: NSRect(x: 12, y: 10, width: 220, height: 20))
             btn.attributedTitle = NSAttributedString(
-                string: " " + title,
+                string: title,
                 attributes: [
                     .foregroundColor: NSColor.white,
                     .font: NSFont.systemFont(ofSize: 12, weight: .bold)
                 ]
             )
             btn.state = defaultChecked ? .on : .off
-            btn.frame = NSRect(x: 12, y: 10, width: 220, height: 20)
             card.addSubview(btn)
             
             let desc = NSTextField(labelWithString: subtitle)
