@@ -1,4 +1,5 @@
 import Cocoa
+import WebKit
 
 // MARK: - Data Models
 struct Bucket: Codable {
@@ -30,12 +31,14 @@ struct UpdateInfo: Codable {
 
 struct AnnouncementInfo: Codable {
     let id: String?
-    let type: String? // "info", "promo", "warning"
+    let type: String? // "info", "versao", "publicidade"
     let badge: String?
     let title: String?
     let message: String?
     let action_label: String?
     let action_url: String?
+    let image_url: String?
+    let duracao_segundos: Int?
 }
 
 struct QuotaData: Codable {
@@ -551,6 +554,9 @@ class QuotaManager {
             task.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if task.terminationStatus == 0, let quota = try? JSONDecoder().decode(QuotaData.self, from: data) {
+                if let ann = quota.announcement, ann.type == "publicidade" {
+                    PromoDockManager.shared.presentIfNeeded(ann)
+                }
                 var qWithTs = quota
                 qWithTs.timestamp = Date().timeIntervalSince1970
                 if let encoded = try? JSONEncoder().encode(qWithTs) {
@@ -1024,6 +1030,9 @@ class SectionFrameView: NSView {
 
 // MARK: - App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
+    }
     var fullWindow: NSWindow?
     var hudWindow: NSPanel?
     var settingsWindow: NSWindow?
@@ -1899,7 +1908,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // ----------------- ANNOUNCEMENT / PRO STATUS -----------------
-        if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
+        if let ann = quota.announcement, ann.type == "publicidade" {
+            PromoDockManager.shared.presentIfNeeded(ann)
+        } else if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
             let isInfo = ann.type == "info"
             let annH: CGFloat = ann.action_label != nil ? 92 : 62
             let annBox = FlippedBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: annH))
@@ -2869,6 +2880,290 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         if let win = notification.object as? NSWindow, win == fullWindow {
             closeClicked()
+        }
+    }
+}
+
+// MARK: - Promo Dock (Publicidade para Versões Gratuitas)
+class PromoDockManager: NSObject, WKScriptMessageHandler {
+    static let shared = PromoDockManager()
+    private var promoWindow: NSWindow?
+    private var lastShownAt: TimeInterval = 0
+    private let intervalSeconds: TimeInterval = 6 * 3600 // 6 horas
+
+    func presentIfNeeded(_ ann: AnnouncementInfo) {
+        let now = Date().timeIntervalSince1970
+        if lastShownAt > 0 && (now - lastShownAt) < intervalSeconds {
+            return
+        }
+        lastShownAt = now
+        DispatchQueue.main.async {
+            self.showWindow(ann)
+        }
+    }
+
+    private func escapeHTML(_ s: String) -> String {
+        return s.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    private func showWindow(_ ann: AnnouncementInfo) {
+        promoWindow?.close()
+        var rawImg = ann.image_url ?? ""
+        if rawImg.hasPrefix("http://") {
+            rawImg = rawImg.replacingOccurrences(of: "http://", with: "https://")
+        }
+        let hasImage = !rawImg.isEmpty
+        let width: CGFloat = 380
+        let height: CGFloat = hasImage ? 440 : 250
+        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
+        let x = screenFrame.midX - (width / 2)
+        let y = screenFrame.midY - (height / 2)
+
+        let win = NSWindow(
+            contentRect: NSRect(x: x, y: y, width: width, height: height),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        win.isOpaque = false
+        win.backgroundColor = .clear
+        win.level = .floating
+        win.hasShadow = true
+        win.isReleasedWhenClosed = false
+
+        let config = WKWebViewConfiguration()
+        config.userContentController.add(self, name: "promoAction")
+        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: width, height: height), configuration: config)
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.wantsLayer = true
+        webView.layer?.cornerRadius = 24
+        webView.layer?.masksToBounds = true
+
+        let title = escapeHTML(ann.title ?? "AI Gauge Pro")
+        let text = escapeHTML(ann.message ?? "")
+        let imgHtml = hasImage
+            ? "<div class=\"promo-media\" id=\"mediaBox\"><img src=\"\(escapeHTML(rawImg))\" alt=\"\" onerror=\"document.getElementById('mediaBox').style.display='none';\" /></div>"
+            : ""
+        let actionLabel = escapeHTML((ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : "Ver Detalhes")
+        let actionUrl = escapeHTML(ann.action_url ?? "")
+        let tempo = ann.duracao_segundos ?? 0
+
+        let primaryBtnHtml = !actionUrl.isEmpty
+            ? "<a href=\"#\" class=\"btn-primary\" onclick=\"openAction('\(actionUrl)');return false;\">\(actionLabel)</a>"
+            : "<button class=\"btn-primary\" onclick=\"closePromo()\">OK</button>"
+
+        let html = """
+        <!DOCTYPE html><html><head><meta charset="utf-8"><style>
+        :root {
+          --card-bg: #16171F;
+          --card-border: rgba(255, 255, 255, 0.1);
+          --text-primary: #FFFFFF;
+          --text-secondary: #94A3B8;
+          --btn-secondary: rgba(255, 255, 255, 0.08);
+          --btn-secondary-hover: rgba(255, 255, 255, 0.14);
+          --primary-gradient: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; }
+        .card-container {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+          height: 100%;
+          background: var(--card-bg);
+          border: 1px solid var(--card-border);
+          border-radius: 24px;
+          padding: 14px 18px 18px;
+          box-shadow: 0 20px 45px rgba(0,0,0,0.6);
+        }
+        .card-header-bar {
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 16px;
+          margin-bottom: 12px;
+        }
+        .card-handle {
+          width: 40px;
+          height: 4px;
+          background: rgba(255, 255, 255, 0.22);
+          border-radius: 2px;
+        }
+        .card-close-btn {
+          position: absolute;
+          right: 0;
+          top: -2px;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.06);
+          border: none;
+          color: var(--text-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .card-close-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+        .card-close-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .promo-media {
+          width: 100%;
+          height: 185px;
+          border-radius: 16px;
+          overflow: hidden;
+          background: #0E1015;
+          margin-bottom: 14px;
+          flex-shrink: 0;
+        }
+        .promo-media img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .promo-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .promo-title {
+          font-size: 19px;
+          font-weight: 700;
+          color: var(--text-primary);
+          line-height: 1.25;
+          margin-bottom: 6px;
+          letter-spacing: -0.01em;
+        }
+        .promo-desc {
+          font-size: 13.5px;
+          line-height: 1.45;
+          color: var(--text-secondary);
+          margin-bottom: 16px;
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .promo-actions {
+          margin-top: auto;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+        }
+        .btn-secondary {
+          flex: 1;
+          height: 44px;
+          border-radius: 13px;
+          background: var(--btn-secondary);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #E2E8F0;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.15s;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        }
+        .btn-secondary:hover { background: var(--btn-secondary-hover); }
+        .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary {
+          flex: 1;
+          height: 44px;
+          border-radius: 13px;
+          background: var(--primary-gradient);
+          border: none;
+          color: #FFFFFF;
+          font-size: 14px;
+          font-weight: 600;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+          transition: filter 0.15s, transform 0.1s;
+          text-align: center;
+        }
+        .btn-primary:hover { filter: brightness(1.08); }
+        .btn-primary:active { transform: scale(0.98); }
+        </style></head><body>
+        <div class="card-container">
+          <div class="card-header-bar">
+            <div class="card-handle"></div>
+            <button id="btnClose" class="card-close-btn" onclick="closePromo()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          \(imgHtml)
+          <div class="promo-content">
+            <h3 class="promo-title">\(title)</h3>
+            <p class="promo-desc">\(text)</p>
+            <div class="promo-actions">
+              <button id="btnLater" class="btn-secondary" onclick="closePromo()">Agora não</button>
+              \(primaryBtnHtml)
+            </div>
+          </div>
+        </div>
+        <script>
+          let rem = \(tempo);
+          const btnClose = document.getElementById('btnClose');
+          const btnLater = document.getElementById('btnLater');
+          function closePromo() {
+            if (rem > 0) return;
+            window.webkit.messageHandlers.promoAction.postMessage({type:'close'});
+          }
+          function openAction(url) {
+            if (url) {
+              window.webkit.messageHandlers.promoAction.postMessage({type:'open', url: url});
+            } else {
+              closePromo();
+            }
+          }
+          if (rem > 0) {
+            if (btnClose) btnClose.disabled = true;
+            btnLater.disabled = true;
+            btnLater.innerText = 'Agora não (' + rem + 's)';
+            const t = setInterval(() => {
+              rem--;
+              if (rem <= 0) {
+                clearInterval(t);
+                if (btnClose) btnClose.disabled = false;
+                btnLater.disabled = false;
+                btnLater.innerText = 'Agora não';
+              } else {
+                btnLater.innerText = 'Agora não (' + rem + 's)';
+              }
+            }, 1000);
+          }
+        </script></body></html>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
+        win.contentView = webView
+        win.makeKeyAndOrderFront(nil)
+        self.promoWindow = win
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        DispatchQueue.main.async {
+            if type == "close" {
+                self.promoWindow?.orderOut(nil)
+                self.promoWindow = nil
+            } else if type == "open", let urlStr = body["url"] as? String, let url = URL(string: urlStr) {
+                NSWorkspace.shared.open(url)
+                self.promoWindow?.orderOut(nil)
+                self.promoWindow = nil
+            }
         }
     }
 }
