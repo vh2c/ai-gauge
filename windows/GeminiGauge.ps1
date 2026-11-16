@@ -251,7 +251,7 @@ function Render-UI ($data) {
         
         $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
         $cR = 0x8F; $cG = 0xBC; $cB = 0xFF
-        if ($gname.Contains("claude pro") -or $prov.Contains("claude pro")) {
+        if (($gname.Contains("claude") -or $prov.Contains("claude")) -and -not $gname.Contains("claude and gpt")) {
             $cR = 0xD7; $cG = 0x8C; $cB = 0x68
             $accentBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD7, 0x8C, 0x68)))
         } elseif ($gname.Contains("chatgpt") -or $prov.Contains("chatgpt")) {
@@ -365,11 +365,11 @@ function Show-SettingsDialog {
             
             <CheckBox Name="ChkAnti" Content="Antigravity IDE (Live &amp; Headless)" Foreground="#8FBCFF" FontWeight="Bold" Margin="0,0,0,12"/>
             
-            <CheckBox Name="ChkClaudePro" Content="Claude Pro (Sessão Antigravity)" Foreground="#D78C68" FontWeight="Bold" Margin="0,0,0,2"/>
+            <CheckBox Name="ChkClaudePro" Content="Claude (Sessão &amp; Limites)" Foreground="#D78C68" FontWeight="Bold" Margin="0,0,0,2"/>
             <TextBox Name="TxtClaudeProToken" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
             <TextBlock Text="💡 Token OAuth opcional (detectado automaticamente no Keychain)" Foreground="#888888" FontSize="9" Margin="0,0,0,12"/>
             
-            <CheckBox Name="ChkChatGPT" Content="ChatGPT Plus / Pro (Sessão Web &amp; Limites)" Foreground="#10A37F" FontWeight="Bold" Margin="0,0,0,2"/>
+            <CheckBox Name="ChkChatGPT" Content="ChatGPT (Sessão &amp; Limites)" Foreground="#10A37F" FontWeight="Bold" Margin="0,0,0,2"/>
             <TextBox Name="TxtChatGPTToken" Height="24" Background="#1F1F1F" Foreground="#FFFFFF" BorderBrush="#333333" Margin="0,0,0,4"/>
             <TextBlock Text="💡 Token de Acesso / Sessão do ChatGPT (janela de 3h e cota semanal o1)" Foreground="#888888" FontSize="9" Margin="0,0,0,12"/>
             

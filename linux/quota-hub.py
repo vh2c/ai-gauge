@@ -196,8 +196,11 @@ def get_gauge_items(quota):
     for g in quota.get("groups", []):
         gname = g.get("name", "").lower()
         prov = g.get("provider", "").lower()
-        if "claude pro" in gname or "claude pro" in prov:
-            model = "Claude Pro"
+        if "claude and gpt" in gname:
+            model = "Claude/GPT"
+            accent = "#8FBCFF"
+        elif "claude" in gname or "claude" in prov:
+            model = "Claude"
             accent = "#D78C68"
         elif "chatgpt" in gname or "chatgpt" in prov:
             model = "ChatGPT"
@@ -518,7 +521,7 @@ class QuotaHubAppLinux:
         f_cpro = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#D78C68", highlightthickness=1)
         f_cpro.pack(fill="x", pady=5)
         var_claude_pro = tk.BooleanVar(value=cpro_cfg.get("enabled", True))
-        cb_cpro = tk.Checkbutton(f_cpro, text="Claude Pro (Sessão Antigravity)", variable=var_claude_pro,
+        cb_cpro = tk.Checkbutton(f_cpro, text="Claude (Sessão & Limites)", variable=var_claude_pro,
                                  font=("Sans", 9, "bold"), fg="#D78C68", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#D78C68")
         cb_cpro.pack(anchor="w")
         ent_claude_token = tk.Entry(f_cpro, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")

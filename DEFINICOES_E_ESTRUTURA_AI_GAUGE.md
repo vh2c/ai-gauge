@@ -12,12 +12,20 @@ O projeto evoluiu de um monitor focado em Gemini para um cockpit universal de co
 
 * **Nome Oficial do Produto:** `AI GAUGE` (antigo *Gemini Gauge / Quota Hub*).
 * **Slogan:** *Universal AI Quota & Limits Cockpit for Developers*.
-* **Identidade Visual:** Fundo escuro (`#121212` / `#181818`), acentos temáticos por provedor:
-  - **Antigravity (IDE):** Azul suave / pastel (`#8FBCFF`)
-  - **Google AI Studio (Gemini API):** Off-White (`#EBEBEB`)
-  - **Claude Pro (Sessão Antigravity):** Terracota/Laranja suave (`#D78C68`)
-  - **ChatGPT Plus/Pro (Sessão Web):** Verde OpenAI (`#10A37F`)
-  - **Status Saudável / HUD:** Verde suave (`#8AE39A`)
+* **Identidade Visual e Seções do HUD:** Fundo escuro (`#121212` / `#181818`), acentos temáticos por provedor:
+  - **Antigravity (IDE Dedicado):** Azul suave / pastel (`#8FBCFF`) - Gemini, Claude/GPT e Argon.
+  - **Claude (Sessão Desktop):** Coral/Terracota (`#D78C68`) - Janela de 5h e cota semanal.
+  - **ChatGPT (Sessão Desktop):** Verde OpenAI (`#10A37F`) - Janela de 3h e cota semanal o1.
+  - **Gemini (API):** Off-White / Prata (`#EBEBEB`) - Chave de API Google AI Studio.
+  - **Status Saudável / HUD:** Verde suave (`#00E699` / `#8AE39A`).
+  - **Alerta / Crítico:** Âmbar (`#F5A623`) e Vermelho (`#FF4D4F`).
+
+### 1.1 Autenticação Zero-Config (Plug & Play) e Escala de Leitura
+* **Antigravity:** 100% automático (inspeção de processos e sockets do IDE local).
+* **Claude:** 100% automático (leitura do macOS Keychain `Claude Code-credentials` com auto-renovação de tokens expirados).
+* **ChatGPT:** 100% automático (leitura da sessão ativa do app desktop macOS em `~/.codex/auth.json` com cabeçalho `ChatGPT-Account-ID`).
+* **Gemini (API):** Preenchimento manual da chave de API (`AIzaSy...`).
+* **Escala dos Relógios:** Modo tacômetro/marcador de combustível (100% = tanque cheio / cota restante, 0% = esgotado). Inverte a lógica de exibição de apps que mostram % consumida para garantir leitura intuitiva de disponibilidade.
 
 ---
 

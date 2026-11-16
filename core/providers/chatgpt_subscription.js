@@ -1,5 +1,5 @@
 /**
- * ChatGPT Subscription Provider (ChatGPT Plus / Pro / Team Web Session & OAuth)
+ * ChatGPT Subscription Provider (ChatGPT Plus / Pro / Free / Team Web Session & OAuth)
  * Analogous to Claude Pro: monitors 3-hour GPT-4o window and weekly o1 limits
  * Developed by VH2C • https://vh2c.com.br
  */
@@ -11,7 +11,43 @@ const os = require('os');
 
 class ChatGPTSubscriptionProvider {
   constructor(token) {
-    this.token = token || this.getTokenFromKeychain();
+    this.token = token;
+    this.dedicatedCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'chatgpt_cache.json');
+  }
+
+  getCredentials() {
+    if (this.token) {
+      return { token: this.token, accountId: null };
+    }
+
+    // 1. Check native ChatGPT Mac desktop app storage (~/.codex/auth.json)
+    try {
+      const codexAuthPath = path.join(os.homedir(), '.codex', 'auth.json');
+      if (fs.existsSync(codexAuthPath)) {
+        const parsed = JSON.parse(fs.readFileSync(codexAuthPath, 'utf8'));
+        const token = parsed?.tokens?.access_token;
+        const accountId = parsed?.tokens?.account_id;
+        if (token) {
+          return { token, accountId };
+        }
+      }
+    } catch (_) {}
+
+    // 2. Check environment variables
+    const envToken = process.env.CHATGPT_ACCESS_TOKEN ||
+                     process.env.CHATGPT_SESSION_TOKEN ||
+                     process.env.OPENAI_SESSION_TOKEN;
+    if (envToken) {
+      return { token: envToken, accountId: null };
+    }
+
+    // 3. Fallback: Keychain
+    const kcToken = this.getTokenFromKeychain();
+    if (kcToken) {
+      return { token: kcToken, accountId: null };
+    }
+
+    return { token: null, accountId: null };
   }
 
   getTokenFromKeychain() {
@@ -61,28 +97,117 @@ class ChatGPTSubscriptionProvider {
     return `${mins}m`;
   }
 
+  calcRemainingPct(util, usedPct) {
+    if (usedPct !== undefined && usedPct !== null) {
+      const u = Number(usedPct);
+      return Math.round(Math.max(0, Math.min(100, 100.0 - u)));
+    }
+    if (util !== undefined && util !== null) {
+      const u = Number(util);
+      if (u > 1.0) {
+        return Math.round(Math.max(0, Math.min(100, 100.0 - u)));
+      }
+      return Math.round(Math.max(0, Math.min(100, (1.0 - u) * 100.0)));
+    }
+    return 100;
+  }
+
+  buildPayload(data, isCache = false) {
+    const planType = (data.plan_type || 'plus').toLowerCase();
+    const planTitle = planType === 'free' ? 'ChatGPT Free' :
+                      (planType === 'pro' ? 'ChatGPT Pro' : 'ChatGPT Plus');
+    const accountEmail = data.email || data.account_email || 'ChatGPT';
+
+    const pw = data.rate_limit?.primary_window;
+    const gpt4oUsage = data.usage?.['gpt-4o'] || data.model_usage?.['gpt-4o'] || data.gpt_4o;
+    const o1Usage = data.usage?.['o1'] || data.model_usage?.['o1'] || data.o1;
+
+    let rem4o = 100;
+    let reset4o = '3h';
+    if (gpt4oUsage) {
+      rem4o = this.calcRemainingPct(gpt4oUsage.utilization, gpt4oUsage.used_percent);
+      reset4o = this.formatResetRemaining(gpt4oUsage.resets_at) || '3h';
+    } else if (pw) {
+      rem4o = this.calcRemainingPct(null, pw.used_percent);
+      reset4o = this.formatResetRemaining(pw.reset_at) || (pw.reset_after_seconds ? `${Math.round(pw.reset_after_seconds / 3600)}h` : '3h');
+    }
+
+    let remO1 = 100;
+    let resetO1 = '7d';
+    if (o1Usage) {
+      remO1 = this.calcRemainingPct(o1Usage.utilization, o1Usage.used_percent);
+      resetO1 = this.formatResetRemaining(o1Usage.resets_at) || '7d';
+    } else if (data.rate_limit?.secondary_window) {
+      const sw = data.rate_limit.secondary_window;
+      remO1 = this.calcRemainingPct(null, sw.used_percent);
+      resetO1 = this.formatResetRemaining(sw.reset_at) || '7d';
+    }
+
+    return {
+      provider: 'chatgpt_subscription',
+      account: accountEmail + (isCache ? ' (Cache)' : ''),
+      plan: planTitle,
+      mode: 'web_session',
+      groups: [
+        {
+          name: 'ChatGPT (Sessão)',
+          description: isCache ? 'Limites de uso da assinatura ChatGPT (Cache local)' : 'Limites de uso da assinatura ChatGPT',
+          provider: 'ChatGPT',
+          buckets: [
+            {
+              id: 'chatgpt-4o-3h',
+              name: 'GPT-4o (3h)',
+              remaining_pct: rem4o,
+              reset_in: reset4o,
+              detail: planType === 'free' ? `Cota ativa (${rem4o}% disponível)` : `Janela de 3h (${rem4o}% disponível)`
+            },
+            {
+              id: 'chatgpt-o1-weekly',
+              name: 'o1 Reasoning (Semanal)',
+              remaining_pct: remO1,
+              reset_in: resetO1,
+              detail: `Cota semanal o1 (${remO1}% disponível)`
+            }
+          ]
+        }
+      ]
+    };
+  }
+
   async fetch() {
-    const token = this.token ||
-                  process.env.CHATGPT_ACCESS_TOKEN ||
-                  process.env.CHATGPT_SESSION_TOKEN ||
-                  process.env.OPENAI_SESSION_TOKEN ||
-                  this.getTokenFromKeychain();
+    // Check if we have a fresh cache (< 45s) to reduce polling overhead
+    try {
+      if (fs.existsSync(this.dedicatedCachePath)) {
+        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
+        if (cached?.timestamp && (Date.now() - cached.timestamp < 45000) && cached.data) {
+          return this.buildPayload(cached.data, false);
+        }
+      }
+    } catch (_) {}
+
+    const { token, accountId } = this.getCredentials();
 
     if (!token) {
       return this.fetchFromCache();
     }
 
     return new Promise((resolve) => {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      };
+
+      if (accountId) {
+        headers['ChatGPT-Account-ID'] = accountId;
+      }
+
       const options = {
         hostname: 'chatgpt.com',
         path: '/backend-api/wham/usage',
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'application/json'
-        },
+        headers,
         timeout: 4500
       };
 
@@ -93,45 +218,14 @@ class ChatGPTSubscriptionProvider {
           if (res.statusCode === 200) {
             try {
               const data = JSON.parse(body);
-              // Handle standard usage structure
-              const gpt4oUtil = data.usage?.['gpt-4o']?.utilization ?? data.gpt_4o?.utilization ?? 0.0;
-              const o1Util = data.usage?.['o1']?.utilization ?? data.o1?.utilization ?? 0.0;
+              // Save to dedicated cache
+              try {
+                const dir = path.dirname(this.dedicatedCachePath);
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(this.dedicatedCachePath, JSON.stringify({ timestamp: Date.now(), data }), 'utf8');
+              } catch (_) {}
 
-              const rem4o = Math.round(Math.max(0, Math.min(100, (1.0 - gpt4oUtil) * 100)));
-              const remO1 = Math.round(Math.max(0, Math.min(100, (1.0 - o1Util) * 100)));
-
-              const reset4o = this.formatResetRemaining(data.usage?.['gpt-4o']?.resets_at || data.gpt_4o?.resets_at) || '3h';
-              const resetO1 = this.formatResetRemaining(data.usage?.['o1']?.resets_at || data.o1?.resets_at) || '7d';
-
-              resolve({
-                provider: 'chatgpt_subscription',
-                account: data.account_email || 'ChatGPT Plus / Pro',
-                plan: data.plan_title || 'ChatGPT Plus',
-                mode: 'web_session',
-                groups: [
-                  {
-                    name: 'ChatGPT Plus / Pro (Sessão)',
-                    description: 'Limites de uso da assinatura ChatGPT',
-                    provider: 'ChatGPT',
-                    buckets: [
-                      {
-                        id: 'chatgpt-4o-3h',
-                        name: 'GPT-4o (3h)',
-                        remaining_pct: rem4o,
-                        reset_in: reset4o,
-                        detail: `Janela de 3h (${rem4o}% disponível)`
-                      },
-                      {
-                        id: 'chatgpt-o1-weekly',
-                        name: 'o1 Reasoning (Semanal)',
-                        remaining_pct: remO1,
-                        reset_in: resetO1,
-                        detail: `Cota semanal o1 (${remO1}% disponível)`
-                      }
-                    ]
-                  }
-                ]
-              });
+              resolve(this.buildPayload(data, false));
               return;
             } catch (_) {}
           }
@@ -151,9 +245,19 @@ class ChatGPTSubscriptionProvider {
   }
 
   fetchFromCache(activeToken = null) {
+    // 1. Check dedicated cache first
+    try {
+      if (fs.existsSync(this.dedicatedCachePath)) {
+        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
+        if (cached?.data) {
+          return this.buildPayload(cached.data, true);
+        }
+      }
+    } catch (_) {}
+
+    // 2. Check fallback candidates
     try {
       const candidates = [
-        path.join(os.homedir(), '.config', 'UniversalAIQuota', 'chatgpt_cache.json'),
         path.join(os.homedir(), '.chatgpt', 'status-cache.json'),
         path.join(os.homedir(), '.codex', 'session.json')
       ];
@@ -173,7 +277,7 @@ class ChatGPTSubscriptionProvider {
             mode: 'web_session',
             groups: [
               {
-                name: 'ChatGPT Plus / Pro (Sessão)',
+                name: 'ChatGPT (Sessão)',
                 description: 'Limites de uso da assinatura ChatGPT (Cache local)',
                 provider: 'ChatGPT',
                 buckets: [

@@ -111,12 +111,12 @@ extension QuotaData {
         for g in groups {
             let p = (g.provider ?? "").lowercased()
             let n = g.name.lowercased()
-            if p.contains("claude pro") || n.contains("claude pro") {
+            if n.contains("claude and gpt") || p.contains("antigravity") || n.contains("antigravity") || n.contains("argon") {
+                antiGroups.append(g)
+            } else if p.contains("claude") || n.contains("claude") {
                 claudeProGroups.append(g)
             } else if p.contains("chatgpt") || n.contains("chatgpt") {
                 chatgptGroups.append(g)
-            } else if p.contains("antigravity") || n.contains("antigravity") || n.contains("argon") || n.contains("claude and gpt") {
-                antiGroups.append(g)
             } else if p.contains("studio") || n.contains("google gemini api") || n.contains("ai studio") {
                 studioGroups.append(g)
             } else if p.contains("openai") || n.contains("openai") {
@@ -184,7 +184,7 @@ extension QuotaData {
                     items.append(GaugeItem(
                         id: b.id ?? "claude-pro",
                         title: limitTitle,
-                        modelName: "Claude Pro",
+                        modelName: "Claude",
                         percentage: b.remaining_pct,
                         resetIn: b.reset_in,
                         detail: b.detail,
@@ -194,8 +194,8 @@ extension QuotaData {
                 }
             }
             sections.append(GaugeSection(
-                name: "Claude Pro",
-                subtitle: "Sessão Antigravity",
+                name: "Claude",
+                subtitle: "Sessão Desktop",
                 tag: "CLAUDE_PRO",
                 accentColor: NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0),
                 items: items
@@ -227,7 +227,7 @@ extension QuotaData {
                 }
             }
             sections.append(GaugeSection(
-                name: "ChatGPT Plus/Pro",
+                name: "ChatGPT",
                 subtitle: "Sessão Web",
                 tag: "CHATGPT",
                 accentColor: NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0),
@@ -251,7 +251,7 @@ extension QuotaData {
                         modelLabel = "Gemini Pro"
                     } else {
                         limitTitle = "API Key"
-                        modelLabel = "AI Studio"
+                        modelLabel = "Gemini"
                     }
                     items.append(GaugeItem(
                         id: b.id ?? "",
@@ -266,7 +266,7 @@ extension QuotaData {
                 }
             }
             sections.append(GaugeSection(
-                name: "Google AI",
+                name: "Gemini",
                 subtitle: "Gemini API",
                 tag: "AI STUDIO",
                 accentColor: NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0),
@@ -396,6 +396,9 @@ class QuotaManager {
     }
     
     static func hasChatGPTKeychainSession() -> Bool {
+        let codexAuth = NSString(string: "~/.codex/auth.json").expandingTildeInPath
+        if FileManager.default.fileExists(atPath: codexAuth) { return true }
+        
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         task.arguments = ["find-generic-password", "-a", NSUserName(), "-w", "-s", "ChatGPT-credentials"]
@@ -2070,20 +2073,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 
                 let pLower = (g.provider ?? "").lowercased()
                 let isStudio = pLower.contains("studio") || g.name.lowercased().contains("gemini api")
-                let isClaudePro = pLower.contains("claude pro") || g.name.lowercased().contains("claude pro")
+                let isClaudePro = !isStudio && !pLower.contains("antigravity") && (pLower.contains("claude") || g.name.lowercased().contains("claude")) && !g.name.lowercased().contains("claude and gpt")
                 let isChatGpt = pLower.contains("chatgpt") || g.name.lowercased().contains("chatgpt")
                 
                 let accentColor: NSColor
                 let tagText: String
                 if isClaudePro {
                     accentColor = NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)
-                    tagText = "CLAUDE PRO (SESSÃO)"
+                    tagText = "CLAUDE (SESSÃO)"
                 } else if isChatGpt {
                     accentColor = NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0)
                     tagText = "CHATGPT (SESSÃO)"
                 } else if isStudio {
                     accentColor = NSColor(srgbRed: 0xEB/255.0, green: 0xEB/255.0, blue: 0xEB/255.0, alpha: 1.0)
-                    tagText = "GOOGLE AI STUDIO"
+                    tagText = "GEMINI"
                 } else {
                     accentColor = NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)
                     tagText = "ANTIGRAVITY"
@@ -2507,7 +2510,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let claudeBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
         claudeBtn.state = (claudeCfg?.enabled ?? true) ? .on : .off
         claudeBtn.attributedTitle = NSAttributedString(
-            string: "  Claude Pro (Sessão Antigravity)",
+            string: "  Claude (Sessão & Limites)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -2556,7 +2559,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let chatgptBtn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
         chatgptBtn.state = (chatgptCfg?.enabled ?? true) ? .on : .off
         chatgptBtn.attributedTitle = NSAttributedString(
-            string: "  ChatGPT Plus / Pro (Sessão Web & Limites)",
+            string: "  ChatGPT (Sessão & Limites)",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -2568,8 +2571,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let hasGptKeychain = QuotaManager.hasChatGPTKeychainSession()
         let gptStatusMsg = hasGptKeychain
-            ? "✓ Sessão ativa detectada no macOS Keychain (ChatGPT / Codex)"
-            : "ℹ️ Acompanhe a janela de 3h do GPT-4o e cota semanal do o1:"
+            ? "✓ Sessão ativa detectada (ChatGPT App / Codex)"
+            : "ℹ️ Acompanhe a janela do GPT-4o e cota semanal do o1:"
         let gptStatus = NSTextField(labelWithString: gptStatusMsg)
         gptStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         gptStatus.textColor = hasGptKeychain ? NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0) : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)

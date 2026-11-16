@@ -45,13 +45,13 @@ class GeminiProvider {
               resolve({
                 provider: 'gemini_api',
                 account: this.apiKey.substring(0, 10) + '...',
-                plan: 'Google AI Studio API',
+                plan: 'Gemini API',
                 mode: 'api',
                 groups: [
                   {
-                    name: 'Google Gemini API',
+                    name: 'Gemini',
                     description: `${count} modelos disponíveis na sua chave`,
-                    provider: 'Google AI Studio',
+                    provider: 'Gemini',
                     buckets: [
                       {
                         id: 'gemini-flash-rpm',

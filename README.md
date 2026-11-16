@@ -1,8 +1,8 @@
 <div align="center">
 
-# ⚡ Gemini Gauge
+# ⚡ AI Gauge
 
-### Multi-Platform AI Quota & Rate Limit Monitor for macOS, Linux & Windows
+### Multi-Platform AI Quota & Rate Limit Cockpit for macOS, Linux & Windows
 **Developed by [VH2C](https://vh2c.com.br)**
 
 [![Total Downloads](https://img.shields.io/github/downloads/vh2c/gemini-gauge/total.svg?style=flat-square&logo=github&color=00E699)](https://github.com/vh2c/gemini-gauge/releases)
@@ -13,181 +13,128 @@
 
 <br/>
 
-<img src="assets/icon_1024.png" width="180" height="180" alt="Gemini Gauge Icon" />
+<img src="assets/icon_1024.png" width="180" height="180" alt="AI Gauge Icon" />
 
 <br/>
 
-**Gemini Gauge** is a lightweight, high-performance desktop application designed to monitor your AI model quotas and rate limits in real time across macOS, Linux, and Windows. It operates **completely independently of any IDE**, aggregating usage across **Antigravity IDE (Live & Headless)**, **ChatGPT Plus / Pro (Web Session)**, **Claude Pro (OAuth / Session)**, **Google Gemini API**, **OpenAI**, and **Anthropic Claude**.
+**AI Gauge** é um cockpit leve e de alto desempenho para monitorar em tempo real as cotas, limites de taxa (RPM/TPM) e janelas de renovação dos seus modelos de inteligência artificial no macOS, Linux e Windows. Funciona de forma **totalmente independente de IDEs**, agregando em um único painel **Antigravity**, **Claude**, **ChatGPT** e **Gemini**.
 
-> 💡 **Unified Antigravity Quota Monitor**: Gemini Gauge is the unified, official evolution of the *Antigravity Quota Monitor*. It provides out-of-the-box monitoring for all Antigravity quotas (Claude 3.5 Sonnet / GPT-4o 5-hour rolling limits, Gemini Argon Weekly WTU) alongside ChatGPT Plus / Pro, Claude Pro and API providers in a single cross-platform application.
+> 💡 **Detecção Zero-Config (Plug & Play)**: Se você já utiliza os aplicativos no seu computador, o AI Gauge detecta as sessões locais de forma 100% automática. Não é necessário digitar tokens nem senhas para o **Antigravity**, **Claude** ou **ChatGPT**!
 
 </div>
 
 ---
 
-## 🌟 Key Highlights
+## 🌟 Principais Recursos e Seções do HUD
 
-- **🎯 True Multi-Provider Aggregation**:
-  - **Antigravity Quota Monitor (Live & Headless)**: Branded in signature **Púrpura Neon (`#E900FF`)**. Detects live running Antigravity IDE instances, or executes an instant standalone headless probe when closed. Tracks:
-    - 🕒 Claude 3.5 Sonnet / GPT-4o (3P 5-Hour rolling window)
-    - 📊 Gemini Argon WTU (Weekly consumption budget)
-    - 📅 Daily resets and rolling quota timers
-  - **ChatGPT Plus / Pro (Web Session & Quotas)**: Branded in signature **Verde OpenAI (`#10A37F`)**. Tracks:
-    - ⏱️ **GPT-4o (Janela de 3 Horas)**: Dynamic 3-hour rolling limit counter.
-    - 🧠 **o1 Reasoning (Semanal)**: Weekly quota usage for advanced reasoning models.
-  - **Claude Pro (OAuth / Web Session)**: Branded in signature **Coral Anthropic (`#D78C68`)**. Dedicated tracking for Claude Pro accounts with 5-hour rolling window and 7-day quota timers.
-  - **Google Gemini API**: Branded in **Azul Sky (`#38BDF8`)**. Direct connection to Google AI Studio (RPM, TPM, model availability).
-  - **OpenAI API**: Tracks Request-Per-Minute (RPM) and Token-Per-Minute (TPM) limits (GPT-4o, o1, etc.).
-  - **Anthropic Claude API**: Tracks Sonnet, Opus, and Haiku request/token quotas.
-- **⚡ Two Distinct Display Modes**:
-  - **Full Detailed Window**: Dark Obsidian theme (`#181818`), status progress bars, real-time counters, provider cards, and countdown reset timers.
-  - **Radial Tachometer HUD**: Sleek floating meter dock with circular analog gauges, ticks, needles, and status colors. Can be docked vertically or horizontally.
-- **🎛️ Customizable HUD Indicators**:
-  - Select exactly which gauges appear on your floating lateral HUD panel via the Settings menu (`Cmd+,` / `Ctrl+,`).
-- **⚙️ Integrated Graphical Settings**:
-  - Click the **Configurar (⚙️)** button to easily toggle providers, choose HUD indicators, and paste API keys without editing raw JSON files.
-- **🚀 Zero-Friction Installation**:
-  - Native installer scripts for macOS, Linux, and Windows that handle dependencies automatically.
+As informações no HUD lateral flutuante são agrupadas por aplicativo/provedor com cores de destaque exclusivas:
+
+1. **`Antigravity`** *(Azul Pastel `#8FBCFF` - IDE Dedicado)*:
+   - Monitoramento direto do ecossistema do **Google Antigravity IDE** (ao vivo ou headless).
+   - **Gemini**: Cotas semanal e janela de 5 horas.
+   - **Claude/GPT**: Cota interna de terceiros (Opus 5.5, Sonnet 5.5, GPT-OSS 120B).
+   - **Argon**: Cota semanal dedicada para Gemini 4 Argon WTU.
+   - *Autenticação:* **Zero-Config** (lê diretamente do processo/ambiente do IDE).
+
+2. **`Claude`** *(Coral Terracota `#D78C68` - App Desktop Anthropic)*:
+   - Monitora sua conta e assinatura oficial Claude (Pro / Team).
+   - **5 Hours Limit**: Janela rotativa de 5 horas da sessão atual.
+   - **Weekly Limit**: Cota semanal com contagem regressiva para renovação.
+   - *Autenticação:* **Zero-Config** (captura do macOS Keychain com auto-renovação de token expirado).
+
+3. **`ChatGPT`** *(Verde OpenAI `#10A37F` - App Desktop OpenAI)*:
+   - Monitora seu acesso à conta oficial do ChatGPT (Free, Plus, Pro, Team).
+   - **GPT-4o (3h / Cota Ativa)**: Janela de mensagens e limite de taxa.
+   - **o1 Reasoning (Semanal)**: Cota semanal para modelos com raciocínio avançado.
+   - *Autenticação:* **Zero-Config** (detecta automaticamente a sessão do app em `~/.codex/auth.json`).
+
+4. **`Gemini`** *(Branco/Prata `#EBEBEB` - API Google AI Studio)*:
+   - Monitoramento das chaves de API diretas de desenvolvedor.
+   - **Flash RPM & Pro RPM**: Limites de requisições por minuto e status de chave.
+   - *Autenticação:* Requer preenchimento da chave de API (`AIzaSy...`) obtida no [Google AI Studio](https://aistudio.google.com).
 
 ---
 
-## 📸 Display Modes
+## 🔋 Como Ler os Marcadores (Escala de Combustível)
 
-### 1. Full Detailed Window
-A desktop window detailing each AI model group, active quota percentages, and exact time remaining until limit renewal.
+Todos os relógios (gauges analógicos) do AI GAUGE operam como um **marcador de bateria ou combustível**:
+* **100%** = Tanque cheio / Cota totalmente disponível.
+* **0%** = Cota esgotada.
 
-### 2. Radial Tachometer HUD
-A floating, always-on-top telemetry widget styled like high-end automotive tachometers:
-- **Green (`#00E699`)**: Quota Healthy (50% - 100%)
-- **Amber (`#F5A623`)**: Moderate Usage (20% - 49%)
-- **Red (`#FF4D4F`)**: Low Quota Warning (< 20%)
+> ℹ️ **Diferença para telas oficiais (como Claude.ai):**
+> Aplicativos como o Claude expressam o consumo em **% USADA** (*ex: "5% used"*).
+> No AI GAUGE, isso equivale a **95% DISPONÍVEL**.
 
-| Shortcut | Action |
+* **Verde (`#00E699`)**: Cota Saudável (50% – 100% restante).
+* **Âmbar (`#F5A623`)**: Uso Moderado (20% – 49% restante).
+* **Vermelho (`#FF4D4F`)**: Alerta de Cota Baixa (< 20% restante).
+
+---
+
+## ⌨️ Atalhos Rápidos
+
+| Atalho | Ação |
 | :--- | :--- |
-| `Cmd + M` (Mac) / `Ctrl + M` (Linux/Win) | Toggle between **Full Window** and **Radial HUD** |
-| `Cmd + O` (Mac) / `Ctrl + O` (Linux/Win) | Toggle HUD orientation between **Vertical** and **Horizontal** |
-| `Cmd + R` (Mac) / `Ctrl + R` (Linux/Win) | Refresh all quota metrics immediately |
-| `Cmd + ,` (Mac) / `Ctrl + ,` (Linux/Win) | Open the **Settings (⚙️)** Dialog |
-| `Cmd + W` / `Esc` | Close / Hide window to system tray |
+| `Cmd + M` (Mac) / `Ctrl + M` (Linux/Win) | Alternar entre **Janela Completa** e **HUD Flutuante** |
+| `Cmd + O` (Mac) / `Ctrl + O` (Linux/Win) | Alternar orientação do HUD (**Vertical** / **Horizontal**) |
+| `Cmd + R` (Mac) / `Ctrl + R` (Linux/Win) | Atualizar todas as métricas imediatamente |
+| `Cmd + ,` (Mac) / `Ctrl + ,` (Linux/Win) | Abrir tela de **Configurações (⚙️)** |
+| `Cmd + W` / `Esc` | Ocultar ou fechar janela |
 
 ---
 
-## 🚀 Quick Download & Installation
+## 🚀 Instalação Rápida
 
 ### 🍏 macOS (Apple Silicon & Intel)
-1. Download the latest release: [Gemini-Gauge-macOS-vh2c.zip](https://github.com/vh2c/gemini-gauge/releases/latest)
-2. Extract the ZIP and move **`Gemini Gauge.app`** to your `/Applications` folder.
-3. Open `Gemini Gauge` from Spotlight or Launchpad!
+1. Baixe o release: [AI-Gauge-macOS-vh2c.zip](https://github.com/vh2c/gemini-gauge/releases/latest)
+2. Extraia o ZIP e mova o **`AI Gauge.app`** para a pasta `/Applications`.
+3. Abra o `AI Gauge` pelo Spotlight ou Launchpad.
 
-*Or build directly from source:*
+*Ou compile diretamente do código:*
 ```bash
 git clone https://github.com/vh2c/gemini-gauge.git
-cd gemini-gauge/macos
+cd gemini-gauge/ai_gauge_app/macos
 ./install.sh
 ```
 
 ---
 
 ### 🐧 Linux (Ubuntu, Debian, Fedora, Arch, Mint)
-The Linux installer is **100% self-contained** and automatically configures dependencies (including a portable Node.js runtime if missing, requiring zero root/sudo permissions for Node):
+O instalador do Linux é **100% autossuficiente** e configura automaticamente as dependências:
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/vh2c/gemini-gauge.git
-cd gemini-gauge/linux
-
-# 2. Run the smart installer
+cd gemini-gauge/ai_gauge_app/linux
 ./install.sh
 ```
-
-- **Run GUI**: Open `Gemini Gauge` from your system applications menu, or run `gemini-gauge` in terminal.
-- **Run Headless / SSH CLI**:
-  ```bash
-  gemini-gauge --cli
-  ```
 
 ---
 
 ### 🪟 Windows (Windows 10 / 11)
-1. Download the latest release: [Gemini-Gauge-Windows-vh2c.zip](https://github.com/vh2c/gemini-gauge/releases/latest)
-2. Extract the ZIP.
-3. Right-click **`install.ps1`** and choose **"Run with PowerShell"** (or double-click `GeminiGauge.bat`).
-4. Shortcuts with the official icon will be created on your **Desktop** and **Start Menu**.
+1. Baixe o release: [AI-Gauge-Windows-vh2c.zip](https://github.com/vh2c/gemini-gauge/releases/latest)
+2. Extraia o ZIP.
+3. Clique com o botão direito em **`install.ps1`** e selecione **"Executar com o PowerShell"** (ou execute `AIGauge.bat`).
+4. Os atalhos serão criados automaticamente na sua Área de Trabalho e Menu Iniciar.
 
 ---
 
-## ⚙️ Configuration Tutorial
+## 📊 Telemetria & Privacidade
 
-### Option A: Via GUI (Recommended)
-1. Launch **Gemini Gauge**.
-2. Click the **`Configurar (⚙️)`** button at the bottom of the window (or press `Cmd+,` / `Ctrl+,`).
-3. Select your active providers and indicators:
-   - **Antigravity**: Check to monitor your IDE quotas (works automatically even when the IDE is closed).
-   - **Claude Pro**: Check to monitor your Claude Pro subscription limits (supports OAuth / session cookie).
-   - **Indicadores no HUD Lateral**: Select which specific quotas should be visible on the floating tachometer HUD (e.g., *Claude/GPT 5h*, *Gemini Argon*, *Claude Pro 5h*).
-   - **Google Gemini API**: Paste your API key (get one free at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)).
-   - **OpenAI**: Paste your OpenAI API key (`sk-...`).
-   - **Anthropic API**: Paste your Claude API key (`sk-ant-...`).
-4. Click **Salvar e Atualizar**.
-
-### Option B: Via Config File
-Edit `~/.config/UniversalAIQuota/config.json`:
-
-```json
-{
-  "providers": {
-    "antigravity": {
-      "enabled": true
-    },
-    "claude_pro": {
-      "enabled": true,
-      "session_key": ""
-    },
-    "gemini": {
-      "enabled": true,
-      "api_key": "AIzaSy..."
-    },
-    "openai": {
-      "enabled": false,
-      "api_key": "sk-proj-..."
-    },
-    "anthropic": {
-      "enabled": false,
-      "api_key": "sk-ant-..."
-    }
-  },
-  "hud_gauges": [
-    "3p-5h",
-    "gemini-argon-wtu-weekly",
-    "claude-pro-5h"
-  ],
-  "refresh_interval_seconds": 30
-}
-```
+O AI Gauge envia apenas um ping anônimo de inicialização para verificação de novas versões e contagem global de usuários:
+- **O que é enviado**: Hash anônimo de máquina (`machine_id`), sistema operacional (`macOS`/`Linux`/`Windows`) e versão do aplicativo.
+- **O que NUNCA é enviado**: Nenhuma chave de API, prompt, token, código, projeto ou dado pessoal.
 
 ---
 
-## 📊 Telemetry & Privacy
+## 💼 Soluções de IA sob Medida para Empresas
 
-Gemini Gauge sends a lightweight, anonymous heartbeat ping upon startup to:
-`https://api.vh2c.com.br/v1/geminigauje`
+Precisa de agentes autônomos de IA, orquestração de workflows complexos ou desenvolvimento sob medida para sua organização?
 
-- **What is sent**: Anonymous device hash (`machine_id`), operating system (`macOS`/`Linux`/`Windows`), architecture, and application version.
-- **What is NEVER sent**: Your API keys, model prompts, code, project files, or personal information.
-- **Purpose**: Global user count statistics and checking for new software updates.
-- If offline, the ping fails silently without affecting application startup or performance.
+Conheça a **[VH2C](https://vh2c.com.br)** ou fale com nossa equipe de engenharia.
 
 ---
 
-## 💼 Custom AI Solutions for Business
+## 📄 Licença
 
-Need custom AI agents, automated workflow orchestration, or bespoke software development for your organization?
-
-Visit **[vh2c.com.br](https://vh2c.com.br)** or reach out to our engineering team.
-
----
-
-## 📄 License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-Developed with ⚡ by **[VH2C](https://vh2c.com.br)**.
+Distribuído sob a licença **MIT**. Veja o arquivo `LICENSE` para mais informações.  
+Desenvolvido com ⚡ por **[VH2C](https://vh2c.com.br)**.
