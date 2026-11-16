@@ -1,23 +1,21 @@
 @echo off
-title AI Gauge - Instalador Windows (VH2C)
+setlocal
+cd /d "%~dp0"
+
 echo ==========================================================
-echo   Iniciando Instalador do AI Gauge...
+echo   AI Gauge - Instalador Windows (VH2C)
 echo ==========================================================
 echo.
 
-if not exist "%~dp0install.ps1" (
-    echo [ATENCAO] Os arquivos ainda estao compactados dentro do .zip!
-    echo.
-    echo Para prosseguir com a instalacao:
-    echo  1. Feche esta janela.
-    echo  2. Clique com o botao direito no arquivo "AI-Gauge-Windows-vh2c.zip".
-    echo  3. Clique em "Extrair Tudo..." (ou Extract All).
-    echo  4. Abra a nova pasta extraida e clique duas vezes em "install.bat".
-    echo.
-    pause
-    exit /b
-)
+if not exist "%~dp0install.ps1" goto :NOT_FOUND
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
+goto :END
+
+:NOT_FOUND
+echo [ERRO] Nao foi possivel localizar o arquivo install.ps1.
+echo.
+
+:END
 echo.
 pause
