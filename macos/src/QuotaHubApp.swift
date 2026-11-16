@@ -2429,20 +2429,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let actLabel = (ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : defaultLabel
                 let actUrl = isVersao ? defaultVersionUrl : (effectiveAnnUrl ?? "https://vh2c.com.br")
                 
-                let actBtn = UrlButton(frame: NSRect(x: 12, y: 64, width: 130, height: 25))
+                let btnText = (actLabel.hasSuffix("!") || actLabel.contains("→")) ? actLabel : "\(actLabel) →"
+                let btnW: CGFloat = max(170, CGFloat(btnText.count * 8 + 36))
+                let btnX: CGFloat = (annBox.frame.width - btnW) / 2
+                
+                let actBtn = UrlButton(frame: NSRect(x: btnX, y: 64, width: btnW, height: 26))
                 actBtn.target = self
                 actBtn.action = #selector(openExternalUrl(_:))
                 actBtn.targetUrl = actUrl
                 actBtn.wantsLayer = true
                 actBtn.isBordered = false
-                actBtn.layer?.cornerRadius = 5
+                actBtn.layer?.cornerRadius = 6
                 
                 if isVersao {
                     actBtn.layer?.backgroundColor = NSColor(srgbRed: 0x10/255.0, green: 0xB9/255.0, blue: 0x81/255.0, alpha: 0.22).cgColor
                     actBtn.layer?.borderColor = NSColor(srgbRed: 0x10/255.0, green: 0xB9/255.0, blue: 0x81/255.0, alpha: 0.7).cgColor
                     actBtn.layer?.borderWidth = 1.0
                     actBtn.attributedTitle = NSAttributedString(
-                        string: "\(actLabel) →",
+                        string: btnText,
                         attributes: [
                             .foregroundColor: NSColor(srgbRed: 0x34/255.0, green: 0xD3/255.0, blue: 0x99/255.0, alpha: 1.0),
                             .font: NSFont.systemFont(ofSize: 11.0, weight: .bold)
@@ -2453,7 +2457,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     actBtn.layer?.borderColor = NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 0.7).cgColor
                     actBtn.layer?.borderWidth = 1.0
                     actBtn.attributedTitle = NSAttributedString(
-                        string: "\(actLabel) →",
+                        string: btnText,
                         attributes: [
                             .foregroundColor: NSColor(srgbRed: 0xFB/255.0, green: 0xBF/255.0, blue: 0x24/255.0, alpha: 1.0),
                             .font: NSFont.systemFont(ofSize: 11.0, weight: .bold)
