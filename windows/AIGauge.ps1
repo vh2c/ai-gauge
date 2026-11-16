@@ -4,6 +4,9 @@
     Developed by VH2C • https://vh2c.com.br
 #>
 
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
@@ -24,7 +27,7 @@ if (-not (Test-Path $ConfigDir)) {
 $ConfigFile = Join-Path $ConfigDir "config.json"
 $DeviceIdFile = Join-Path $ConfigDir "device_id"
 
-# 1. Curated Pastel Theme
+# 1. Curated 6 Pastel Colors (Yellow removed, 1:1 match with providers)
 $PastelDefaults = @{
     "antigravity"          = "#8FBCFF"
     "claude_pro"           = "#D78C68"
@@ -65,7 +68,7 @@ function Convert-HexToBrush ($hexStr) {
 
 function Load-CurrentConfig {
     if (Test-Path $ConfigFile) {
-        try { return (Get-Content $ConfigFile -Raw | ConvertFrom-Json) } catch {}
+        try { return (Get-Content $ConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json) } catch {}
     }
     return $null
 }
@@ -161,51 +164,94 @@ function Get-QuotaData ($force = $false) {
     return $null
 }
 
-# 4. Main Cockpit Window XAML
+# 4. Main Window XAML (Single Morphing Window for Cockpit & HUD)
 [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AI Gauge - Universal AI Quota Cockpit" Height="640" Width="470"
         WindowStartupLocation="CenterScreen" Background="#181818" ResizeMode="CanMinimize">
-    <Grid Margin="18">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,14">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="⚡ AI Gauge" Foreground="#00E699" FontSize="15" FontWeight="Bold"/>
-                <TextBlock Text=" • Universal AI Quota Cockpit" Foreground="#EEEEEE" FontSize="14" FontWeight="SemiBold"/>
-            </StackPanel>
-            <TextBlock Name="TxtAccount" Text="Carregando cotas..." Foreground="#888888" FontSize="11" Margin="0,4,0,0"/>
-        </StackPanel>
-        
-        <!-- Cards List -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Name="CardsPanel" Margin="0,0,6,0"/>
-        </ScrollViewer>
-        
-        <!-- Footer -->
-        <StackPanel Grid.Row="2" Margin="0,14,0,0">
-            <!-- Row 1: Action Buttons -->
-            <Grid>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                    <Button Name="BtnRefresh" Content="↻ Refresh" Width="84" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
-                    <Button Name="BtnHud" Content="⤢ HUD Bar" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
-                    <Button Name="BtnSettings" Content="⚙ Settings" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
-                </StackPanel>
-                
-                <Button Name="BtnClose" Content="✕ Close" Width="68" Height="28" HorizontalAlignment="Right" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
-            </Grid>
+    <Grid>
+        <!-- 1. FULL COCKPIT VIEW -->
+        <Grid Name="CockpitView" Margin="18" Visibility="Visible">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             
-            <!-- Row 2: Brand Link -->
-            <TextBlock Name="TxtBrand" Text="⚡ AI Gauge  •  Developed by vh2c.com.br"
-                       Foreground="#9CA3AF" FontSize="10.5" FontWeight="Normal"
-                       HorizontalAlignment="Center" Margin="0,10,0,0" Cursor="Hand"/>
-        </StackPanel>
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="AI Gauge" Foreground="#00E699" FontSize="15" FontWeight="Bold"/>
+                    <TextBlock Text=" | Universal AI Quota Cockpit" Foreground="#EEEEEE" FontSize="14" FontWeight="SemiBold"/>
+                </StackPanel>
+                <TextBlock Name="TxtAccount" Text="Loading quotas..." Foreground="#888888" FontSize="11" Margin="0,4,0,0"/>
+            </StackPanel>
+            
+            <!-- Cards List -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Name="CardsPanel" Margin="0,0,6,0"/>
+            </ScrollViewer>
+            
+            <!-- Footer -->
+            <StackPanel Grid.Row="2" Margin="0,14,0,0">
+                <!-- Action Buttons -->
+                <Grid>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button Name="BtnRefresh" Content="Refresh" Width="84" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
+                        <Button Name="BtnHud" Content="HUD Bar" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
+                        <Button Name="BtnSettings" Content="Settings" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
+                    </StackPanel>
+                    
+                    <Button Name="BtnClose" Content="Close" Width="68" Height="28" HorizontalAlignment="Right" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
+                </Grid>
+                
+                <!-- Brand Link -->
+                <TextBlock Name="TxtBrand" Text="AI Gauge | Developed by vh2c.com.br"
+                           Foreground="#38BDF8" FontSize="10.5" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,10,0,0" Cursor="Hand"/>
+            </StackPanel>
+        </Grid>
+        
+        <!-- 2. COMPACT HUD BAR VIEW -->
+        <Border Name="HudView" Background="#161618" Padding="12" Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- HUD Header -->
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="AI Gauge" Foreground="#00E699" FontSize="12.5" FontWeight="Bold"/>
+                            <TextBlock Text=" HUD" Foreground="#FFFFFF" FontSize="12.5" FontWeight="Bold"/>
+                        </StackPanel>
+                        <TextBlock Name="TxtHudSubtitle" Text="HUD Bar Mode" Foreground="#888888" FontSize="9.5" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Name="BtnHudCockpit" Content="Cockpit" Height="22" Padding="8,1,8,1" Background="#2A2A32" Foreground="#E2E8F0" BorderBrush="#3C3C46" FontSize="10" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,4,0"/>
+                        <Button Name="BtnHudClose" Content="Close" Height="22" Padding="6,1,6,1" Background="#2A2A32" Foreground="#888888" BorderBrush="#3C3C46" FontSize="10" FontWeight="Bold" Cursor="Hand"/>
+                    </StackPanel>
+                </Grid>
+                
+                <!-- HUD Cards List -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Name="HudCardsPanel" Margin="0,0,2,0"/>
+                </ScrollViewer>
+                
+                <!-- HUD Footer -->
+                <TextBlock Grid.Row="2" Text="Ctrl+M to toggle | vh2c.com.br" Foreground="#555555" FontSize="9" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
 "@
@@ -224,6 +270,7 @@ if (Test-Path $iconFile) {
     } catch {}
 }
 
+$cockpitView = $window.FindName("CockpitView")
 $txtAcc = $window.FindName("TxtAccount")
 $cardsPanel = $window.FindName("CardsPanel")
 $btnRefresh = $window.FindName("BtnRefresh")
@@ -232,121 +279,93 @@ $btnSettings = $window.FindName("BtnSettings")
 $btnClose = $window.FindName("BtnClose")
 $txtBrand = $window.FindName("TxtBrand")
 
-# 5. Floating HUD Window XAML
-[xml]$hudXaml = @"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AI Gauge HUD" Width="246" Height="560"
-        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Topmost="True" ResizeMode="NoResize" ShowInTaskbar="True">
-    <Border Background="#F2141416" BorderBrush="#2C2C34" BorderThickness="1" CornerRadius="10" Padding="12">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-            
-            <!-- HUD Header -->
-            <Grid Grid.Row="0" Margin="0,0,0,10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="⚡ AI Gauge" Foreground="#00E699" FontSize="12.5" FontWeight="Bold"/>
-                        <TextBlock Text=" HUD" Foreground="#FFFFFF" FontSize="12.5" FontWeight="Bold"/>
-                    </StackPanel>
-                    <TextBlock Name="TxtHudSubtitle" Text="HUD Bar Mode" Foreground="#888888" FontSize="9.5" Margin="0,2,0,0"/>
-                </StackPanel>
-                
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Name="BtnHudCockpit" Content="⤢ Cockpit" Height="22" Padding="6,1,6,1" Background="#2A2A32" Foreground="#E2E8F0" BorderBrush="#3C3C46" FontSize="10" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,4,0"/>
-                    <Button Name="BtnHudClose" Content="✕" Width="22" Height="22" Background="#2A2A32" Foreground="#888888" BorderBrush="#3C3C46" FontSize="10" FontWeight="Bold" Cursor="Hand"/>
-                </StackPanel>
-            </Grid>
-            
-            <!-- HUD Gauge List -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <StackPanel Name="HudCardsPanel" Margin="0,0,2,0"/>
-            </ScrollViewer>
-            
-            <!-- HUD Footer -->
-            <TextBlock Grid.Row="2" Text="⚡ Drag to move • Ctrl+M" Foreground="#555555" FontSize="9" HorizontalAlignment="Center" Margin="0,8,0,0"/>
-        </Grid>
-    </Border>
-</Window>
-"@
-
-$hudReader = (New-Object System.Xml.XmlNodeReader $hudXaml)
-$hudWindow = [System.Windows.Markup.XamlReader]::Load($hudReader)
-
-# Position HUD Window near top right
-try {
-    $workArea = [System.Windows.SystemParameters]::WorkArea
-    $hudWindow.Left = $workArea.Right - 262
-    $hudWindow.Top = 32
-} catch {}
-
-$txtHudSubtitle = $hudWindow.FindName("TxtHudSubtitle")
-$hudCardsPanel = $hudWindow.FindName("HudCardsPanel")
-$btnHudCockpit = $hudWindow.FindName("BtnHudCockpit")
-$btnHudClose = $hudWindow.FindName("BtnHudClose")
-
-# Allow dragging the HUD window from anywhere
-$hudWindow.Add_MouseLeftButtonDown({
-    try { $hudWindow.DragMove() } catch {}
-})
+$hudView = $window.FindName("HudView")
+$txtHudSubtitle = $window.FindName("TxtHudSubtitle")
+$hudCardsPanel = $window.FindName("HudCardsPanel")
+$btnHudCockpit = $window.FindName("BtnHudCockpit")
+$btnHudClose = $window.FindName("BtnHudClose")
 
 $global:isHudMode = $false
 $global:currentData = $null
+$global:prevLeft = $null
+$global:prevTop = $null
 
 function Toggle-HudMode {
+    $workArea = [System.Windows.SystemParameters]::WorkArea
     if ($global:isHudMode) {
+        # Switch back to Cockpit Mode
         $global:isHudMode = $false
-        $hudWindow.Hide()
-        $window.Show()
-        $window.Activate()
+        $hudView.Visibility = [System.Windows.Visibility]::Collapsed
+        $cockpitView.Visibility = [System.Windows.Visibility]::Visible
+        
+        $window.Title = "AI Gauge - Universal AI Quota Cockpit"
+        $window.Topmost = $false
+        $window.Width = 470
+        $window.Height = 640
+        if ($null -ne $global:prevLeft -and $null -ne $global:prevTop) {
+            $window.Left = $global:prevLeft
+            $window.Top = $global:prevTop
+        } else {
+            $window.Left = [Math]::Max(0, ($workArea.Width - 470) / 2)
+            $window.Top = [Math]::Max(0, ($workArea.Height - 640) / 2)
+        }
+        
+        if ($global:currentData) {
+            Render-UI $global:currentData
+        }
     } else {
+        # Switch to HUD Bar Mode
         $global:isHudMode = $true
-        $window.Hide()
+        $global:prevLeft = $window.Left
+        $global:prevTop = $window.Top
+        
+        $cockpitView.Visibility = [System.Windows.Visibility]::Collapsed
+        $hudView.Visibility = [System.Windows.Visibility]::Visible
+        
+        $hudH = [Math]::Min(580, [Math]::Max(320, $workArea.Height - 80))
+        $window.Title = "AI Gauge HUD"
+        $window.Topmost = $true
+        $window.Width = 260
+        $window.Height = $hudH
+        $window.Left = $workArea.Right - 280
+        $window.Top = 32
+        
         if ($global:currentData) {
             Render-HUD $global:currentData
         }
-        $hudWindow.Show()
-        $hudWindow.Activate()
     }
 }
 
 $btnHud.Add_Click({ Toggle-HudMode })
 $btnHudCockpit.Add_Click({ Toggle-HudMode })
-$btnHudClose.Add_Click({
-    $hudWindow.Close()
-    $window.Close()
-})
+$btnClose.Add_Click({ $window.Close() })
+$btnHudClose.Add_Click({ $window.Close() })
 
-# Hotkey Ctrl+M on both windows
-$hotkeyHandler = {
+# Global Hotkey Ctrl+M
+$window.Add_KeyDown({
     param($sender, $e)
     if ($e.Key -eq [System.Windows.Input.Key]::M -and ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)) {
         Toggle-HudMode
     }
-}
-$window.Add_KeyDown($hotkeyHandler)
-$hudWindow.Add_KeyDown($hotkeyHandler)
+})
 
-# 6. Render Full Cockpit UI
+# Allow smooth dragging anywhere on the window in HUD mode
+$window.Add_MouseLeftButtonDown({
+    if ($global:isHudMode) {
+        try { $window.DragMove() } catch {}
+    }
+})
+
+# 5. Render Full Cockpit UI
 function Render-UI ($data) {
     $global:currentData = $data
     if (-not $data) {
-        $txtAcc.Text = "Nenhum provedor ativo ou conectado. Clique em Configurar."
+        $txtAcc.Text = "No active providers configured. Click Settings to configure."
         return
     }
     
-    $cacheInfo = if ($data.from_cache) { " (Cache)" } else { " (Tempo real)" }
-    $txtAcc.Text = "$($data.account) • Plano $($data.plan) • Atualizado às $($data.updated_at)$cacheInfo"
+    $cacheInfo = if ($data.from_cache) { " (Cache)" } else { " (Live)" }
+    $txtAcc.Text = "$($data.account) | Plan $($data.plan) | Updated at $($data.updated_at)$cacheInfo"
     $cardsPanel.Children.Clear()
     
     # ----------------- UPDATE BANNER -----------------
@@ -383,7 +402,7 @@ function Render-UI ($data) {
         $cardsPanel.Children.Add($upBorder) | Out-Null
     }
 
-    # ----------------- ANNOUNCEMENT / FREE VS PRO -----------------
+    # ----------------- ANNOUNCEMENT / DONATION -----------------
     if ($data.announcement -and $data.announcement.message) {
         $annBorder = New-Object System.Windows.Controls.Border
         $annBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(40, 0x38, 0xBD, 0xF8)))
@@ -394,8 +413,12 @@ function Render-UI ($data) {
         $annBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
         
         $annStack = New-Object System.Windows.Controls.StackPanel
+        
+        $badgeText = if ($data.announcement.badge) { "$($data.announcement.badge)" -replace '[^\x20-\x7E]', '' } else { "PRO" }
+        if (-not $badgeText.Trim()) { $badgeText = "PRO" }
+        
         $annHead = New-Object System.Windows.Controls.TextBlock
-        $annHead.Text = "[$($data.announcement.badge)] $($data.announcement.title)"
+        $annHead.Text = "[$badgeText] $($data.announcement.title)"
         $annHead.FontWeight = [System.Windows.FontWeights]::Bold
         $annHead.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
         $annStack.Children.Add($annHead) | Out-Null
@@ -408,17 +431,16 @@ function Render-UI ($data) {
         $annStack.Children.Add($annMsg) | Out-Null
         
         if ($data.announcement.action_label -and $data.announcement.action_url) {
-            $actText = $data.announcement.action_label
-            $btnText = if ($actText.EndsWith("!") -or $actText.Contains("→")) { $actText } else { "$actText →" }
+            $actLabel = "$($data.announcement.action_label)" -replace '→', '->'
+            if (-not ($actLabel.Contains("->") -or $actLabel.Contains(">"))) {
+                $actLabel = "$actLabel ->"
+            }
             $btnAct = New-Object System.Windows.Controls.Button
-            $btnAct.Content = $btnText
-            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
-            $btnAct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xFB, 0xBF, 0x24)))
-            $btnAct.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0x38, 0xF5, 0x9E, 0x0B)))
-            $btnAct.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0xB2, 0xF5, 0x9E, 0x0B)))
-            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(1))
-            $btnAct.Padding = (New-Object System.Windows.Thickness(16, 4, 16, 4))
-            $btnAct.FontWeight = [System.Windows.FontWeights]::Bold
+            $btnAct.Content = $actLabel
+            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+            $btnAct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xC9, 0xFF)))
+            $btnAct.Background = [System.Windows.Media.Brushes]::Transparent
+            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(0))
             $btnAct.Cursor = [System.Windows.Input.Cursors]::Hand
             $actUrl = $data.announcement.action_url
             $btnAct.Add_Click({ [System.Diagnostics.Process]::Start($actUrl) })
@@ -501,7 +523,7 @@ function Render-UI ($data) {
             $row.Children.Add($tbName) | Out-Null
             
             $pct = [int]$b.remaining_pct
-            $resetStr = if ($b.reset_in) { " • $($b.reset_in)" } else { "" }
+            $resetStr = if ($b.reset_in) { " | $($b.reset_in)" } else { "" }
             $tbVal = New-Object System.Windows.Controls.TextBlock
             $tbVal.Text = "$pct%$resetStr"
             $tbVal.Foreground = Get-StatusBrush $pct $accentHex
@@ -537,11 +559,11 @@ function Render-UI ($data) {
     }
 }
 
-# 7. Render HUD UI (Compact Floating View)
+# 6. Render HUD UI (Compact Floating View)
 function Render-HUD ($data) {
     if (-not $data) { return }
     $hudCardsPanel.Children.Clear()
-    $txtHudSubtitle.Text = "Atualizado às $($data.updated_at)"
+    $txtHudSubtitle.Text = "Updated at $($data.updated_at)"
     
     foreach ($g in $data.groups) {
         $provKey = Get-ProviderKey $g.name $g.provider
@@ -618,7 +640,7 @@ function Render-HUD ($data) {
             $pbarFill.Height = 5
             $pbarFill.CornerRadius = New-Object System.Windows.CornerRadius(2.5)
             $pbarFill.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
-            $pbarFill.Width = [Math]::Max(4, (196 * ($pct / 100.0)))
+            $pbarFill.Width = [Math]::Max(4, (206 * ($pct / 100.0)))
             
             $pbarBg.Child = $pbarFill
             $hudStack.Children.Add($pbarBg) | Out-Null
@@ -631,11 +653,11 @@ function Render-HUD ($data) {
     }
 }
 
-# 8. Settings Dialog with Pastel Palette Selection
+# 7. Settings Dialog with 6 Pastel Palette Swatches
 function Show-SettingsDialog {
     [xml]$cfgXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        Title="Configurações - AI Gauge" Height="620" Width="460"
+        Title="Settings - AI Gauge" Height="620" Width="460"
         WindowStartupLocation="CenterOwner" Background="#181818" ResizeMode="NoResize">
     <Grid Margin="18">
         <Grid.RowDefinitions>
@@ -645,7 +667,7 @@ function Show-SettingsDialog {
         </Grid.RowDefinitions>
         
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="⚙️ AI Providers &amp; Pastel Colors" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
+            <TextBlock Text="Settings - AI Providers &amp; Pastel Colors" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
             <TextBlock Text="Enable providers, credentials and customize section colors:" Foreground="#888888" FontSize="10.5" Margin="0,3,0,0"/>
         </StackPanel>
         
@@ -658,7 +680,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkAnti" Content="Antigravity" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelAnti" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBlock Text="💡 Detecta cotas do IDE em execução ou via sonda headless." Foreground="#777777" FontSize="9.5" Margin="20,4,0,0"/>
+                        <TextBlock Text="Detects IDE quotas while running or via headless probe." Foreground="#777777" FontSize="9.5" Margin="20,4,0,0"/>
                     </StackPanel>
                 </Border>
                 
@@ -670,7 +692,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelClaude" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBox Name="TxtClaudeProToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="💡 Token OAuth da assinatura Claude (detectado automaticamente no Keychain)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Text="OAuth Session Token (auto-detected if logged in)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
                 
@@ -682,7 +704,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelChatGPT" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBox Name="TxtChatGPTToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="💡 Token de Acesso / Sessão do ChatGPT (janela de 3h e cota semanal o1)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Text="Session / Access Token (3h window &amp; weekly o1 quota)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
                 
@@ -694,7 +716,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelCursor" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBox Name="TxtCursorToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="💡 Token de Sessão do Cursor (opcional se logado no Cursor)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Text="Cursor Session Token (optional if logged in Cursor)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
                 
@@ -706,7 +728,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelCopilot" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBox Name="TxtCopilotToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="💡 GitHub Personal Access Token para Copilot (opcional)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Text="GitHub Personal Access Token (optional)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
                 
@@ -718,7 +740,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelGemini" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBox Name="TxtGeminiKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Name="LinkAiStudio" Text="Obter chave gratuita no Google AI Studio (aistudio.google.com) ↗" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
+                        <TextBlock Name="LinkAiStudio" Text="Get free API key at Google AI Studio (aistudio.google.com) ->" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
                 
@@ -730,7 +752,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelOpenAI" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBox Name="TxtOpenAIKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="💡 Chave de API OpenAI (sk-...)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Text="OpenAI API Key (sk-...)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
                 
@@ -742,7 +764,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelAnthropic" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBox Name="TxtClaudeKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="💡 Chave de API Anthropic (sk-ant-...)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Text="Anthropic API Key (sk-ant-...)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -806,7 +828,7 @@ function Show-SettingsDialog {
         }
     }
     
-    # Helper to build pastel color swatch picker for each provider
+    # Helper to build 6 pastel color swatches for each provider
     function Build-SwatchPicker ($panel, $providerKey) {
         $panel.Children.Clear()
         
@@ -821,9 +843,9 @@ function Show-SettingsDialog {
         $swatches = @()
         foreach ($p in $PastelPalette) {
             $btn = New-Object System.Windows.Controls.Button
-            $btn.Width = 14
-            $btn.Height = 14
-            $btn.Margin = New-Object System.Windows.Thickness(1.5, 0, 1.5, 0)
+            $btn.Width = 15
+            $btn.Height = 15
+            $btn.Margin = New-Object System.Windows.Thickness(2, 0, 2, 0)
             $btn.Background = Convert-HexToBrush $p.Hex
             $btn.Cursor = [System.Windows.Input.Cursors]::Hand
             $btn.ToolTip = "$($p.Name) ($($p.Hex))"
@@ -958,17 +980,13 @@ function Refresh-Data {
             Render-HUD $newData
         }
     }
-    $btnRefresh.Content = "↻ Refresh"
+    $btnRefresh.Content = "Refresh"
     $btnRefresh.IsEnabled = $true
 }
 
 # Event Listeners
 $btnRefresh.Add_Click({ Refresh-Data })
 $btnSettings.Add_Click({ Show-SettingsDialog })
-$btnClose.Add_Click({
-    $hudWindow.Close()
-    $window.Close()
-})
 $txtBrand.Add_MouseDown({
     [System.Diagnostics.Process]::Start("https://vh2c.com.br")
 })
