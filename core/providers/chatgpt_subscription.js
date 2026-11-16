@@ -150,7 +150,7 @@ class ChatGPTSubscriptionProvider {
       mode: 'web_session',
       groups: [
         {
-          name: 'ChatGPT (Sessão)',
+          name: 'ChatGPT',
           description: isCache ? 'Limites de uso da assinatura ChatGPT (Cache local)' : 'Limites de uso da assinatura ChatGPT',
           provider: 'ChatGPT',
           buckets: [
@@ -277,7 +277,7 @@ class ChatGPTSubscriptionProvider {
             mode: 'web_session',
             groups: [
               {
-                name: 'ChatGPT (Sessão)',
+                name: 'ChatGPT',
                 description: 'Limites de uso da assinatura ChatGPT (Cache local)',
                 provider: 'ChatGPT',
                 buckets: [
@@ -312,7 +312,7 @@ class ChatGPTSubscriptionProvider {
         mode: 'web_session',
         groups: [
           {
-            name: 'ChatGPT Plus / Pro (Sessão)',
+            name: 'ChatGPT',
             description: 'Limites de uso da assinatura ChatGPT',
             provider: 'ChatGPT',
             buckets: [

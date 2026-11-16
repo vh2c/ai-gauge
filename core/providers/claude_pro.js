@@ -107,7 +107,7 @@ class ClaudeProProvider {
       mode: 'oauth_session',
       groups: [
         {
-          name: 'Claude (Sessão)',
+          name: 'Claude',
           description: isCache ? 'Limites de uso da assinatura Claude (Cache local)' : 'Limites de uso da assinatura Claude',
           provider: 'Claude',
           buckets: [
@@ -230,7 +230,7 @@ class ClaudeProProvider {
             mode: 'oauth_session',
             groups: [
               {
-                name: 'Claude (Sessão)',
+                name: 'Claude',
                 description: 'Limites de uso da assinatura Claude (Cache local)',
                 provider: 'Claude',
                 buckets: [

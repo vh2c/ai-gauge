@@ -192,37 +192,44 @@ def load_quota(force=False):
 def get_gauge_items(quota):
     cfg = load_config()
     hidden_set = set(cfg.get("hidden_hud_gauges", []))
+    sec_colors = cfg.get("section_colors", {})
     items = []
     for g in quota.get("groups", []):
         gname = g.get("name", "").lower()
         prov = g.get("provider", "").lower()
-        if "claude and gpt" in gname:
+        if "cursor" in gname or "cursor" in prov:
+            model = "Cursor"
+            accent = sec_colors.get("cursor", "#C084FC")
+        elif "copilot" in gname or "copilot" in prov or "github" in prov:
+            model = "Copilot"
+            accent = sec_colors.get("github_copilot", "#FF5265")
+        elif "claude and gpt" in gname:
             model = "Claude/GPT"
-            accent = "#8FBCFF"
+            accent = sec_colors.get("antigravity", "#8FBCFF")
         elif "claude" in gname or "claude" in prov:
             model = "Claude"
-            accent = "#D78C68"
+            accent = sec_colors.get("claude_pro", "#D78C68")
         elif "chatgpt" in gname or "chatgpt" in prov:
             model = "ChatGPT"
-            accent = "#10A37F"
+            accent = sec_colors.get("chatgpt_subscription", "#8AE39A")
         elif "gemini 4" in gname or "argon" in gname:
             model = "Argon"
-            accent = "#8FBCFF"
+            accent = sec_colors.get("antigravity", "#8FBCFF")
         elif "claude" in gname or "gpt" in gname:
             model = "Claude/GPT"
-            accent = "#8FBCFF"
+            accent = sec_colors.get("antigravity", "#8FBCFF")
         elif "openai" in gname:
             model = "OpenAI"
-            accent = "#10A37F"
+            accent = sec_colors.get("openai", "#8AE39A")
         elif "anthropic" in gname:
             model = "Claude API"
-            accent = "#D97706"
-        elif "studio" in prov or "gemini api" in gname:
+            accent = sec_colors.get("anthropic", "#D78C68")
+        elif "studio" in prov or "gemini api" in gname or "gemini" in prov:
             model = "Gemini Flash" if "flash" in gname else "Gemini Pro"
-            accent = "#EBEBEB"
+            accent = sec_colors.get("gemini", "#67E8F9")
         else:
             model = "Gemini"
-            accent = "#8FBCFF"
+            accent = sec_colors.get("gemini", "#67E8F9")
 
         for b in g.get("buckets", []):
             bid = b.get("id", "")
@@ -534,23 +541,59 @@ class QuotaHubAppLinux:
         add_hud_cb(r_cpro, "claude-pro-5h", "Janela de 5h")
         add_hud_cb(r_cpro, "claude-pro-7d", "Cota Semanal (7d)")
 
-        # 3. ChatGPT Plus / Pro Card (#10A37F)
+        # 3. ChatGPT Card
         gpt_cfg = pCfg.get("chatgpt_subscription", {})
-        f_gpt = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#10A37F", highlightthickness=1)
+        f_gpt = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
         f_gpt.pack(fill="x", pady=5)
         var_chatgpt = tk.BooleanVar(value=gpt_cfg.get("enabled", True))
-        cb_gpt = tk.Checkbutton(f_gpt, text="ChatGPT Plus / Pro (Sessão Web & Limites)", variable=var_chatgpt,
-                                font=("Sans", 9, "bold"), fg="#10A37F", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#10A37F")
+        cb_gpt = tk.Checkbutton(f_gpt, text="ChatGPT", variable=var_chatgpt,
+                                font=("Sans", 9, "bold"), fg="#8AE39A", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#8AE39A")
         cb_gpt.pack(anchor="w")
         ent_chatgpt_token = tk.Entry(f_gpt, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
         ent_chatgpt_token.insert(0, gpt_cfg.get("token", ""))
         ent_chatgpt_token.pack(fill="x", pady=2)
         tk.Label(f_gpt, text="💡 Token de Acesso / Sessão do ChatGPT (janela de 3h e cota o1)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_gpt, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#10A37F", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        tk.Label(f_gpt, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#8AE39A", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_gpt = tk.Frame(f_gpt, bg="#1F1F1F")
         r_gpt.pack(anchor="w")
         add_hud_cb(r_gpt, "chatgpt-4o-3h", "GPT-4o (3h)")
         add_hud_cb(r_gpt, "chatgpt-o1-weekly", "o1 Semanal")
+
+        # 4. Cursor Card
+        cur_cfg = pCfg.get("cursor", {})
+        f_cur = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
+        f_cur.pack(fill="x", pady=5)
+        var_cursor = tk.BooleanVar(value=cur_cfg.get("enabled", True))
+        cb_cur = tk.Checkbutton(f_cur, text="Cursor", variable=var_cursor,
+                                font=("Sans", 9, "bold"), fg="#C084FC", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#C084FC")
+        cb_cur.pack(anchor="w")
+        ent_cursor_token = tk.Entry(f_cur, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_cursor_token.insert(0, cur_cfg.get("token", ""))
+        ent_cursor_token.pack(fill="x", pady=2)
+        tk.Label(f_cur, text="💡 Token de Sessão do Cursor (opcional se logado no Cursor)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_cur, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#C084FC", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        r_cur = tk.Frame(f_cur, bg="#1F1F1F")
+        r_cur.pack(anchor="w")
+        add_hud_cb(r_cur, "cursor-fast-requests", "Fast Requests")
+        add_hud_cb(r_cur, "cursor-monthly-cycle", "Ciclo Mensal")
+
+        # 5. Copilot Card
+        cop_cfg = pCfg.get("github_copilot", {})
+        f_cop = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
+        f_cop.pack(fill="x", pady=5)
+        var_copilot = tk.BooleanVar(value=cop_cfg.get("enabled", True))
+        cb_cop = tk.Checkbutton(f_cop, text="Copilot", variable=var_copilot,
+                                font=("Sans", 9, "bold"), fg="#FF5265", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FF5265")
+        cb_cop.pack(anchor="w")
+        ent_copilot_token = tk.Entry(f_cop, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_copilot_token.insert(0, cop_cfg.get("token", ""))
+        ent_copilot_token.pack(fill="x", pady=2)
+        tk.Label(f_cop, text="💡 GitHub Personal Access Token para Copilot (opcional)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_cop, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#FF5265", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        r_cop = tk.Frame(f_cop, bg="#1F1F1F")
+        r_cop.pack(anchor="w")
+        add_hud_cb(r_cop, "copilot-chat-limit", "Chat Limits")
+        add_hud_cb(r_cop, "copilot-completions-rate", "Completions Rate")
 
         # 4. Gemini Card
         gem_cfg = pCfg.get("gemini", {})
@@ -609,6 +652,8 @@ class QuotaHubAppLinux:
                     "antigravity": {"enabled": var_anti.get()},
                     "claude_pro": {"enabled": var_claude_pro.get(), "token": ent_claude_token.get().strip()},
                     "chatgpt_subscription": {"enabled": var_chatgpt.get(), "token": ent_chatgpt_token.get().strip()},
+                    "cursor": {"enabled": var_cursor.get(), "token": ent_cursor_token.get().strip()},
+                    "github_copilot": {"enabled": var_copilot.get(), "token": ent_copilot_token.get().strip()},
                     "gemini": {"enabled": var_gem.get() or bool(ent_gem.get().strip()), "api_key": ent_gem.get().strip()},
                     "openai": {"enabled": var_oa.get() or bool(ent_oa.get().strip()), "api_key": ent_oa.get().strip()},
                     "anthropic": {"enabled": var_ant.get() or bool(ent_ant.get().strip()), "api_key": ent_ant.get().strip()}
@@ -746,19 +791,25 @@ class QuotaHubAppLinux:
             tk.Button(empty_frame, text="⚙️ Configurar Provedores de IA", font=("Sans", 10, "bold"), fg="#121212", bg="#00E699",
                       activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=18, pady=8, cursor="hand2", command=self.open_settings).pack()
 
+        cfg = load_config()
+        sec_colors = cfg.get("section_colors", {})
         for g in groups:
             prov = f" [{g.get('provider')}]" if g.get('provider') else ""
             gname_lower = g.get("name", "").lower()
             prov_lower = g.get("provider", "").lower()
             
-            if "claude pro" in gname_lower or "claude pro" in prov_lower:
-                accent_col = "#D78C68"
+            if "cursor" in gname_lower or "cursor" in prov_lower:
+                accent_col = sec_colors.get("cursor", "#C084FC")
+            elif "copilot" in gname_lower or "copilot" in prov_lower or "github" in prov_lower:
+                accent_col = sec_colors.get("github_copilot", "#FF5265")
+            elif ("claude" in gname_lower or "claude" in prov_lower) and "claude and gpt" not in gname_lower:
+                accent_col = sec_colors.get("claude_pro", "#D78C68")
             elif "chatgpt" in gname_lower or "chatgpt" in prov_lower:
-                accent_col = "#10A37F"
-            elif "studio" in prov_lower or "gemini api" in gname_lower:
-                accent_col = "#EBEBEB"
+                accent_col = sec_colors.get("chatgpt_subscription", "#8AE39A")
+            elif "studio" in prov_lower or "gemini api" in gname_lower or "gemini" in prov_lower:
+                accent_col = sec_colors.get("gemini", "#67E8F9")
             else:
-                accent_col = "#8FBCFF"
+                accent_col = sec_colors.get("antigravity", "#8FBCFF")
 
             lbl_g = tk.Label(main_frame, text=(g.get("name", "Modelos") + prov).upper(), font=("Sans", 8, "bold"), fg=accent_col, bg="#181818", anchor="w")
             lbl_g.pack(fill="x", pady=(4, 2))

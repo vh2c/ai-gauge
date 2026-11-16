@@ -1266,16 +1266,16 @@ class ContrastCheckbox: NSButton {
         } else {
             // DESMARCADO: ALTO CONTRASTE - Fundo escuro visível + Borda de aço/platina bem destacada
             let bgFill = isHovered
-                ? NSColor(srgbRed: 0x36/255.0, green: 0x3C/255.0, blue: 0x4A/255.0, alpha: 1.0)
-                : NSColor(srgbRed: 0x24/255.0, green: 0x28/255.0, blue: 0x32/255.0, alpha: 1.0)
+                ? NSColor(srgbRed: 0x36/255.0, green: 0x3E/255.0, blue: 0x4D/255.0, alpha: 1.0)
+                : NSColor(srgbRed: 0x22/255.0, green: 0x26/255.0, blue: 0x30/255.0, alpha: 1.0)
             bgFill.setFill()
             boxPath.fill()
             
             let borderColor = isHovered
-                ? NSColor(white: 0.95, alpha: 1.0)
-                : NSColor(srgbRed: 0x88/255.0, green: 0x94/255.0, blue: 0xA8/255.0, alpha: 1.0)
+                ? NSColor.white
+                : NSColor(srgbRed: 0xB0/255.0, green: 0xBC/255.0, blue: 0xD0/255.0, alpha: 1.0)
             borderColor.setStroke()
-            boxPath.lineWidth = 1.6
+            boxPath.lineWidth = 1.8
             boxPath.stroke()
         }
         
@@ -1341,6 +1341,8 @@ class PastelColorPickerView: NSView {
             let hexNorm = pc.hex.uppercased()
             let isSelected = (hexNorm == selectedHex)
             let btn = NSButton(frame: NSRect(x: x, y: (bounds.height - swatchSize) / 2.0, width: swatchSize, height: swatchSize))
+            btn.title = ""
+            btn.attributedTitle = NSAttributedString(string: "")
             btn.isBordered = false
             btn.wantsLayer = true
             btn.layer?.cornerRadius = swatchSize / 2.0
@@ -2549,7 +2551,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
                 
                 // Group Title (Top Left)
-                let gTitle = NSTextField(labelWithString: g.name)
+                let cleanGroupName: String
+                if isClaudePro {
+                    cleanGroupName = "Claude"
+                } else if isChatGpt {
+                    cleanGroupName = "ChatGPT"
+                } else if isCursor {
+                    cleanGroupName = "Cursor"
+                } else if isCopilot {
+                    cleanGroupName = "Copilot"
+                } else if isStudio {
+                    cleanGroupName = "Google Gemini"
+                } else {
+                    cleanGroupName = g.name
+                }
+                let gTitle = NSTextField(labelWithString: cleanGroupName)
                 gTitle.font = NSFont.systemFont(ofSize: 12.5, weight: .bold)
                 gTitle.textColor = NSColor(white: 0.95, alpha: 1.0)
                 gTitle.frame = NSRect(x: 14, y: 12, width: cardView.frame.width - 170, height: 16)
@@ -2830,6 +2846,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let providers = cfg.providers ?? [:]
         let hiddenSet = Set(cfg.hidden_hud_gauges ?? [])
         self.hudGaugeCheckboxes.removeAll()
+        var currentColors = cfg.section_colors ?? PastelTheme.defaultColors
+        self.selectedSectionColors = currentColors
+        
+        func addPastelPicker(providerKey: String, in parent: NSView) {
+            let pickerW: CGFloat = 166
+            let pickerX = cardW - pickerW - 8
+            let labelX = pickerX - 26
+            
+            let lbl = NSTextField(labelWithString: "Cor:")
+            lbl.font = NSFont.systemFont(ofSize: 9.5, weight: .semibold)
+            lbl.textColor = NSColor(white: 0.60, alpha: 1.0)
+            lbl.frame = NSRect(x: labelX, y: 13, width: 24, height: 16)
+            parent.addSubview(lbl)
+            
+            let curHex = currentColors[providerKey] ?? (PastelTheme.defaultColors[providerKey] ?? "#8FBCFF")
+            let picker = PastelColorPickerView(
+                frame: NSRect(x: pickerX, y: 12, width: pickerW, height: 18),
+                selectedHex: curHex
+            ) { [weak self] newHex in
+                self?.selectedSectionColors[providerKey] = newHex
+            }
+            parent.addSubview(picker)
+        }
         
         let colorBg18 = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
         let colorCard = NSColor(srgbRed: 0x1E/255.0, green: 0x1E/255.0, blue: 0x22/255.0, alpha: 1.0)
@@ -2925,10 +2964,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(antiCard)
         
         let antiCfg = providers["antigravity"]
-        let antiBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let antiBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         antiBtn.state = (antiCfg?.enabled ?? true) ? .on : .off
         antiBtn.attributedTitle = NSAttributedString(
-            string: "Antigravity IDE (Live & Headless Standalone)",
+            string: "Antigravity",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -2936,6 +2975,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         antiCard.addSubview(antiBtn)
         self.antigravityCheck = antiBtn
+        addPastelPicker(providerKey: "antigravity", in: antiCard)
         
         let antiDesc = NSTextField(labelWithString: "Detecta cotas do IDE em execução ou via sonda headless quando fechado.")
         antiDesc.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
@@ -2963,10 +3003,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(claudeCard)
         
         let claudeCfg = providers["claude_pro"]
-        let claudeBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let claudeBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         claudeBtn.state = (claudeCfg?.enabled ?? true) ? .on : .off
         claudeBtn.attributedTitle = NSAttributedString(
-            string: "Claude (Sessão & Limites)",
+            string: "Claude",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -2974,6 +3014,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         claudeCard.addSubview(claudeBtn)
         self.claudeProCheck = claudeBtn
+        addPastelPicker(providerKey: "claude_pro", in: claudeCard)
         
         let hasKeychain = QuotaManager.hasClaudeProKeychainSession()
         let statusMsg = hasKeychain
@@ -3011,10 +3052,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(chatgptCard)
         
         let chatgptCfg = providers["chatgpt_subscription"]
-        let chatgptBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let chatgptBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         chatgptBtn.state = (chatgptCfg?.enabled ?? true) ? .on : .off
         chatgptBtn.attributedTitle = NSAttributedString(
-            string: "ChatGPT (Sessão & Limites)",
+            string: "ChatGPT",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -3022,6 +3063,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         chatgptCard.addSubview(chatgptBtn)
         self.chatgptCheck = chatgptBtn
+        addPastelPicker(providerKey: "chatgpt_subscription", in: chatgptCard)
         
         let hasGptKeychain = QuotaManager.hasChatGPTKeychainSession()
         let gptStatusMsg = hasGptKeychain
@@ -3059,10 +3101,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(cursorCard)
         
         let cursorCfg = providers["cursor"]
-        let cursorBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let cursorBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         cursorBtn.state = (cursorCfg?.enabled ?? true) ? .on : .off
         cursorBtn.attributedTitle = NSAttributedString(
-            string: "Cursor IDE (Fast Requests & Pro)",
+            string: "Cursor",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -3070,6 +3112,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         cursorCard.addSubview(cursorBtn)
         self.cursorCheck = cursorBtn
+        addPastelPicker(providerKey: "cursor", in: cursorCard)
         
         let hasCursor = QuotaManager.hasCursor()
         let cursorStatus = NSTextField(labelWithString: hasCursor ? "✓ Editor Cursor detectado no Mac (Claude 3.5 & GPT-4o)" : "ℹ️ Cota mensal de Fast Requests do plano Pro:")
@@ -3103,10 +3146,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(copilotCard)
         
         let copilotCfg = providers["github_copilot"]
-        let copilotBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let copilotBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         copilotBtn.state = (copilotCfg?.enabled ?? true) ? .on : .off
         copilotBtn.attributedTitle = NSAttributedString(
-            string: "Copilot (Visual Studio Code)",
+            string: "Copilot",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -3114,6 +3157,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         copilotCard.addSubview(copilotBtn)
         self.copilotCheck = copilotBtn
+        addPastelPicker(providerKey: "github_copilot", in: copilotCard)
         
         let hasCopilot = QuotaManager.hasCopilot()
         let copilotStatus = NSTextField(labelWithString: hasCopilot ? "✓ Visual Studio Code & Copilot detectados no Mac" : "ℹ️ Copilot Chat e Code Completions do VS Code:")
@@ -3147,10 +3191,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(geminiCard)
         
         let geminiCfg = providers["gemini"]
-        let geminiBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let geminiBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         geminiBtn.state = (geminiCfg?.enabled ?? false) ? .on : .off
         geminiBtn.attributedTitle = NSAttributedString(
-            string: "Google Gemini API (Google AI Studio)",
+            string: "Google Gemini",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -3158,6 +3202,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         geminiCard.addSubview(geminiBtn)
         self.geminiCheck = geminiBtn
+        addPastelPicker(providerKey: "gemini", in: geminiCard)
         
         let geminiHint = NSTextField(labelWithString: "💡 Chaves do Google AI Studio começam com AIzaSy...")
         geminiHint.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
@@ -3228,10 +3273,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(openCard)
         
         let openCfg = providers["openai"]
-        let openBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let openBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         openBtn.state = (openCfg?.enabled ?? false) ? .on : .off
         openBtn.attributedTitle = NSAttributedString(
-            string: "OpenAI API (GPT-4o, o1, etc.)",
+            string: "OpenAI",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -3239,6 +3284,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         openCard.addSubview(openBtn)
         self.openaiCheck = openBtn
+        addPastelPicker(providerKey: "openai", in: openCard)
         
         let openField = makeCenteredDarkField(
             frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
@@ -3261,10 +3307,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scrollContent.addSubview(antCard)
         
         let antCfg = providers["anthropic"]
-        let antBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 28, height: 20))
+        let antBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 12, width: cardW - 225, height: 20))
         antBtn.state = (antCfg?.enabled ?? false) ? .on : .off
         antBtn.attributedTitle = NSAttributedString(
-            string: "Anthropic Claude API (Sonnet, Opus)",
+            string: "Anthropic",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -3272,6 +3318,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         antCard.addSubview(antBtn)
         self.anthropicCheck = antBtn
+        addPastelPicker(providerKey: "anthropic", in: antCard)
         
         let antField = makeCenteredDarkField(
             frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
@@ -3478,6 +3525,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         cfg.hidden_hud_gauges = hiddenList
+        cfg.section_colors = self.selectedSectionColors
         
         QuotaManager.saveConfig(cfg)
         settingsWindow?.orderOut(nil)
