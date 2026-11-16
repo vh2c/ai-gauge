@@ -779,9 +779,11 @@ class QuotaHubAppLinux:
             
             if announcement.get("action_label") and announcement.get("action_url"):
                 a_url = announcement.get("action_url")
-                btn_act = tk.Button(ann_box, text=f"{announcement.get('action_label')} →", font=("Sans", 8, "bold"), fg="#121212", bg=ann_badge_col,
-                                    relief="flat", padx=10, pady=3, cursor="hand2", command=lambda: webbrowser.open(a_url))
-                btn_act.pack(anchor="w")
+                act_label = announcement.get("action_label", "")
+                btn_text = act_label if (act_label.endswith("!") or "→" in act_label) else f"{act_label} →"
+                btn_act = tk.Button(ann_box, text=btn_text, font=("Sans", 8, "bold"), fg="#121212", bg=ann_badge_col,
+                                    relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: webbrowser.open(a_url))
+                btn_act.pack(anchor="center", pady=(2, 4))
 
         if not groups:
             empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=24, highlightbackground="#2A2A2A", highlightthickness=1)

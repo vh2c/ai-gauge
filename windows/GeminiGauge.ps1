@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     AI Gauge - Windows Edition (PowerShell + WPF)
     Developed by VH2C • https://vh2c.com.br
@@ -408,12 +408,17 @@ function Render-UI ($data) {
         $annStack.Children.Add($annMsg) | Out-Null
         
         if ($data.announcement.action_label -and $data.announcement.action_url) {
+            $actText = $data.announcement.action_label
+            $btnText = if ($actText.EndsWith("!") -or $actText.Contains("→")) { $actText } else { "$actText →" }
             $btnAct = New-Object System.Windows.Controls.Button
-            $btnAct.Content = "$($data.announcement.action_label) →"
-            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
-            $btnAct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xC9, 0xFF)))
-            $btnAct.Background = [System.Windows.Media.Brushes]::Transparent
-            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(0))
+            $btnAct.Content = $btnText
+            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+            $btnAct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xFB, 0xBF, 0x24)))
+            $btnAct.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0x38, 0xF5, 0x9E, 0x0B)))
+            $btnAct.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0xB2, 0xF5, 0x9E, 0x0B)))
+            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(1))
+            $btnAct.Padding = (New-Object System.Windows.Thickness(16, 4, 16, 4))
+            $btnAct.FontWeight = [System.Windows.FontWeights]::Bold
             $btnAct.Cursor = [System.Windows.Input.Cursors]::Hand
             $actUrl = $data.announcement.action_url
             $btnAct.Add_Click({ [System.Diagnostics.Process]::Start($actUrl) })
