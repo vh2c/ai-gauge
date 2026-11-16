@@ -1543,17 +1543,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 container.addSubview(scrollView)
             }
             
-            if quota.update?.update_available == true {
+            let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
+            let versionUrl = (quota.announcement?.type == "versao" ? quota.announcement?.action_url : nil) ?? quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            
+            if hasVersionNotice {
                 let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
                 upBtn.isBordered = false
-                upBtn.targetUrl = quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+                upBtn.targetUrl = versionUrl
                 upBtn.frame = NSRect(x: 2, y: 3, width: hudW - 4, height: 16)
-                upBtn.toolTip = "New release v\(quota.update?.latest_version ?? "") available. Click to download."
+                upBtn.toolTip = "Nova versão disponível. Clique para baixar."
                 upBtn.attributedTitle = NSAttributedString(
-                    string: "● NEW RELEASE",
+                    string: "● NOVA VERSÃO",
                     attributes: [
-                        .foregroundColor: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0),
-                        .font: NSFont.systemFont(ofSize: 8.0, weight: .heavy)
+                        .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
+                        .font: NSFont.systemFont(ofSize: 8.5, weight: .bold)
                     ]
                 )
                 container.addSubview(upBtn)
@@ -1653,17 +1656,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             container.addSubview(menuBtn)
             
-            if quota.update?.update_available == true {
+            let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
+            let versionUrl = (quota.announcement?.type == "versao" ? quota.announcement?.action_url : nil) ?? quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            
+            if hasVersionNotice {
                 let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
                 upBtn.isBordered = false
-                upBtn.targetUrl = quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+                upBtn.targetUrl = versionUrl
                 upBtn.frame = NSRect(x: 12, y: 2, width: 100, height: 14)
-                upBtn.toolTip = "New release v\(quota.update?.latest_version ?? "") available. Click to download."
+                upBtn.toolTip = "Nova versão disponível. Clique para baixar."
                 upBtn.attributedTitle = NSAttributedString(
-                    string: "● NEW RELEASE",
+                    string: "● NOVA VERSÃO",
                     attributes: [
-                        .foregroundColor: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0),
-                        .font: NSFont.systemFont(ofSize: 8.5, weight: .heavy)
+                        .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
+                        .font: NSFont.systemFont(ofSize: 8.5, weight: .bold)
                     ]
                 )
                 container.addSubview(upBtn)
@@ -1914,39 +1920,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let ann = quota.announcement, ann.type == "publicidade" {
             PromoDockManager.shared.presentIfNeeded(ann)
         } else if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
-            let isInfo = ann.type == "info"
-            let annH: CGFloat = ann.action_label != nil ? 92 : 62
+            let isVersao = (ann.type == "versao")
+            let hasAction = (ann.action_label != nil && !ann.action_label!.isEmpty) || (ann.action_url != nil && !ann.action_url!.isEmpty)
+            let annH: CGFloat = hasAction ? 92 : 64
             let annBox = FlippedBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: annH))
             annBox.boxType = .custom
-            annBox.fillColor = isInfo ? NSColor(srgbRed: 0x1E/255.0, green: 0x29/255.0, blue: 0x3B/255.0, alpha: 0.5) : NSColor(srgbRed: 0x2D/255.0, green: 0x24/255.0, blue: 0x18/255.0, alpha: 0.5)
-            annBox.borderColor = isInfo ? NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.4) : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 0.4)
+            
+            if isVersao {
+                // Nova versão = Verde (#10B981)
+                annBox.fillColor = NSColor(srgbRed: 0x06/255.0, green: 0x2A/255.0, blue: 0x1E/255.0, alpha: 0.5)
+                annBox.borderColor = NSColor(srgbRed: 0x10/255.0, green: 0xB9/255.0, blue: 0x81/255.0, alpha: 0.6)
+            } else {
+                // Informativo = Âmbar (#F59E0B)
+                annBox.fillColor = NSColor(srgbRed: 0x2D/255.0, green: 0x24/255.0, blue: 0x18/255.0, alpha: 0.5)
+                annBox.borderColor = NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 0.6)
+            }
             annBox.borderWidth = 1
-            annBox.cornerRadius = 6
+            annBox.cornerRadius = 8
             contentView.addSubview(annBox)
             
-            // 1. Badge + Title
-            let badge = NSTextField(labelWithString: "[\(ann.badge ?? "AVISO")] \(ann.title ?? "")")
-            badge.font = NSFont.systemFont(ofSize: 11, weight: .bold)
-            badge.textColor = isInfo ? NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0) : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 1.0)
-            badge.frame = NSRect(x: 12, y: 10, width: annBox.frame.width - 24, height: 16)
-            annBox.addSubview(badge)
+            // 1. Título limpo (SEM '[AVISO]')
+            let titleText = ann.title ?? (isVersao ? "Nova Versão Disponível" : "Informativo")
+            let titleLabel = NSTextField(labelWithString: titleText)
+            titleLabel.font = NSFont.systemFont(ofSize: 11.5, weight: .bold)
+            titleLabel.textColor = isVersao
+                ? NSColor(srgbRed: 0x34/255.0, green: 0xD3/255.0, blue: 0x99/255.0, alpha: 1.0)
+                : NSColor(srgbRed: 0xFB/255.0, green: 0xBF/255.0, blue: 0x24/255.0, alpha: 1.0)
+            titleLabel.frame = NSRect(x: 12, y: 10, width: annBox.frame.width - 24, height: 16)
+            annBox.addSubview(titleLabel)
             
             // 2. Multiline Message (Wrapping)
             let msgLabel = NSTextField(wrappingLabelWithString: msg)
-            msgLabel.font = NSFont.systemFont(ofSize: 10, weight: .regular)
-            msgLabel.textColor = NSColor(white: 0.78, alpha: 1.0)
+            msgLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+            msgLabel.textColor = NSColor(white: 0.85, alpha: 1.0)
             msgLabel.frame = NSRect(x: 12, y: 28, width: annBox.frame.width - 24, height: 32)
             annBox.addSubview(msgLabel)
             
-            // 3. Action Button (Monochrome, without colorful emoji)
-            if let actLabel = ann.action_label, let actUrl = ann.action_url {
-                let actBtn = UrlButton(frame: NSRect(x: 12, y: 64, width: 180, height: 18))
+            // 3. Action Button (Green for Versão, Amber for Info)
+            if hasAction {
+                let defaultLabel = isVersao ? "Baixar Atualização" : "Ver Detalhes"
+                let actLabel = (ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : defaultLabel
+                let defaultUrl = isVersao ? (quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest") : "https://vh2c.com.br"
+                let actUrl = (ann.action_url != nil && !ann.action_url!.isEmpty) ? ann.action_url! : defaultUrl
+                
+                let actBtn = UrlButton(frame: NSRect(x: 12, y: 64, width: 220, height: 18))
                 actBtn.bezelStyle = .inline
                 actBtn.isBordered = false
+                let btnColor = isVersao
+                    ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+                    : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 1.0)
                 actBtn.attributedTitle = NSAttributedString(
                     string: "\(actLabel) →",
                     attributes: [
-                        .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xC9/255.0, blue: 0xFF/255.0, alpha: 1.0),
+                        .foregroundColor: btnColor,
                         .font: NSFont.systemFont(ofSize: 10.5, weight: .bold)
                     ]
                 )
@@ -2254,19 +2280,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         mainView.addSubview(closeBtn)
         
-        // ----------------- RODAPÉ (Linha 2: Menção vh2c.com.br SEM ícone colorido, ligeiramente maior) -----------------
-        let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
-        brandBtn.isBordered = false
-        brandBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
-        brandBtn.toolTip = "Acesse vh2c.com.br"
-        brandBtn.attributedTitle = NSAttributedString(
-            string: "Desenvolvido por vh2c.com.br",
-            attributes: [
-                .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.95),
-                .font: NSFont.systemFont(ofSize: 12.0, weight: .semibold)
-            ]
-        )
-        mainView.addSubview(brandBtn)
+        // ----------------- RODAPÉ (Linha 2: Menção vh2c.com.br ou Nova Versão) -----------------
+        let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
+        let versionUrl = (quota.announcement?.type == "versao" ? quota.announcement?.action_url : nil) ?? quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+
+        if hasVersionNotice {
+            let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
+            upBtn.isBordered = false
+            upBtn.targetUrl = versionUrl
+            upBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
+            upBtn.toolTip = "Nova versão disponível. Clique para baixar."
+            upBtn.attributedTitle = NSAttributedString(
+                string: "● Nova Versão Disponível • Clique para baixar",
+                attributes: [
+                    .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
+                    .font: NSFont.systemFont(ofSize: 11.5, weight: .bold)
+                ]
+            )
+            mainView.addSubview(upBtn)
+        } else {
+            let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
+            brandBtn.isBordered = false
+            brandBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
+            brandBtn.toolTip = "Acesse vh2c.com.br"
+            brandBtn.attributedTitle = NSAttributedString(
+                string: "Desenvolvido por vh2c.com.br",
+                attributes: [
+                    .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.95),
+                    .font: NSFont.systemFont(ofSize: 12.0, weight: .semibold)
+                ]
+            )
+            mainView.addSubview(brandBtn)
+        }
         
         if isFirstLaunch {
             isFirstLaunch = false
