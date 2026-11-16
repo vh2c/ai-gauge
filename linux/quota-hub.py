@@ -410,7 +410,7 @@ class QuotaHubAppLinux:
             return
         self.is_refreshing = True
         if animated and hasattr(self, "refresh_btn"):
-            self.refresh_btn.config(text="Atualizando...")
+            self.refresh_btn.config(text="Refreshing...")
             self.root.update_idletasks()
 
         def do_fetch():
@@ -665,11 +665,11 @@ class QuotaHubAppLinux:
             close_dlg()
             self.refresh(True)
 
-        btn_save = tk.Button(f_btns, text="Salvar e Atualizar", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699",
+        btn_save = tk.Button(f_btns, text="Save & Refresh", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699",
                              activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=14, pady=6, cursor="hand2", command=do_save)
         btn_save.pack(side="left")
 
-        btn_cancel = tk.Button(f_btns, text="Cancelar", font=("Sans", 9), fg="#CCCCCC", bg="#2A2A2A",
+        btn_cancel = tk.Button(f_btns, text="Cancel", font=("Sans", 9), fg="#CCCCCC", bg="#2A2A2A",
                                activebackground="#3A3A3A", activeforeground="#FFFFFF", relief="flat", padx=12, pady=6, cursor="hand2", command=close_dlg)
         btn_cancel.pack(side="right")
 
@@ -708,22 +708,22 @@ class QuotaHubAppLinux:
         btn_row = tk.Frame(footer, bg="#181818")
         btn_row.pack(fill="x")
 
-        self.refresh_btn = tk.Button(btn_row, text="↻ Atualizar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+        self.refresh_btn = tk.Button(btn_row, text="↻ Refresh", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
                                      activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
                                      command=lambda: self.refresh(True))
         self.refresh_btn.pack(side="left")
 
-        hud_btn = tk.Button(btn_row, text="⤢ Barra HUD", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+        hud_btn = tk.Button(btn_row, text="⤢ HUD Bar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
                             activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
                             command=self.toggle_mode)
         hud_btn.pack(side="left", padx=8)
 
-        cfg_btn = tk.Button(btn_row, text="⚙️ Configurar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+        cfg_btn = tk.Button(btn_row, text="⚙ Settings", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
                             activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
                             command=self.open_settings)
         cfg_btn.pack(side="left", padx=2)
 
-        close_btn = tk.Button(btn_row, text="✕ Fechar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
+        close_btn = tk.Button(btn_row, text="✕ Close", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
                               activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
                               command=self.root.destroy)
         close_btn.pack(side="right")

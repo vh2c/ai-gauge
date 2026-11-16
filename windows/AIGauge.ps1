@@ -37,16 +37,12 @@ $PastelDefaults = @{
 }
 
 $PastelPalette = @(
-    @{ Name = "Azul Céu";  Hex = "#8FBCFF" },
-    @{ Name = "Menta";     Hex = "#8AE39A" },
-    @{ Name = "Coral";     Hex = "#FF5265" },
-    @{ Name = "Terracota"; Hex = "#D78C68" },
-    @{ Name = "Lavanda";   Hex = "#C084FC" },
-    @{ Name = "Ciano";     Hex = "#67E8F9" },
-    @{ Name = "Rosa";      Hex = "#F472B6" },
-    @{ Name = "Pêssego";   Hex = "#FDBA74" },
-    @{ Name = "Amarelo";   Hex = "#FDE047" },
-    @{ Name = "Prata";     Hex = "#E2E8F0" }
+    @{ Name = "Sky Blue";   Hex = "#8FBCFF" },
+    @{ Name = "Mint";       Hex = "#8AE39A" },
+    @{ Name = "Coral";      Hex = "#FF5265" },
+    @{ Name = "Terracotta"; Hex = "#D78C68" },
+    @{ Name = "Lavender";   Hex = "#C084FC" },
+    @{ Name = "Cyan";       Hex = "#67E8F9" }
 )
 
 function Convert-HexToColor ($hexStr) {
@@ -197,12 +193,12 @@ function Get-QuotaData ($force = $false) {
             <!-- Row 1: Action Buttons -->
             <Grid>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                    <Button Name="BtnRefresh" Content="↻ Atualizar" Width="84" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
-                    <Button Name="BtnHud" Content="⤢ Barra HUD" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
-                    <Button Name="BtnSettings" Content="⚙ Configurar" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
+                    <Button Name="BtnRefresh" Content="↻ Refresh" Width="84" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
+                    <Button Name="BtnHud" Content="⤢ HUD Bar" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
+                    <Button Name="BtnSettings" Content="⚙ Settings" Width="92" Height="28" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
                 </StackPanel>
                 
-                <Button Name="BtnClose" Content="✕ Fechar" Width="68" Height="28" HorizontalAlignment="Right" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
+                <Button Name="BtnClose" Content="✕ Close" Width="68" Height="28" HorizontalAlignment="Right" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
             </Grid>
             
             <!-- Row 2: Brand Link -->
@@ -263,7 +259,7 @@ $txtBrand = $window.FindName("TxtBrand")
                         <TextBlock Text="⚡ AI Gauge" Foreground="#00E699" FontSize="12.5" FontWeight="Bold"/>
                         <TextBlock Text=" HUD" Foreground="#FFFFFF" FontSize="12.5" FontWeight="Bold"/>
                     </StackPanel>
-                    <TextBlock Name="TxtHudSubtitle" Text="Modo Barra Lateral" Foreground="#888888" FontSize="9.5" Margin="0,2,0,0"/>
+                    <TextBlock Name="TxtHudSubtitle" Text="HUD Bar Mode" Foreground="#888888" FontSize="9.5" Margin="0,2,0,0"/>
                 </StackPanel>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -278,7 +274,7 @@ $txtBrand = $window.FindName("TxtBrand")
             </ScrollViewer>
             
             <!-- HUD Footer -->
-            <TextBlock Grid.Row="2" Text="⚡ Arraste para mover • Ctrl+M" Foreground="#555555" FontSize="9" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+            <TextBlock Grid.Row="2" Text="⚡ Drag to move • Ctrl+M" Foreground="#555555" FontSize="9" HorizontalAlignment="Center" Margin="0,8,0,0"/>
         </Grid>
     </Border>
 </Window>
@@ -366,7 +362,7 @@ function Render-UI ($data) {
         $upDock = New-Object System.Windows.Controls.DockPanel
         
         $btnDl = New-Object System.Windows.Controls.Button
-        $btnDl.Content = "Baixar"
+        $btnDl.Content = "Download"
         $btnDl.Padding = (New-Object System.Windows.Thickness(12, 3, 12, 3))
         $btnDl.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
         $btnDl.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x12)))
@@ -644,8 +640,8 @@ function Show-SettingsDialog {
         </Grid.RowDefinitions>
         
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="⚙️ Configurar Provedores de IA &amp; Cores Pastel" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
-            <TextBlock Text="Ative os provedores, insira suas credenciais e personalize as cores:" Foreground="#888888" FontSize="10.5" Margin="0,3,0,0"/>
+            <TextBlock Text="⚙️ AI Providers &amp; Pastel Colors" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
+            <TextBlock Text="Enable providers, credentials and customize section colors:" Foreground="#888888" FontSize="10.5" Margin="0,3,0,0"/>
         </StackPanel>
         
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -748,8 +744,8 @@ function Show-SettingsDialog {
         </ScrollViewer>
         
         <Grid Grid.Row="2" Margin="0,12,0,0">
-            <Button Name="BtnSave" Content="Salvar e Atualizar" Width="130" Height="28" HorizontalAlignment="Left" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
-            <Button Name="BtnCancel" Content="Cancelar" Width="80" Height="28" HorizontalAlignment="Right" Background="#333333" Foreground="#FFFFFF" Cursor="Hand"/>
+            <Button Name="BtnSave" Content="Save &amp; Refresh" Width="130" Height="28" HorizontalAlignment="Left" Background="#EEEEF0" Foreground="#181818" FontWeight="Bold" Cursor="Hand"/>
+            <Button Name="BtnCancel" Content="Cancel" Width="80" Height="28" HorizontalAlignment="Right" Background="#333333" Foreground="#FFFFFF" Cursor="Hand"/>
         </Grid>
     </Grid>
 </Window>
@@ -810,7 +806,7 @@ function Show-SettingsDialog {
         $panel.Children.Clear()
         
         $lbl = New-Object System.Windows.Controls.TextBlock
-        $lbl.Text = "Cor:"
+        $lbl.Text = "Color:"
         $lbl.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x99, 0x99, 0x99))
         $lbl.FontSize = 10
         $lbl.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
@@ -946,7 +942,7 @@ function Show-SettingsDialog {
 }
 
 function Refresh-Data {
-    $btnRefresh.Content = "Atualizando..."
+    $btnRefresh.Content = "Refreshing..."
     $btnRefresh.IsEnabled = $false
     $window.Dispatcher.Invoke([Action]{}, "Background")
     
@@ -957,7 +953,7 @@ function Refresh-Data {
             Render-HUD $newData
         }
     }
-    $btnRefresh.Content = "↻ Atualizar"
+    $btnRefresh.Content = "↻ Refresh"
     $btnRefresh.IsEnabled = $true
 }
 

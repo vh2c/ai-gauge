@@ -106,16 +106,12 @@ struct PastelColor {
 
 struct PastelTheme {
     static let palette: [PastelColor] = [
-        PastelColor(name: "Azul Céu", hex: "#8FBCFF", color: NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)),
-        PastelColor(name: "Menta", hex: "#8AE39A", color: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0)),
+        PastelColor(name: "Sky Blue", hex: "#8FBCFF", color: NSColor(srgbRed: 0x8F/255.0, green: 0xBC/255.0, blue: 0xFF/255.0, alpha: 1.0)),
+        PastelColor(name: "Mint", hex: "#8AE39A", color: NSColor(srgbRed: 0x8A/255.0, green: 0xE3/255.0, blue: 0x9A/255.0, alpha: 1.0)),
         PastelColor(name: "Coral", hex: "#FF5265", color: NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0)),
-        PastelColor(name: "Terracota", hex: "#D78C68", color: NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)),
-        PastelColor(name: "Lavanda", hex: "#C084FC", color: NSColor(srgbRed: 0xC0/255.0, green: 0x84/255.0, blue: 0xFC/255.0, alpha: 1.0)),
-        PastelColor(name: "Pêssego", hex: "#FDBA74", color: NSColor(srgbRed: 0xFD/255.0, green: 0xBA/255.0, blue: 0x74/255.0, alpha: 1.0)),
-        PastelColor(name: "Ciano", hex: "#67E8F9", color: NSColor(srgbRed: 0x67/255.0, green: 0xE8/255.0, blue: 0xF9/255.0, alpha: 1.0)),
-        PastelColor(name: "Rosa", hex: "#F472B6", color: NSColor(srgbRed: 0xF4/255.0, green: 0x72/255.0, blue: 0xB6/255.0, alpha: 1.0)),
-        PastelColor(name: "Amarelo", hex: "#FDE047", color: NSColor(srgbRed: 0xFD/255.0, green: 0xE0/255.0, blue: 0x47/255.0, alpha: 1.0)),
-        PastelColor(name: "Prata", hex: "#E2E8F0", color: NSColor(srgbRed: 0xE2/255.0, green: 0xE8/255.0, blue: 0xF0/255.0, alpha: 1.0))
+        PastelColor(name: "Terracotta", hex: "#D78C68", color: NSColor(srgbRed: 0xD7/255.0, green: 0x8C/255.0, blue: 0x68/255.0, alpha: 1.0)),
+        PastelColor(name: "Lavender", hex: "#C084FC", color: NSColor(srgbRed: 0xC0/255.0, green: 0x84/255.0, blue: 0xFC/255.0, alpha: 1.0)),
+        PastelColor(name: "Cyan", hex: "#67E8F9", color: NSColor(srgbRed: 0x67/255.0, green: 0xE8/255.0, blue: 0xF9/255.0, alpha: 1.0))
     ]
     
     static let defaultColors: [String: String] = [
@@ -1624,14 +1620,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             )
             menu.addItem(titleItem)
             menu.addItem(NSMenuItem.separator())
-            menu.addItem(NSMenuItem(title: "Abrir Janela Principal", action: #selector(switchToFullMode), keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: "Modo Barra HUD", action: #selector(switchToHudMode), keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: "Configurações... (⚙️)", action: #selector(openSettings), keyEquivalent: ","))
-            menu.addItem(NSMenuItem(title: "Assistente de Configuração...", action: #selector(openOnboarding), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Open Main Window", action: #selector(switchToFullMode), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "HUD Bar Mode", action: #selector(switchToHudMode), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Settings... (⚙️)", action: #selector(openSettings), keyEquivalent: ","))
+            menu.addItem(NSMenuItem(title: "Setup Assistant...", action: #selector(openOnboarding), keyEquivalent: ""))
             menu.addItem(NSMenuItem.separator())
-            menu.addItem(NSMenuItem(title: "Atualizar Dados Agora", action: #selector(refreshClicked), keyEquivalent: "r"))
+            menu.addItem(NSMenuItem(title: "Refresh Data Now", action: #selector(refreshClicked), keyEquivalent: "r"))
             menu.addItem(NSMenuItem.separator())
-            menu.addItem(NSMenuItem(title: "Encerrar AI Gauge", action: #selector(closeClicked), keyEquivalent: "q"))
+            menu.addItem(NSMenuItem(title: "Quit AI Gauge", action: #selector(closeClicked), keyEquivalent: "q"))
             for item in menu.items { item.target = self }
             statusItem?.menu = menu
             statusItem?.button?.performClick(nil)
@@ -1727,13 +1723,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let btnText = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
         refreshBtn?.isEnabled = true
         refreshBtn?.attributedTitle = NSAttributedString(
-            string: "Atualizar",
+            string: "Refresh",
             attributes: [
                 .foregroundColor: btnText,
                 .font: NSFont.systemFont(ofSize: 12, weight: .semibold)
             ]
         )
-        if let symbol = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Atualizar") {
+        if let symbol = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh") {
             let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
             if #available(macOS 12.0, *) {
                 let tinted = config.applying(.init(paletteColors: [btnText]))
@@ -1939,14 +1935,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 emptySub.frame = NSRect(x: 4, y: hudH - 118, width: hudW - 8, height: 28)
                 container.addSubview(emptySub)
                 
-                let cfgBtn = NSButton(title: "Configurar", target: self, action: #selector(openSettings))
+                let cfgBtn = NSButton(title: "Settings", target: self, action: #selector(openSettings))
                 cfgBtn.isBordered = false
                 cfgBtn.wantsLayer = true
                 cfgBtn.layer?.backgroundColor = NSColor(srgbRed: 0x24/255.0, green: 0x24/255.0, blue: 0x28/255.0, alpha: 1.0).cgColor
                 cfgBtn.layer?.cornerRadius = 5
                 cfgBtn.frame = NSRect(x: 12, y: 26, width: hudW - 24, height: 22)
                 cfgBtn.attributedTitle = NSAttributedString(
-                    string: "⚙️ Configurar",
+                    string: "⚙️ Settings",
                     attributes: [
                         .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 9.5, weight: .semibold)
@@ -2049,14 +2045,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 subLabel.frame = NSRect(x: 14, y: hudH - 56, width: hudW - 60, height: 14)
                 container.addSubview(subLabel)
                 
-                let cfgBtn = NSButton(title: "Configurar Provedores", target: self, action: #selector(openSettings))
+                let cfgBtn = NSButton(title: "Configure Providers", target: self, action: #selector(openSettings))
                 cfgBtn.isBordered = false
                 cfgBtn.wantsLayer = true
                 cfgBtn.layer?.backgroundColor = NSColor(srgbRed: 0x24/255.0, green: 0x24/255.0, blue: 0x28/255.0, alpha: 1.0).cgColor
                 cfgBtn.layer?.cornerRadius = 5
                 cfgBtn.frame = NSRect(x: 14, y: 16, width: 140, height: 22)
                 cfgBtn.attributedTitle = NSAttributedString(
-                    string: "⚙️ Configurar Provedores",
+                    string: "⚙️ Configure Providers",
                     attributes: [
                         .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 10, weight: .semibold)
@@ -2182,32 +2178,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         orientItem.target = self
         menu.addItem(orientItem)
         
-        let refreshItem = NSMenuItem(title: "Atualizar Dados Agora", action: #selector(refreshClicked), keyEquivalent: "r")
+        let refreshItem = NSMenuItem(title: "Refresh Data Now", action: #selector(refreshClicked), keyEquivalent: "r")
         refreshItem.target = self
         menu.addItem(refreshItem)
         
-        let settingsItem = NSMenuItem(title: "Configurações... (⚙️)", action: #selector(openSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: "Settings... (⚙️)", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
         
         menu.addItem(NSMenuItem.separator())
         
-        let pinItem = NSMenuItem(title: "Sempre no Topo (Flutuante)", action: #selector(toggleAlwaysOnTop), keyEquivalent: "p")
+        let pinItem = NSMenuItem(title: "Always on Top (Floating)", action: #selector(toggleAlwaysOnTop), keyEquivalent: "p")
         pinItem.target = self
         pinItem.state = isAlwaysOnTop ? .on : .off
         menu.addItem(pinItem)
         
-        let brandItem = NSMenuItem(title: "Visite vh2c.com.br", action: #selector(brandClicked), keyEquivalent: "")
+        let brandItem = NSMenuItem(title: "Visit vh2c.com.br", action: #selector(brandClicked), keyEquivalent: "")
         brandItem.target = self
         menu.addItem(brandItem)
         
         menu.addItem(NSMenuItem.separator())
         
-        let closeWinItem = NSMenuItem(title: "Fechar Janela (✕)", action: #selector(closeWindowClicked), keyEquivalent: "w")
+        let closeWinItem = NSMenuItem(title: "Close Window (✕)", action: #selector(closeWindowClicked), keyEquivalent: "w")
         closeWinItem.target = self
         menu.addItem(closeWinItem)
         
-        let closeItem = NSMenuItem(title: "Encerrar AI Gauge", action: #selector(closeClicked), keyEquivalent: "q")
+        let closeItem = NSMenuItem(title: "Quit AI Gauge", action: #selector(closeClicked), keyEquivalent: "q")
         closeItem.target = self
         menu.addItem(closeItem)
         
@@ -2345,7 +2341,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             upBtn.layer?.backgroundColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0).cgColor
             upBtn.layer?.cornerRadius = 4
             upBtn.attributedTitle = NSAttributedString(
-                string: "Baixar",
+                string: "Download",
                 attributes: [
                     .foregroundColor: NSColor(srgbRed: 0x12/255.0, green: 0x12/255.0, blue: 0x12/255.0, alpha: 1.0),
                     .font: NSFont.systemFont(ofSize: 11.5, weight: .bold)
@@ -2429,7 +2425,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             // 3. Action Button (Botão 'Baixar Agora' para Versão; ou 'Ver Detalhes' para Info)
             if hasAction {
-                let defaultLabel = isVersao ? "Baixar Agora" : "Ver Detalhes"
+                let defaultLabel = isVersao ? "Download Now" : "View Details"
                 let actLabel = (ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : defaultLabel
                 let actUrl = isVersao ? defaultVersionUrl : (effectiveAnnUrl ?? "https://vh2c.com.br")
                 
@@ -2494,14 +2490,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             eDesc.frame = NSRect(x: 16, y: 38, width: cardView.frame.width - 32, height: 32)
             cardView.addSubview(eDesc)
             
-            let openCfgBtn = NSButton(title: "Configurar Provedores", target: self, action: #selector(openSettings))
+            let openCfgBtn = NSButton(title: "Configure Providers", target: self, action: #selector(openSettings))
             openCfgBtn.isBordered = false
             openCfgBtn.wantsLayer = true
             openCfgBtn.layer?.backgroundColor = NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x30/255.0, alpha: 1.0).cgColor
             openCfgBtn.layer?.cornerRadius = 5
             openCfgBtn.frame = NSRect(x: 16, y: 76, width: 170, height: 22)
             openCfgBtn.attributedTitle = NSAttributedString(
-                string: "⚙️ Configurar Provedores",
+                string: "⚙️ Configure Providers",
                 attributes: [
                     .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
                     .font: NSFont.systemFont(ofSize: 10.5, weight: .semibold)
@@ -2676,14 +2672,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refreshBtn.imagePosition = .imageLeading
         refreshBtn.imageHugsTitle = true
         refreshBtn.attributedTitle = NSAttributedString(
-            string: "Atualizar",
+            string: "Refresh",
             attributes: [
                 .foregroundColor: btnText,
                 .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
                 .paragraphStyle: pStyle
             ]
         )
-        if let symbol = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Atualizar") {
+        if let symbol = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh") {
             let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
             if #available(macOS 12.0, *) {
                 let tinted = config.applying(.init(paletteColors: [btnText]))
@@ -2695,7 +2691,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.refreshBtn = refreshBtn
         mainView.addSubview(refreshBtn)
         
-        // 2. Alternar Modo de Tela (Barra HUD)
+        // 2. Alternar Modo de Tela (HUD Bar)
         let hudBtn = NSButton(title: "", target: self, action: #selector(toggleModeClicked))
         hudBtn.isBordered = false
         hudBtn.wantsLayer = true
@@ -2706,16 +2702,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hudBtn.keyEquivalentModifierMask = .command
         hudBtn.imagePosition = .imageLeading
         hudBtn.imageHugsTitle = true
-        hudBtn.toolTip = "Alternar para Modo Barra HUD (Cmd+M)"
+        hudBtn.toolTip = "Switch to HUD Bar Mode (Cmd+M)"
         hudBtn.attributedTitle = NSAttributedString(
-            string: "Barra HUD",
+            string: "HUD Bar",
             attributes: [
                 .foregroundColor: btnText,
                 .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
                 .paragraphStyle: pStyle
             ]
         )
-        if let symbol = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Alternar Modo") {
+        if let symbol = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "HUD Bar") {
             let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
             if #available(macOS 12.0, *) {
                 let tinted = config.applying(.init(paletteColors: [btnText]))
@@ -2726,7 +2722,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         mainView.addSubview(hudBtn)
         
-        // 3. Configurações (⚙️)
+        // 3. Settings (⚙️)
         let settingsBtn = NSButton(title: "", target: self, action: #selector(openSettings))
         settingsBtn.isBordered = false
         settingsBtn.wantsLayer = true
@@ -2737,16 +2733,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsBtn.keyEquivalentModifierMask = .command
         settingsBtn.imagePosition = .imageLeading
         settingsBtn.imageHugsTitle = true
-        settingsBtn.toolTip = "Configurar Provedores e Chaves de API (Cmd+,)"
+        settingsBtn.toolTip = "Configure Providers & API Keys (Cmd+,)"
         settingsBtn.attributedTitle = NSAttributedString(
-            string: "Configurar",
+            string: "Settings",
             attributes: [
                 .foregroundColor: btnText,
                 .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
                 .paragraphStyle: pStyle
             ]
         )
-        if let symbol = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Configurações") {
+        if let symbol = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings") {
             let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
             if #available(macOS 12.0, *) {
                 let tinted = config.applying(.init(paletteColors: [btnText]))
@@ -2757,7 +2753,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         mainView.addSubview(settingsBtn)
         
-        // 4. Botão '✕' Fechar (Encerra o aplicativo)
+        // 4. Botão '✕' Close (Encerra o aplicativo)
         let closeBtn = NSButton(title: "", target: self, action: #selector(closeClicked))
         closeBtn.isBordered = false
         closeBtn.wantsLayer = true
@@ -2768,16 +2764,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         closeBtn.keyEquivalentModifierMask = .command
         closeBtn.imagePosition = .imageLeading
         closeBtn.imageHugsTitle = true
-        closeBtn.toolTip = "Encerrar AI Gauge (Cmd+Q)"
+        closeBtn.toolTip = "Quit AI Gauge (Cmd+Q)"
         closeBtn.attributedTitle = NSAttributedString(
-            string: "Fechar",
+            string: "Close",
             attributes: [
                 .foregroundColor: btnText,
                 .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
                 .paragraphStyle: pStyle
             ]
         )
-        if let symbol = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Fechar") {
+        if let symbol = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close") {
             let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
             if #available(macOS 12.0, *) {
                 let tinted = config.applying(.init(paletteColors: [btnText]))
@@ -2850,14 +2846,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.selectedSectionColors = currentColors
         
         func addPastelPicker(providerKey: String, in parent: NSView) {
-            let pickerW: CGFloat = 166
+            let pickerW: CGFloat = 114
             let pickerX = cardW - pickerW - 8
-            let labelX = pickerX - 26
+            let labelX = pickerX - 38
             
-            let lbl = NSTextField(labelWithString: "Cor:")
+            let lbl = NSTextField(labelWithString: "Color:")
             lbl.font = NSFont.systemFont(ofSize: 9.5, weight: .semibold)
             lbl.textColor = NSColor(white: 0.60, alpha: 1.0)
-            lbl.frame = NSRect(x: labelX, y: 13, width: 24, height: 16)
+            lbl.frame = NSRect(x: labelX, y: 13, width: 36, height: 16)
             parent.addSubview(lbl)
             
             let curHex = currentColors[providerKey] ?? (PastelTheme.defaultColors[providerKey] ?? "#8FBCFF")
@@ -2889,13 +2885,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         // ----------------- HEADER FIXO NO TOPO -----------------
         let headerView = FlippedContentView(frame: NSRect(x: 0, y: 0, width: winW, height: headerH))
-        let titleLabel = NSTextField(labelWithString: "⚙️ Provedores de IA & Seleção de Gauges")
+        let titleLabel = NSTextField(labelWithString: "⚙️ AI Providers & Gauge Selection")
         titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .bold)
         titleLabel.textColor = .white
         titleLabel.frame = NSRect(x: 18, y: 12, width: winW - 36, height: 20)
         headerView.addSubview(titleLabel)
         
-        let subLabel = NSTextField(labelWithString: "Ative os provedores e selecione quais Gauges devem aparecer no Painel Lateral HUD:")
+        let subLabel = NSTextField(labelWithString: "Enable providers and select which Gauges appear in the HUD Side Bar:")
         subLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
         subLabel.textColor = NSColor(white: 0.65, alpha: 1.0)
         subLabel.frame = NSRect(x: 18, y: 34, width: winW - 36, height: 16)
@@ -2929,7 +2925,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             sep.borderColor = .clear
             parent.addSubview(sep)
             
-            let lbl = NSTextField(labelWithString: "Gauges no Painel Lateral HUD:")
+            let lbl = NSTextField(labelWithString: "Gauges in HUD Side Bar:")
             lbl.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
             lbl.textColor = NSColor(white: 0.55, alpha: 1.0)
             lbl.frame = NSRect(x: 14, y: y + 6, width: cardW - 28, height: 14)
@@ -3219,14 +3215,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         geminiCard.addSubview(geminiField)
         self.geminiKeyField = geminiField
         
-        let testBtn = NSButton(title: "Testar", target: self, action: #selector(testGeminiKeyClicked))
+        let testBtn = NSButton(title: "Test", target: self, action: #selector(testGeminiKeyClicked))
         testBtn.isBordered = false
         testBtn.wantsLayer = true
         testBtn.layer?.backgroundColor = NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x30/255.0, alpha: 1.0).cgColor
         testBtn.layer?.cornerRadius = 6
         testBtn.frame = NSRect(x: 14 + fieldW + 8, y: 52, width: 84, height: 34)
         testBtn.attributedTitle = NSAttributedString(
-            string: "Testar",
+            string: "Test",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
@@ -3343,14 +3339,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         footerDiv.borderColor = .clear
         footerView.addSubview(footerDiv)
         
-        let saveBtn = NSButton(title: "Salvar e Atualizar", target: self, action: #selector(saveSettingsClicked))
+        let saveBtn = NSButton(title: "Save & Refresh", target: self, action: #selector(saveSettingsClicked))
         saveBtn.isBordered = false
         saveBtn.wantsLayer = true
         saveBtn.layer?.backgroundColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0).cgColor
         saveBtn.layer?.cornerRadius = 6
         saveBtn.frame = NSRect(x: 14, y: 11, width: 130, height: 34)
         saveBtn.attributedTitle = NSAttributedString(
-            string: "Salvar e Atualizar",
+            string: "Save & Refresh",
             attributes: [
                 .foregroundColor: NSColor(srgbRed: 0x12/255.0, green: 0x12/255.0, blue: 0x12/255.0, alpha: 1.0),
                 .font: NSFont.systemFont(ofSize: 12, weight: .bold)
@@ -3358,14 +3354,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         footerView.addSubview(saveBtn)
         
-        let cancelBtn = NSButton(title: "Cancelar", target: self, action: #selector(cancelSettingsClicked))
+        let cancelBtn = NSButton(title: "Cancel", target: self, action: #selector(cancelSettingsClicked))
         cancelBtn.isBordered = false
         cancelBtn.wantsLayer = true
         cancelBtn.layer?.backgroundColor = NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x2E/255.0, alpha: 1.0).cgColor
         cancelBtn.layer?.cornerRadius = 6
         cancelBtn.frame = NSRect(x: 150, y: 11, width: 80, height: 34)
         cancelBtn.attributedTitle = NSAttributedString(
-            string: "Cancelar",
+            string: "Cancel",
             attributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium)
