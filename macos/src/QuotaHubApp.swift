@@ -94,6 +94,7 @@ struct AppConfig: Codable {
     var providers: [String: ProviderConfig]?
     var refresh_interval_seconds: Int?
     var hidden_hud_gauges: [String]?
+    var onboarding_completed: Bool?
 }
 
 extension QuotaData {
@@ -377,6 +378,46 @@ class QuotaManager {
     
     static var configPath: String {
         return (configDir as NSString).appendingPathComponent("config.json")
+    }
+    
+    static func hasAntigravity() -> Bool {
+        let appPath = "/Applications/Antigravity.app"
+        let geminiAnti = NSString(string: "~/.gemini/antigravity").expandingTildeInPath
+        if FileManager.default.fileExists(atPath: appPath) || FileManager.default.fileExists(atPath: geminiAnti) {
+            return true
+        }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        task.arguments = ["-i", "Antigravity"]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+    
+    static func hasClaudePro() -> Bool {
+        if hasClaudeProKeychainSession() { return true }
+        let claudeDir = NSString(string: "~/.claude").expandingTildeInPath
+        let claudeApp = "/Applications/Claude.app"
+        return FileManager.default.fileExists(atPath: claudeDir) || FileManager.default.fileExists(atPath: claudeApp)
+    }
+    
+    static func hasChatGPT() -> Bool {
+        if hasChatGPTKeychainSession() { return true }
+        let chatgptApp = "/Applications/ChatGPT.app"
+        return FileManager.default.fileExists(atPath: chatgptApp)
+    }
+    
+    static func hasGemini() -> Bool {
+        let cfg = loadConfig()
+        if let key = cfg.providers?["gemini"]?.api_key, !key.isEmpty { return true }
+        if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"], !envKey.isEmpty { return true }
+        return false
     }
     
     static func hasClaudeProKeychainSession() -> Bool {
@@ -1078,6 +1119,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     var hudGaugeCheckboxes: [String: NSButton] = [:]
     
+    // Onboarding fields
+    var onboardingWindow: NSWindow?
+    var obAntigravityCheck: NSButton?
+    var obClaudeCheck: NSButton?
+    var obChatgptCheck: NSButton?
+    var obGeminiCheck: NSButton?
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         sendTelemetryHeartbeat()
@@ -1089,6 +1137,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let savedOrient = UserDefaults.standard.string(forKey: "uaqm_hud_orientation"),
            let orient = HudOrientation(rawValue: savedOrient) {
             hudOrientation = orient
+        }
+        
+        let cfg = QuotaManager.loadConfig()
+        let configExists = FileManager.default.fileExists(atPath: QuotaManager.configPath)
+        let onboardingDone = UserDefaults.standard.bool(forKey: "aigauge_onboarding_completed") || (cfg.onboarding_completed == true)
+        
+        if !onboardingDone && !configExists {
+            openOnboarding()
+            return
         }
         
         let force = CommandLine.arguments.contains("--force")
@@ -1179,6 +1236,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             menu.addItem(NSMenuItem(title: "Abrir Janela Principal", action: #selector(switchToFullMode), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Modo Barra HUD", action: #selector(switchToHudMode), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Configurações... (⚙️)", action: #selector(openSettings), keyEquivalent: ","))
+            menu.addItem(NSMenuItem(title: "Assistente de Configuração...", action: #selector(openOnboarding), keyEquivalent: ""))
             menu.addItem(NSMenuItem.separator())
             menu.addItem(NSMenuItem(title: "Atualizar Dados Agora", action: #selector(refreshClicked), keyEquivalent: "r"))
             menu.addItem(NSMenuItem.separator())
@@ -2762,7 +2820,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         saveBtn.wantsLayer = true
         saveBtn.layer?.backgroundColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0).cgColor
         saveBtn.layer?.cornerRadius = 6
-        saveBtn.frame = NSRect(x: 18, y: 11, width: 144, height: 34)
+        saveBtn.frame = NSRect(x: 14, y: 11, width: 130, height: 34)
         saveBtn.attributedTitle = NSAttributedString(
             string: "Salvar e Atualizar",
             attributes: [
@@ -2777,7 +2835,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         cancelBtn.wantsLayer = true
         cancelBtn.layer?.backgroundColor = NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x2E/255.0, alpha: 1.0).cgColor
         cancelBtn.layer?.cornerRadius = 6
-        cancelBtn.frame = NSRect(x: 172, y: 11, width: 90, height: 34)
+        cancelBtn.frame = NSRect(x: 150, y: 11, width: 80, height: 34)
         cancelBtn.attributedTitle = NSAttributedString(
             string: "Cancelar",
             attributes: [
@@ -2787,9 +2845,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         footerView.addSubview(cancelBtn)
         
+        let obBtn = NSButton(title: "Assistente Inicial...", target: self, action: #selector(openOnboardingFromSettings))
+        obBtn.isBordered = false
+        obBtn.wantsLayer = true
+        obBtn.layer?.backgroundColor = NSColor(srgbRed: 0x24/255.0, green: 0x24/255.0, blue: 0x2C/255.0, alpha: 1.0).cgColor
+        obBtn.layer?.cornerRadius = 6
+        obBtn.frame = NSRect(x: 238, y: 11, width: 140, height: 34)
+        obBtn.attributedTitle = NSAttributedString(
+            string: "Assistente Inicial...",
+            attributes: [
+                .foregroundColor: NSColor(white: 0.85, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .medium)
+            ]
+        )
+        footerView.addSubview(obBtn)
+        
         let brandBtn = NSButton(title: "vh2c.com.br", target: self, action: #selector(brandClicked))
         brandBtn.isBordered = false
-        brandBtn.frame = NSRect(x: winW - 140, y: 18, width: 120, height: 20)
+        brandBtn.frame = NSRect(x: winW - 110, y: 18, width: 96, height: 20)
         brandBtn.attributedTitle = NSAttributedString(
             string: "vh2c.com.br",
             attributes: [
@@ -2943,6 +3016,265 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
+    // MARK: - Onboarding Window
+    @objc func openOnboardingFromSettings() {
+        settingsWindow?.orderOut(nil)
+        openOnboarding()
+    }
+    
+    @objc func openOnboarding() {
+        if onboardingWindow == nil {
+            let w: CGFloat = 520
+            let h: CGFloat = 530
+            let win = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: w, height: h),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            win.title = "AI Gauge - Assistente de Configuração"
+            win.backgroundColor = NSColor(srgbRed: 0x14/255.0, green: 0x14/255.0, blue: 0x18/255.0, alpha: 1.0)
+            win.isReleasedWhenClosed = false
+            win.level = .floating
+            win.center()
+            win.delegate = self
+            onboardingWindow = win
+        }
+        
+        guard let win = onboardingWindow else { return }
+        setupOnboardingUI(in: win)
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func setupOnboardingUI(in win: NSWindow) {
+        let winW = win.contentView!.bounds.width
+        
+        let colorBg = NSColor(srgbRed: 0x14/255.0, green: 0x14/255.0, blue: 0x18/255.0, alpha: 1.0)
+        let colorCard = NSColor(srgbRed: 0x1E/255.0, green: 0x1E/255.0, blue: 0x24/255.0, alpha: 1.0)
+        let colorBorder = NSColor(srgbRed: 0x2E/255.0, green: 0x2E/255.0, blue: 0x36/255.0, alpha: 1.0)
+        let colorSep = NSColor(srgbRed: 0x26/255.0, green: 0x26/255.0, blue: 0x2E/255.0, alpha: 1.0)
+        let colorGreen = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+        let colorGreenBg = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 0.12)
+        let colorGrayBg = NSColor(white: 0.25, alpha: 0.25)
+        
+        let mainView = FlippedContentView(frame: win.contentView!.bounds)
+        mainView.wantsLayer = true
+        mainView.layer?.backgroundColor = colorBg.cgColor
+        win.contentView = mainView
+        
+        // Header
+        let titleLabel = NSTextField(labelWithString: "⚡ AI Gauge - Configuração Inicial")
+        titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .bold)
+        titleLabel.textColor = .white
+        titleLabel.frame = NSRect(x: 24, y: 18, width: winW - 48, height: 22)
+        mainView.addSubview(titleLabel)
+        
+        let subLabel = NSTextField(wrappingLabelWithString: "Detectamos os aplicativos de IA disponíveis neste Mac. Selecione quais quotas você deseja monitorar no seu Cockpit:")
+        subLabel.font = NSFont.systemFont(ofSize: 11.5, weight: .regular)
+        subLabel.textColor = NSColor(white: 0.72, alpha: 1.0)
+        subLabel.frame = NSRect(x: 24, y: 44, width: winW - 48, height: 32)
+        mainView.addSubview(subLabel)
+        
+        let headerDiv = NSBox(frame: NSRect(x: 24, y: 82, width: winW - 48, height: 1))
+        headerDiv.boxType = .custom
+        headerDiv.fillColor = colorSep
+        headerDiv.borderColor = .clear
+        mainView.addSubview(headerDiv)
+        
+        // Detection checks
+        let hasAnti = QuotaManager.hasAntigravity()
+        let hasClaude = QuotaManager.hasClaudePro()
+        let hasChatgpt = QuotaManager.hasChatGPT()
+        let hasGemini = QuotaManager.hasGemini()
+        
+        let cardW = winW - 48
+        let cardH: CGFloat = 62
+        var cy: CGFloat = 94
+        
+        func buildAppCard(y: CGFloat, title: String, subtitle: String, detected: Bool, detectedText: String, defaultChecked: Bool) -> (NSView, NSButton) {
+            let card = FlippedBox(frame: NSRect(x: 24, y: y, width: cardW, height: cardH))
+            card.wantsLayer = true
+            card.layer?.backgroundColor = colorCard.cgColor
+            card.layer?.borderColor = colorBorder.cgColor
+            card.layer?.borderWidth = 1
+            card.layer?.cornerRadius = 8
+            
+            let btn = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+            btn.attributedTitle = NSAttributedString(
+                string: " " + title,
+                attributes: [
+                    .foregroundColor: NSColor.white,
+                    .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+                ]
+            )
+            btn.state = defaultChecked ? .on : .off
+            btn.frame = NSRect(x: 14, y: 12, width: 220, height: 20)
+            card.addSubview(btn)
+            
+            let desc = NSTextField(labelWithString: subtitle)
+            desc.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+            desc.textColor = NSColor(white: 0.55, alpha: 1.0)
+            desc.frame = NSRect(x: 36, y: 34, width: 280, height: 16)
+            card.addSubview(desc)
+            
+            // Badge
+            let badgeW: CGFloat = 145
+            let badgeH: CGFloat = 22
+            let badge = FlippedBox(frame: NSRect(x: cardW - badgeW - 14, y: 20, width: badgeW, height: badgeH))
+            badge.wantsLayer = true
+            badge.layer?.cornerRadius = 11
+            badge.layer?.backgroundColor = (detected ? colorGreenBg : colorGrayBg).cgColor
+            
+            let badgeLbl = NSTextField(labelWithString: detected ? detectedText : "○ Opcional")
+            badgeLbl.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
+            badgeLbl.textColor = detected ? colorGreen : NSColor(white: 0.6, alpha: 1.0)
+            badgeLbl.alignment = .center
+            badgeLbl.frame = NSRect(x: 0, y: 3, width: badgeW, height: 16)
+            badge.addSubview(badgeLbl)
+            
+            card.addSubview(badge)
+            return (card, btn)
+        }
+        
+        // 1. Antigravity
+        let (antiCard, antiBtn) = buildAppCard(
+            y: cy,
+            title: "Antigravity",
+            subtitle: "Google Antigravity IDE (Gemini, Claude, Argon)",
+            detected: hasAnti,
+            detectedText: "✓ Detectado no Mac",
+            defaultChecked: true
+        )
+        mainView.addSubview(antiCard)
+        self.obAntigravityCheck = antiBtn
+        cy += cardH + 10
+        
+        // 2. Claude
+        let (claudeCard, claudeBtn) = buildAppCard(
+            y: cy,
+            title: "Claude",
+            subtitle: "Anthropic Claude Pro & Code (5h e Semanal)",
+            detected: hasClaude,
+            detectedText: "✓ Sessão / Token Ativo",
+            defaultChecked: hasClaude
+        )
+        mainView.addSubview(claudeCard)
+        self.obClaudeCheck = claudeBtn
+        cy += cardH + 10
+        
+        // 3. ChatGPT
+        let (chatgptCard, chatgptBtn) = buildAppCard(
+            y: cy,
+            title: "ChatGPT",
+            subtitle: "OpenAI ChatGPT Plus & Pro (3h e Semanal)",
+            detected: hasChatgpt,
+            detectedText: "✓ Sessão Desktop Ativa",
+            defaultChecked: hasChatgpt
+        )
+        mainView.addSubview(chatgptCard)
+        self.obChatgptCheck = chatgptBtn
+        cy += cardH + 10
+        
+        // 4. Gemini
+        let (geminiCard, geminiBtn) = buildAppCard(
+            y: cy,
+            title: "Gemini",
+            subtitle: "Google AI Studio API (RPM, TPM, RPD)",
+            detected: hasGemini,
+            detectedText: "✓ Chave Configurada",
+            defaultChecked: hasGemini
+        )
+        mainView.addSubview(geminiCard)
+        self.obGeminiCheck = geminiBtn
+        cy += cardH + 16
+        
+        // Notice Info Box
+        let infoBox = FlippedBox(frame: NSRect(x: 24, y: cy, width: cardW, height: 46))
+        infoBox.wantsLayer = true
+        infoBox.layer?.backgroundColor = NSColor(srgbRed: 0x14/255.0, green: 0x22/255.0, blue: 0x36/255.0, alpha: 0.6).cgColor
+        infoBox.layer?.borderColor = NSColor(srgbRed: 0x20/255.0, green: 0x3A/255.0, blue: 0x5C/255.0, alpha: 0.8).cgColor
+        infoBox.layer?.borderWidth = 1
+        infoBox.layer?.cornerRadius = 6
+        
+        let infoLbl = NSTextField(wrappingLabelWithString: "💡 Você pode adicionar, remover ou ocultar gauges específicos a qualquer momento nas Configurações (⌘,) pelo ícone da barra de menus.")
+        infoLbl.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+        infoLbl.textColor = NSColor(srgbRed: 0x90/255.0, green: 0xC0/255.0, blue: 0xF0/255.0, alpha: 1.0)
+        infoLbl.frame = NSRect(x: 12, y: 7, width: cardW - 24, height: 32)
+        infoBox.addSubview(infoLbl)
+        mainView.addSubview(infoBox)
+        cy += 46 + 18
+        
+        // Footer Buttons
+        let allBtn = NSButton(title: "Ativar Todos", target: self, action: #selector(onboardingEnableAllClicked))
+        allBtn.isBordered = false
+        allBtn.wantsLayer = true
+        allBtn.layer?.backgroundColor = NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x30/255.0, alpha: 1.0).cgColor
+        allBtn.layer?.cornerRadius = 6
+        allBtn.frame = NSRect(x: 24, y: cy, width: 120, height: 36)
+        allBtn.attributedTitle = NSAttributedString(
+            string: "Ativar Todos",
+            attributes: [
+                .foregroundColor: NSColor(white: 0.9, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+            ]
+        )
+        mainView.addSubview(allBtn)
+        
+        let startBtn = NSButton(title: "Iniciar Cockpit 🚀", target: self, action: #selector(onboardingFinishClicked))
+        startBtn.isBordered = false
+        startBtn.wantsLayer = true
+        startBtn.layer?.backgroundColor = colorGreen.cgColor
+        startBtn.layer?.cornerRadius = 6
+        startBtn.frame = NSRect(x: winW - 24 - 190, y: cy, width: 190, height: 36)
+        startBtn.attributedTitle = NSAttributedString(
+            string: "Iniciar Cockpit 🚀",
+            attributes: [
+                .foregroundColor: NSColor(srgbRed: 0x10/255.0, green: 0x10/255.0, blue: 0x14/255.0, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
+            ]
+        )
+        mainView.addSubview(startBtn)
+    }
+    
+    @objc func onboardingFinishClicked() {
+        saveOnboardingSelection(all: false)
+    }
+    
+    @objc func onboardingEnableAllClicked() {
+        saveOnboardingSelection(all: true)
+    }
+    
+    func saveOnboardingSelection(all: Bool) {
+        var cfg = QuotaManager.loadConfig()
+        if cfg.providers == nil { cfg.providers = [:] }
+        
+        let antiEnabled = all ? true : (obAntigravityCheck?.state == .on)
+        let claudeEnabled = all ? true : (obClaudeCheck?.state == .on)
+        let chatgptEnabled = all ? true : (obChatgptCheck?.state == .on)
+        let geminiEnabled = all ? true : (obGeminiCheck?.state == .on)
+        
+        cfg.providers?["antigravity"] = ProviderConfig(enabled: antiEnabled, api_key: nil, token: nil)
+        cfg.providers?["claude_pro"] = ProviderConfig(enabled: claudeEnabled, api_key: nil, token: nil)
+        cfg.providers?["chatgpt_subscription"] = ProviderConfig(enabled: chatgptEnabled, api_key: nil, token: nil)
+        if cfg.providers?["gemini"] == nil {
+            cfg.providers?["gemini"] = ProviderConfig(enabled: geminiEnabled, api_key: "", token: nil)
+        } else {
+            cfg.providers?["gemini"]?.enabled = geminiEnabled
+        }
+        cfg.onboarding_completed = true
+        
+        QuotaManager.saveConfig(cfg)
+        UserDefaults.standard.set(true, forKey: "aigauge_onboarding_completed")
+        
+        onboardingWindow?.orderOut(nil)
+        onboardingWindow = nil
+        
+        switchToHudMode()
+        performRefresh(animated: true)
+        startAutoRefreshTimer()
+    }
+    
     @objc func closeClicked() {
         autoRefreshTimer?.invalidate()
         autoRefreshTimer = nil
@@ -2950,8 +3282,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func windowWillClose(_ notification: Notification) {
-        if let win = notification.object as? NSWindow, win == fullWindow {
-            closeClicked()
+        if let win = notification.object as? NSWindow {
+            if win == fullWindow {
+                closeClicked()
+            } else if win == onboardingWindow {
+                saveOnboardingSelection(all: false)
+            }
         }
     }
 }

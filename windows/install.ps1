@@ -1,10 +1,10 @@
-﻿# Gemini Gauge Windows Installer
+﻿# AI Gauge Windows Installer
 # Developed by VH2C • https://vh2c.com.br
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host " ⚡ Gemini Gauge - Instalador Windows (VH2C)" -ForegroundColor Cyan
+Write-Host " ⚡ AI Gauge - Instalador Windows (VH2C)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host ""
 
@@ -17,18 +17,107 @@ if (-not (Test-Path $TargetDir)) {
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoDir = Split-Path -Parent $ScriptDir
 
-# Check Node.js
+# ----------------------------------------------------
+# 1. SCAN DE APLICATIVOS DE IA INSTALADOS
+# ----------------------------------------------------
+Write-Host "🔍 Escaneando aplicativos e sessões de IA no computador..." -ForegroundColor Cyan
+
+$ConfigDir = Join-Path $env:USERPROFILE ".config\UniversalAIQuota"
+$ConfigFile = Join-Path $ConfigDir "config.json"
+if (-not (Test-Path $ConfigDir)) {
+    New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+}
+
+$HasAnti = $false
+$HasClaude = $false
+$HasChatGPT = $false
+$HasGemini = $false
+
+# 1. Antigravity
+if ((Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:USERPROFILE ".gemini\antigravity"))) {
+    $HasAnti = $true
+}
+
+# 2. Claude
+if ((Test-Path (Join-Path $env:USERPROFILE ".claude")) -or (Get-Command "claude.cmd" -ErrorAction SilentlyContinue) -or (Get-Command "claude.exe" -ErrorAction SilentlyContinue)) {
+    $HasClaude = $true
+}
+
+# 3. ChatGPT
+if ((Test-Path (Join-Path $env:USERPROFILE ".codex\auth.json")) -or (Test-Path (Join-Path $env:APPDATA "ChatGPT"))) {
+    $HasChatGPT = $true
+}
+
+# 4. Gemini
+if ($env:GEMINI_API_KEY) {
+    $HasGemini = $true
+}
+
+Write-Host "  [1] ⚡ Antigravity:       $(if ($HasAnti) {'✓ Detectado no sistema'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasAnti) {'Green'} else {'Gray'})
+Write-Host "  [2] 🟣 Claude (Pro/Code): $(if ($HasClaude) {'✓ Sessão / Token detectado'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasClaude) {'Green'} else {'Gray'})
+Write-Host "  [3] 🟢 ChatGPT (Desktop): $(if ($HasChatGPT) {'✓ Sessão Desktop / Codex detectada'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasChatGPT) {'Green'} else {'Gray'})
+Write-Host "  [4] 🔷 Gemini (Studio):   $(if ($HasGemini) {'✓ Chave configurada'} else {'○ Chave de API (opcional)'})" -ForegroundColor $(if ($HasGemini) {'Green'} else {'Gray'})
+Write-Host ""
+
+$EnableAnti = $true
+$EnableClaude = $HasClaude
+$EnableChatGPT = $HasChatGPT
+$EnableGemini = $HasGemini
+
+# Check if interactive
+$IsInteractive = [Environment]::UserInteractive
+if ($IsInteractive -and ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup"))) {
+    Write-Host "📋 Quais quotas você deseja monitorar no seu AI Gauge?" -ForegroundColor Yellow
+    Write-Host "   Pressione ENTER para monitorar todos os detectados [Recomendado]," -ForegroundColor Gray
+    Write-Host "   ou digite os números desejados separados por vírgula (ex: 1,2,3):" -ForegroundColor Gray
+    $UserChoice = Read-Host "   Sua escolha [Padrão: Detectados]"
+    
+    if (-not [string]::IsNullOrWhiteSpace($UserChoice)) {
+        $EnableAnti = $UserChoice -match "1"
+        $EnableClaude = $UserChoice -match "2"
+        $EnableChatGPT = $UserChoice -match "3"
+        $EnableGemini = $UserChoice -match "4"
+    }
+    Write-Host ""
+    Write-Host "💡 Informação: Você poderá adicionar ou excluir itens a qualquer momento depois no menu de configurações do app." -ForegroundColor Cyan
+    Write-Host ""
+}
+
+if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
+    $CfgObj = @{
+        providers = @{
+            antigravity = @{ enabled = [bool]$EnableAnti }
+            claude_pro = @{ enabled = [bool]$EnableClaude }
+            chatgpt_subscription = @{ enabled = [bool]$EnableChatGPT }
+            gemini = @{ enabled = [bool]$EnableGemini; api_key = if ($env:GEMINI_API_KEY) { $env:GEMINI_API_KEY } else { "" } }
+            openai = @{ enabled = $false; api_key = "" }
+            anthropic = @{ enabled = $false; api_key = "" }
+        }
+        refresh_interval_seconds = 30
+        hidden_hud_gauges = @()
+        onboarding_completed = $true
+    }
+    $CfgJson = $CfgObj | ConvertTo-Json -Depth 5
+    [IO.File]::WriteAllText($ConfigFile, $CfgJson, [Text.Encoding]::UTF8)
+    Write-Host "✅ Configuração inicial gravada com sucesso em ~/.config/UniversalAIQuota/config.json!" -ForegroundColor Green
+}
+
+# ----------------------------------------------------
+# 2. VERIFICAÇÃO DE DEPENDÊNCIAS
+# ----------------------------------------------------
 $NodeCmd = Get-Command "node.exe" -ErrorAction SilentlyContinue
 if (-not $NodeCmd) {
     Write-Host "⚠️  Node.js (v18+) não foi detectado no sistema." -ForegroundColor Yellow
-    Write-Host "   O Gemini Gauge precisa do Node.js para agregar as cotas." -ForegroundColor Yellow
+    Write-Host "   O AI Gauge precisa do Node.js para agregar as cotas." -ForegroundColor Yellow
     Write-Host "   Baixe e instale gratuitamente em: https://nodejs.org" -ForegroundColor Cyan
     Write-Host ""
 } else {
     Write-Host "✅ Node.js detectado: $(& node -v)" -ForegroundColor Green
 }
 
-# Copy core engine and files
+# ----------------------------------------------------
+# 3. INSTALAÇÃO DOS ARQUIVOS
+# ----------------------------------------------------
 Write-Host "📦 Instalando arquivos em $TargetDir..." -ForegroundColor Gray
 Copy-Item -Path (Join-Path $RepoDir "core") -Destination $TargetDir -Recurse -Force
 Copy-Item -Path (Join-Path $ScriptDir "*") -Destination $TargetDir -Recurse -Force
@@ -42,26 +131,26 @@ $IconPath = Join-Path $TargetDir "icon.ico"
 
 # 1. Desktop Shortcut
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
-$DesktopShortcut = $WshShell.CreateShortcut((Join-Path $DesktopDir "Gemini Gauge.lnk"))
+$DesktopShortcut = $WshShell.CreateShortcut((Join-Path $DesktopDir "AI Gauge.lnk"))
 $DesktopShortcut.TargetPath = "wscript.exe"
 $DesktopShortcut.Arguments = "`"$TargetDir\GeminiGauge.vbs`""
 $DesktopShortcut.WorkingDirectory = $TargetDir
 $DesktopShortcut.IconLocation = "$IconPath,0"
-$DesktopShortcut.Description = "Gemini Gauge - AI Quota & Rate Limit Monitor (VH2C)"
+$DesktopShortcut.Description = "AI Gauge - AI Quota & Rate Limit Monitor (VH2C)"
 $DesktopShortcut.Save()
 
 # 2. Start Menu Shortcut
 $StartMenuDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
-$StartShortcut = $WshShell.CreateShortcut((Join-Path $StartMenuDir "Gemini Gauge.lnk"))
+$StartShortcut = $WshShell.CreateShortcut((Join-Path $StartMenuDir "AI Gauge.lnk"))
 $StartShortcut.TargetPath = "wscript.exe"
 $StartShortcut.Arguments = "`"$TargetDir\GeminiGauge.vbs`""
 $StartShortcut.WorkingDirectory = $TargetDir
 $StartShortcut.IconLocation = "$IconPath,0"
-$StartShortcut.Description = "Gemini Gauge - AI Quota & Rate Limit Monitor (VH2C)"
+$StartShortcut.Description = "AI Gauge - AI Quota & Rate Limit Monitor (VH2C)"
 $StartShortcut.Save()
 
 Write-Host "✅ Atalhos criados com sucesso na Área de Trabalho e no Menu Iniciar!" -ForegroundColor Green
-Write-Host "🚀 Iniciando o Gemini Gauge..." -ForegroundColor Cyan
+Write-Host "🚀 Iniciando o AI Gauge..." -ForegroundColor Cyan
 
 Start-Process "wscript.exe" -ArgumentList "`"$TargetDir\GeminiGauge.vbs`""
 

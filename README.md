@@ -55,6 +55,16 @@ As informações no HUD lateral flutuante são agrupadas por aplicativo/provedor
 
 ---
 
+## 🧙‍♂️ Assistente de Boas-Vindas & Auto-Scan (Onboarding Wizard)
+
+Ao instalar ou iniciar o **AI Gauge** pela primeira vez, o assistente inteligente faz uma varredura automática do seu sistema:
+* **Scan de Provedores:** Identifica se **Antigravity**, **Claude** (Claude Code/Keychain) e **ChatGPT** (sessão Desktop) já estão presentes na sua máquina.
+* **Seleção Inicial Intuitiva:** Apresenta uma janela elegante de configuração rápida perguntando quais quotas você deseja monitorar no seu Cockpit.
+* **Flexibilidade Total:** Você pode marcar ou desmarcar provedores a qualquer momento posteriormente através de **Configurações (⌘,)** ou pelo ícone da barra de status.
+* **Modo Terminal / CLI:** Os scripts de instalação (`install.sh` / `install.ps1`) também incluem o assistente interativo no terminal!
+
+---
+
 ## 🔋 Como Ler os Marcadores (Escala de Combustível)
 
 Todos os relógios (gauges analógicos) do AI GAUGE operam como um **marcador de bateria ou combustível**:

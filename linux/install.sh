@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo " ⚡ Gemini Gauge - AI Quota Monitor (Linux Auto-Installer)"
+echo " ⚡ AI Gauge - Monitor Inteligente de Quotas (Linux)"
 echo " Developed by VH2C • https://vh2c.com.br"
 echo "=========================================================="
 echo ""
@@ -124,7 +124,96 @@ if [ "${NODE_AVAILABLE}" -eq 0 ]; then
     fi
 fi
 
-# 7. Install Gemini Gauge application files
+# 7. Scan de Provedores e Configuração Inicial
+echo ""
+echo "=========================================================="
+echo " 🔍 Escaneando aplicativos de Inteligência Artificial..."
+echo "=========================================================="
+
+CONFIG_DIR="${HOME}/.config/UniversalAIQuota"
+CONFIG_FILE="${CONFIG_DIR}/config.json"
+mkdir -p "${CONFIG_DIR}"
+
+HAS_ANTIGRAVITY=false
+HAS_CLAUDE=false
+HAS_CHATGPT=false
+HAS_GEMINI=false
+
+if pgrep -i antigravity >/dev/null 2>&1 || [ -d "$HOME/.gemini/antigravity" ]; then
+    HAS_ANTIGRAVITY=true
+fi
+
+if [ -d "$HOME/.claude" ] || command -v claude >/dev/null 2>&1; then
+    HAS_CLAUDE=true
+fi
+
+if [ -f "$HOME/.codex/auth.json" ] || [ -d "$HOME/.config/ChatGPT" ]; then
+    HAS_CHATGPT=true
+fi
+
+if [ -n "$GEMINI_API_KEY" ]; then
+    HAS_GEMINI=true
+elif [ -f "$CONFIG_FILE" ] && grep -A 3 '"gemini"' "$CONFIG_FILE" 2>/dev/null | grep -q '"api_key": "[^"]\+'; then
+    HAS_GEMINI=true
+fi
+
+echo "  [1] ⚡ Antigravity:       $([ "$HAS_ANTIGRAVITY" = true ] && echo "✓ Detectado no sistema" || echo "○ Não detectado (opcional)")"
+echo "  [2] 🟣 Claude (Pro/Code): $([ "$HAS_CLAUDE" = true ] && echo "✓ Sessão / Token detectado" || echo "○ Não detectado (opcional)")"
+echo "  [3] 🟢 ChatGPT (Desktop): $([ "$HAS_CHATGPT" = true ] && echo "✓ Sessão Desktop / Codex detectada" || echo "○ Não detectado (opcional)")"
+echo "  [4] 🔷 Gemini (Studio):   $([ "$HAS_GEMINI" = true ] && echo "✓ Chave configurada" || echo "○ Chave de API (opcional)")"
+echo ""
+
+ENABLE_ANTI=true
+ENABLE_CLAUDE=$HAS_CLAUDE
+ENABLE_CHATGPT=$HAS_CHATGPT
+ENABLE_GEMINI=$HAS_GEMINI
+
+if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
+    echo "📋 Quais quotas você deseja monitorar no seu AI Gauge?"
+    echo "   Pressione ENTER para monitorar todos os detectados [Recomendado],"
+    echo "   ou digite os números desejados separados por vírgula (ex: 1,2,3):"
+    read -r -p "   Sua escolha [Padrão: Detectados]: " USER_CHOICE
+    
+    if [ -n "$USER_CHOICE" ]; then
+        ENABLE_ANTI=false
+        ENABLE_CLAUDE=false
+        ENABLE_CHATGPT=false
+        ENABLE_GEMINI=false
+        [[ "$USER_CHOICE" =~ 1 ]] && ENABLE_ANTI=true
+        [[ "$USER_CHOICE" =~ 2 ]] && ENABLE_CLAUDE=true
+        [[ "$USER_CHOICE" =~ 3 ]] && ENABLE_CHATGPT=true
+        [[ "$USER_CHOICE" =~ 4 ]] && ENABLE_GEMINI=true
+    fi
+    echo ""
+    echo "💡 Informação: Você poderá adicionar ou excluir itens a qualquer momento depois nas configurações do app."
+    echo ""
+fi
+
+if [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; then
+    python3 -c "
+import json, os
+p = '$CONFIG_FILE'
+cfg = {
+    'providers': {
+        'antigravity': {'enabled': $ENABLE_ANTI},
+        'claude_pro': {'enabled': $ENABLE_CLAUDE},
+        'chatgpt_subscription': {'enabled': $ENABLE_CHATGPT},
+        'gemini': {'enabled': $ENABLE_GEMINI, 'api_key': os.environ.get('GEMINI_API_KEY', '')},
+        'openai': {'enabled': False, 'api_key': ''},
+        'anthropic': {'enabled': False, 'api_key': ''}
+    },
+    'refresh_interval_seconds': 30,
+    'hidden_hud_gauges': [],
+    'onboarding_completed': True
+}
+os.makedirs(os.path.dirname(p), exist_ok=True)
+with open(p, 'w') as f:
+    json.dump(cfg, f, indent=2)
+print('✅ Configuração inicial gravada com sucesso em ~/.config/UniversalAIQuota/config.json!')
+"
+fi
+
+# 8. Install AI Gauge application files
 echo ""
 echo "🚀 Instalando arquivos do Gemini Gauge..."
 cp -r "${REPO_DIR}/core" "${TARGET_DIR}/"

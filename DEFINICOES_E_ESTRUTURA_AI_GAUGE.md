@@ -27,6 +27,12 @@ O projeto evoluiu de um monitor focado em Gemini para um cockpit universal de co
 * **Gemini (API):** Preenchimento manual da chave de API (`AIzaSy...`).
 * **Escala dos Relógios:** Modo tacômetro/marcador de combustível (100% = tanque cheio / cota restante, 0% = esgotado). Inverte a lógica de exibição de apps que mostram % consumida para garantir leitura intuitiva de disponibilidade.
 
+### 1.2 Assistente de Boas-Vindas & Auto-Scan (Onboarding Wizard)
+* **Scan Automático de Provedores:** Na primeira execução ou instalação, o sistema faz uma varredura automática nos serviços instalados (Antigravity, Claude, ChatGPT, Gemini).
+* **Seleção de Quotas Inicial:** Interface gráfica (AppKit no Mac) ou terminal interativo (Linux/Windows) questiona ao usuário quais serviços ele deseja monitorar no seu Cockpit.
+* **Pre-configuração Transparente:** Grava imediatamente `~/.config/UniversalAIQuota/config.json` e marca `onboarding_completed: true`, deixando o app 100% funcional sem exigir setup posterior.
+* **Flexibilidade Total:** O usuário é informado de que pode adicionar, excluir ou ocultar gauges específicos a qualquer momento no menu de **Configurações (⌘,)**.
+
 ---
 
 ## 2. Estrutura de Diretórios no Repositório Central
