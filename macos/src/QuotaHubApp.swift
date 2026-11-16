@@ -19,6 +19,11 @@ struct Group: Codable {
 
 class UrlButton: NSButton {
     var targetUrl: String?
+    
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
 }
 
 struct UpdateInfo: Codable {
@@ -1543,15 +1548,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 container.addSubview(scrollView)
             }
             
+            let annUrl = quota.announcement?.action_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveAnnUrl = (annUrl != nil && !annUrl!.isEmpty) ? annUrl : nil
+            let updateUrl = quota.update?.download_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveUpdateUrl = (updateUrl != nil && !updateUrl!.isEmpty) ? updateUrl : nil
+            let versionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
             let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
-            let versionUrl = (quota.announcement?.type == "versao" ? quota.announcement?.action_url : nil) ?? quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
             
             if hasVersionNotice {
                 let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
                 upBtn.isBordered = false
                 upBtn.targetUrl = versionUrl
                 upBtn.frame = NSRect(x: 2, y: 3, width: hudW - 4, height: 16)
-                upBtn.toolTip = "Nova versão disponível. Clique para baixar."
+                upBtn.toolTip = "Nova versão disponível. Clique para baixar agora."
                 upBtn.attributedTitle = NSAttributedString(
                     string: "● NOVA VERSÃO",
                     attributes: [
@@ -1656,15 +1665,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             container.addSubview(menuBtn)
             
+            let annUrl = quota.announcement?.action_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveAnnUrl = (annUrl != nil && !annUrl!.isEmpty) ? annUrl : nil
+            let updateUrl = quota.update?.download_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveUpdateUrl = (updateUrl != nil && !updateUrl!.isEmpty) ? updateUrl : nil
+            let versionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
             let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
-            let versionUrl = (quota.announcement?.type == "versao" ? quota.announcement?.action_url : nil) ?? quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
             
             if hasVersionNotice {
                 let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
                 upBtn.isBordered = false
                 upBtn.targetUrl = versionUrl
                 upBtn.frame = NSRect(x: 12, y: 2, width: 100, height: 14)
-                upBtn.toolTip = "Nova versão disponível. Clique para baixar."
+                upBtn.toolTip = "Nova versão disponível. Clique para baixar agora."
                 upBtn.attributedTitle = NSAttributedString(
                     string: "● NOVA VERSÃO",
                     attributes: [
@@ -1921,8 +1934,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             PromoDockManager.shared.presentIfNeeded(ann)
         } else if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
             let isVersao = (ann.type == "versao")
-            let hasAction = (ann.action_label != nil && !ann.action_label!.isEmpty) || (ann.action_url != nil && !ann.action_url!.isEmpty)
-            let annH: CGFloat = hasAction ? 92 : 64
+            let annUrl = ann.action_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveAnnUrl = (annUrl != nil && !annUrl!.isEmpty) ? annUrl : nil
+            let updateUrl = quota.update?.download_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveUpdateUrl = (updateUrl != nil && !updateUrl!.isEmpty) ? updateUrl : nil
+            let defaultVersionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            
+            let hasAction = isVersao || (ann.action_label != nil && !ann.action_label!.isEmpty) || (effectiveAnnUrl != nil)
+            let annH: CGFloat = hasAction ? 100 : 64
             let annBox = FlippedBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: annH))
             annBox.boxType = .custom
             
@@ -1953,32 +1972,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let msgLabel = NSTextField(wrappingLabelWithString: msg)
             msgLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
             msgLabel.textColor = NSColor(white: 0.85, alpha: 1.0)
-            msgLabel.frame = NSRect(x: 12, y: 28, width: annBox.frame.width - 24, height: 32)
+            msgLabel.frame = NSRect(x: 12, y: 28, width: annBox.frame.width - 24, height: 30)
             annBox.addSubview(msgLabel)
             
-            // 3. Action Button (Green for Versão, Amber for Info)
+            // 3. Action Button (Botão 'Baixar Agora' para Versão; ou 'Ver Detalhes' para Info)
             if hasAction {
-                let defaultLabel = isVersao ? "Baixar Atualização" : "Ver Detalhes"
+                let defaultLabel = isVersao ? "Baixar Agora" : "Ver Detalhes"
                 let actLabel = (ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : defaultLabel
-                let defaultUrl = isVersao ? (quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest") : "https://vh2c.com.br"
-                let actUrl = (ann.action_url != nil && !ann.action_url!.isEmpty) ? ann.action_url! : defaultUrl
+                let actUrl = isVersao ? defaultVersionUrl : (effectiveAnnUrl ?? "https://vh2c.com.br")
                 
-                let actBtn = UrlButton(frame: NSRect(x: 12, y: 64, width: 220, height: 18))
-                actBtn.bezelStyle = .inline
-                actBtn.isBordered = false
-                let btnColor = isVersao
-                    ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
-                    : NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 1.0)
-                actBtn.attributedTitle = NSAttributedString(
-                    string: "\(actLabel) →",
-                    attributes: [
-                        .foregroundColor: btnColor,
-                        .font: NSFont.systemFont(ofSize: 10.5, weight: .bold)
-                    ]
-                )
-                actBtn.targetUrl = actUrl
+                let actBtn = UrlButton(frame: NSRect(x: 12, y: 64, width: 130, height: 25))
                 actBtn.target = self
                 actBtn.action = #selector(openExternalUrl(_:))
+                actBtn.targetUrl = actUrl
+                actBtn.wantsLayer = true
+                actBtn.isBordered = false
+                actBtn.layer?.cornerRadius = 5
+                
+                if isVersao {
+                    actBtn.layer?.backgroundColor = NSColor(srgbRed: 0x10/255.0, green: 0xB9/255.0, blue: 0x81/255.0, alpha: 0.22).cgColor
+                    actBtn.layer?.borderColor = NSColor(srgbRed: 0x10/255.0, green: 0xB9/255.0, blue: 0x81/255.0, alpha: 0.7).cgColor
+                    actBtn.layer?.borderWidth = 1.0
+                    actBtn.attributedTitle = NSAttributedString(
+                        string: "\(actLabel) →",
+                        attributes: [
+                            .foregroundColor: NSColor(srgbRed: 0x34/255.0, green: 0xD3/255.0, blue: 0x99/255.0, alpha: 1.0),
+                            .font: NSFont.systemFont(ofSize: 11.0, weight: .bold)
+                        ]
+                    )
+                } else {
+                    actBtn.layer?.backgroundColor = NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 0.22).cgColor
+                    actBtn.layer?.borderColor = NSColor(srgbRed: 0xF5/255.0, green: 0x9E/255.0, blue: 0x0B/255.0, alpha: 0.7).cgColor
+                    actBtn.layer?.borderWidth = 1.0
+                    actBtn.attributedTitle = NSAttributedString(
+                        string: "\(actLabel) →",
+                        attributes: [
+                            .foregroundColor: NSColor(srgbRed: 0xFB/255.0, green: 0xBF/255.0, blue: 0x24/255.0, alpha: 1.0),
+                            .font: NSFont.systemFont(ofSize: 11.0, weight: .bold)
+                        ]
+                    )
+                }
                 annBox.addSubview(actBtn)
             }
             
@@ -2280,38 +2313,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         mainView.addSubview(closeBtn)
         
-        // ----------------- RODAPÉ (Linha 2: Menção vh2c.com.br ou Nova Versão) -----------------
-        let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
-        let versionUrl = (quota.announcement?.type == "versao" ? quota.announcement?.action_url : nil) ?? quota.update?.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
-
-        if hasVersionNotice {
-            let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
-            upBtn.isBordered = false
-            upBtn.targetUrl = versionUrl
-            upBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
-            upBtn.toolTip = "Nova versão disponível. Clique para baixar."
-            upBtn.attributedTitle = NSAttributedString(
-                string: "● Nova Versão Disponível • Clique para baixar",
-                attributes: [
-                    .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
-                    .font: NSFont.systemFont(ofSize: 11.5, weight: .bold)
-                ]
-            )
-            mainView.addSubview(upBtn)
-        } else {
-            let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
-            brandBtn.isBordered = false
-            brandBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
-            brandBtn.toolTip = "Acesse vh2c.com.br"
-            brandBtn.attributedTitle = NSAttributedString(
-                string: "Desenvolvido por vh2c.com.br",
-                attributes: [
-                    .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.95),
-                    .font: NSFont.systemFont(ofSize: 12.0, weight: .semibold)
-                ]
-            )
-            mainView.addSubview(brandBtn)
-        }
+        // ----------------- RODAPÉ (Linha 2: Menção vh2c.com.br SEMPRE padrão) -----------------
+        let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
+        brandBtn.isBordered = false
+        brandBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
+        brandBtn.toolTip = "Acesse vh2c.com.br"
+        brandBtn.attributedTitle = NSAttributedString(
+            string: "Desenvolvido por vh2c.com.br",
+            attributes: [
+                .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 0.95),
+                .font: NSFont.systemFont(ofSize: 12.0, weight: .semibold)
+            ]
+        )
+        mainView.addSubview(brandBtn)
         
         if isFirstLaunch {
             isFirstLaunch = false
@@ -2913,9 +2927,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
-    @objc func openExternalUrl(_ sender: UrlButton) {
-        if let urlStr = sender.targetUrl, let url = URL(string: urlStr) {
+    @objc func openExternalUrl(_ sender: Any?) {
+        var target: String?
+        if let btn = sender as? UrlButton {
+            target = btn.targetUrl
+        }
+        let urlStr = target?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let s = urlStr, !s.isEmpty, let url = URL(string: s) {
             NSWorkspace.shared.open(url)
+        } else if let fallback = URL(string: "https://github.com/vh2c/gemini-gauge/releases/latest") {
+            NSWorkspace.shared.open(fallback)
         }
     }
     
