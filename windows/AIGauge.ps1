@@ -7,6 +7,20 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+# Set AppUserModelID so Windows Taskbar identifies AI Gauge with its own icon
+try {
+    $typeDef = @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32AppId {
+    [DllImport("shell32.dll", SetLastError = true)]
+    public static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+}
+"@
+    Add-Type -TypeDefinition $typeDef -ErrorAction SilentlyContinue
+    [Win32AppId]::SetCurrentProcessExplicitAppUserModelID("VH2C.AIGauge.Cockpit.1.1")
+} catch {}
+
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
@@ -226,7 +240,7 @@ function Get-QuotaData ($force = $false) {
                 <!-- Custom Cockpit TitleBar -->
                 <Grid Name="CockpitTitleBar" Grid.Row="0" Height="32" Background="Transparent" Margin="0,0,0,4">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="⚡" Foreground="#00E699" FontSize="13" Margin="0,0,6,0"/>
+                        <Image Name="AppLogo" Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
                         <TextBlock Text="AI Gauge" Foreground="#00E699" FontSize="13.5" FontWeight="Bold"/>
                         <TextBlock Text=" • Universal AI Quota Cockpit" Foreground="#9CA3AF" FontSize="12.5" FontWeight="SemiBold"/>
                     </StackPanel>
@@ -299,14 +313,17 @@ function Get-QuotaData ($force = $false) {
 $reader = (New-Object System.Xml.XmlNodeReader $xaml)
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
-# Set Window Icon
+# Set Window and Logo Icon
 $iconFile = Join-Path $ScriptDir "icon.ico"
 if (-not (Test-Path $iconFile)) {
     $iconFile = Join-Path $RepoDir "assets\icon.ico"
 }
 if (Test-Path $iconFile) {
     try {
-        $window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create($iconFile)
+        $frame = [System.Windows.Media.Imaging.BitmapFrame]::Create($iconFile)
+        $window.Icon = $frame
+        $appLogo = $window.FindName("AppLogo")
+        if ($appLogo) { $appLogo.Source = $frame }
     } catch {}
 }
 

@@ -117,10 +117,6 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
         hidden_hud_gauges = @()
         onboarding_completed = $true
     }
-        refresh_interval_seconds = 30
-        hidden_hud_gauges = @()
-        onboarding_completed = $true
-    }
     $CfgJson = $CfgObj | ConvertTo-Json -Depth 5
     [IO.File]::WriteAllText($ConfigFile, $CfgJson, [Text.Encoding]::UTF8)
     Write-Host "✅ Configuração inicial gravada com sucesso em ~/.config/UniversalAIQuota/config.json!" -ForegroundColor Green
