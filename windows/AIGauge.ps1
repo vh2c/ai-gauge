@@ -287,12 +287,22 @@ function New-DemoData {
         account = "demo@aigauge.test  (MODO DEMO)"
         plan = "DEMO"
         updated_at = (Get-Date -Format "HH:mm:ss")
+        tier = "free"
+        # Two independent components (like the real API): `announcement` = version notice banner, `promo` = ad toast
         announcement = @{
-            type = "info"
-            title = "Help AI GAUGE developers team"
-            message = "AI GAUGE is developed by independent developers. Support this initiative by making a donation of any amount."
-            action_label = "MAKE A DONATION!"
-            action_url = "https://ai-gauge.vh2c.com.br/donate"
+            type = "versao"
+            title = "Versão 2.1 Disponível"
+            message = "Baixe agora a versão mais recente."
+            action_label = "Baixar Atualização"
+            action_url = "https://github.com/vh2c/gemini-gauge/releases/latest"
+        }
+        promo = @{
+            type = "publicidade"
+            title = "Super Oferta"
+            message = "Somente hoje você compra sua licença PRO por apenas R$ 10.00"
+            action_label = "Quero a oferta"
+            action_url = "https://ai-gauge.vh2c.com.br/donate?mid={machine_id}"
+            duracao_segundos = 5
         }
         groups = @(
             @{ name = "Antigravity"; provider = "Antigravity (Live)"; buckets = @(
@@ -741,6 +751,305 @@ $window.Add_KeyDown({
     }
 })
 
+$global:FixedFreeTitle = "Help AI GAUGE developers team"
+
+# Builds one top-of-window notice banner (info = amber, versao = green), identical to the macOS one.
+function New-NoticeBanner ($ann, $data) {
+    $isVersao = ("$($ann.type)" -eq "versao")
+    $mk = { param($a, $r, $g, $b) New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb($a, $r, $g, $b)) }
+    if ($isVersao) {
+        $fill = & $mk 0x80 0x06 0x2A 0x1E;  $border = & $mk 0x99 0x10 0xB9 0x81
+        $titleC = & $mk 0xFF 0x34 0xD3 0x99; $btnFill = & $mk 0x38 0x10 0xB9 0x81; $btnBorder = & $mk 0xB3 0x10 0xB9 0x81
+    } else {
+        $fill = & $mk 0x80 0x2D 0x24 0x18;  $border = & $mk 0x99 0xF5 0x9E 0x0B
+        $titleC = & $mk 0xFF 0xFB 0xBF 0x24; $btnFill = & $mk 0x38 0xF5 0x9E 0x0B; $btnBorder = & $mk 0xB3 0xF5 0x9E 0x0B
+    }
+
+    $annBorder = New-Object System.Windows.Controls.Border
+    $annBorder.Background = $fill
+    $annBorder.BorderBrush = $border
+    $annBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
+    $annBorder.CornerRadius = (New-Object System.Windows.CornerRadius(8))
+    $annBorder.Padding = (New-Object System.Windows.Thickness(16, 12, 16, 14))
+    $annBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 12))
+
+    $annStack = New-Object System.Windows.Controls.StackPanel
+
+    $annHead = New-Object System.Windows.Controls.TextBlock
+    $annHead.Text = if ($ann.title) { "$($ann.title)" } elseif ($isVersao) { "Nova Versão Disponível" } else { "Informativo" }
+    $annHead.FontWeight = [System.Windows.FontWeights]::Bold
+    $annHead.FontSize = 14
+    $annHead.Foreground = $titleC
+    $annStack.Children.Add($annHead) | Out-Null
+
+    $annMsg = New-Object System.Windows.Controls.TextBlock
+    $annMsg.Text = "$($ann.message)"
+    $annMsg.TextWrapping = [System.Windows.TextWrapping]::Wrap
+    $annMsg.FontSize = 12.5
+    $annMsg.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD9, 0xD9, 0xD9)))
+    $annMsg.Margin = (New-Object System.Windows.Thickness(0, 4, 0, 0))
+    $annStack.Children.Add($annMsg) | Out-Null
+
+    $versionBtn = $null
+    $annUrl = "$($ann.action_url)".Trim()
+    $hasAction = $isVersao -or ($ann.action_label -and "$($ann.action_label)".Trim()) -or $annUrl
+    if ($hasAction) {
+        $defaultLabel = if ($isVersao) { "Download Now" } else { "View Details" }
+        $actLabel = if ($ann.action_label -and "$($ann.action_label)".Trim()) { "$($ann.action_label)".Trim() } else { $defaultLabel }
+        $arrow = [string][char]0x2192
+        $btnText = if ($actLabel.EndsWith("!") -or $actLabel.Contains($arrow)) { $actLabel } else { "$actLabel $arrow" }
+
+        $updUrl = if ($data -and $data.update) { "$($data.update.download_url)".Trim() } else { "" }
+        $target = if ($isVersao) {
+            if ($annUrl) { $annUrl } elseif ($updUrl) { $updUrl } else { "https://github.com/vh2c/gemini-gauge/releases/latest" }
+        } else {
+            if ($annUrl) { $annUrl } else { "https://ai-gauge.vh2c.com.br/donate" }
+        }
+        if ($target -match '\{machine_id\}') {
+            $midv = ""
+            if (Test-Path $DeviceIdFile) { $midv = (Get-Content $DeviceIdFile -Raw).Trim() }
+            $target = $target.Replace("{machine_id}", $midv)
+        }
+
+        $btnAct = New-Object System.Windows.Controls.Button
+        $btnAct.Content = $btnText
+        $btnAct.Tag = $target
+        $btnAct.MinWidth = 190
+        $btnAct.Height = 30
+        $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        $btnAct.Margin = (New-Object System.Windows.Thickness(0, 10, 0, 0))
+        $btnAct.Padding = (New-Object System.Windows.Thickness(18, 0, 18, 0))
+        $btnAct.Background = $btnFill
+        $btnAct.BorderBrush = $btnBorder
+        $btnAct.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $btnAct.Foreground = $titleC
+        $btnAct.FontWeight = [System.Windows.FontWeights]::Bold
+        $btnAct.FontSize = 12.5
+        $btnAct.Cursor = [System.Windows.Input.Cursors]::Hand
+        # URL kept in Tag: this function's locals are gone by the time the click happens
+        $btnAct.Add_Click({ param($sender, $e) try { [System.Diagnostics.Process]::Start("$($sender.Tag)") } catch { Write-AppError $_.Exception } })
+        if ($isVersao) {
+            # Compact strip: button on the right, vertically centered
+            $btnAct.MinWidth = 160
+            $btnAct.Margin = (New-Object System.Windows.Thickness(14, 0, 0, 0))
+            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+            $btnAct.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+            $versionBtn = $btnAct
+        } else {
+            $annStack.Children.Add($btnAct) | Out-Null
+        }
+    }
+
+    if ($isVersao -and $versionBtn) {
+        $annBorder.Padding = (New-Object System.Windows.Thickness(16, 10, 14, 10))
+        $vg = New-Object System.Windows.Controls.Grid
+        $vc1 = New-Object System.Windows.Controls.ColumnDefinition; $vc1.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
+        $vc2 = New-Object System.Windows.Controls.ColumnDefinition; $vc2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Auto)
+        $vg.ColumnDefinitions.Add($vc1)
+        $vg.ColumnDefinitions.Add($vc2)
+        $annStack.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        [System.Windows.Controls.Grid]::SetColumn($annStack, 0)
+        [System.Windows.Controls.Grid]::SetColumn($versionBtn, 1)
+        $vg.Children.Add($annStack) | Out-Null
+        $vg.Children.Add($versionBtn) | Out-Null
+        $annBorder.Child = $vg
+    } else {
+        $annBorder.Child = $annStack
+    }
+    return $annBorder
+}
+
+# Independent advertising toast (same card as the macOS "AI GAUGE - Advertising" window).
+$global:promoShownAt = $null
+$global:promoWindow = $null
+$global:promoRemaining = 0
+$global:promoTimer = $null
+
+function Close-PromoToast {
+    try { if ($global:promoTimer) { $global:promoTimer.Stop() } } catch {}
+    try { if ($global:promoWindow) { $global:promoWindow.Close() } } catch {}
+    $global:promoWindow = $null
+}
+
+$global:AppStartedAt = Get-Date
+$global:promoPending = $false
+$global:promoPendingAd = $null
+$global:promoDelayTimer = $null
+
+# Shows the ad at most once every 6h (also across restarts) and only 1 minute after the app opened.
+function Show-PromoToast ($ann) {
+    if (-not $ann -or $global:promoWindow -or $global:promoPending) { return }
+    $promoFile = Join-Path $ConfigDir "promo_last_shown"
+
+    $last = 0
+    if ($global:promoShownAt) { $last = [int][double]::Parse((Get-Date $global:promoShownAt -UFormat %s)) }
+    if (-not $DemoMode -and (Test-Path $promoFile)) {
+        try { $last = [Math]::Max($last, [int]((Get-Content $promoFile -Raw).Trim())) } catch {}
+    }
+    $nowEpoch = [int][double]::Parse((Get-Date -UFormat %s))
+    if ($last -gt 0 -and (($nowEpoch - $last) -lt 21600)) { return }
+
+    $initial = if ($DemoMode) { 6 } else { 60 }
+    $wait = [Math]::Max(0.2, $initial - ((Get-Date) - $global:AppStartedAt).TotalSeconds)
+    $global:promoPending = $true
+    $global:promoPendingAd = $ann
+    $global:promoDelayTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $global:promoDelayTimer.Interval = [TimeSpan]::FromSeconds($wait)
+    $global:promoDelayTimer.Add_Tick({
+        $global:promoDelayTimer.Stop()
+        $global:promoPending = $false
+        $global:promoShownAt = Get-Date
+        if (-not $DemoMode) {
+            try { Set-Content -Path (Join-Path $ConfigDir "promo_last_shown") -Value ([int][double]::Parse((Get-Date -UFormat %s))) -Encoding UTF8 } catch {}
+        }
+        Show-PromoToastNow $global:promoPendingAd
+    })
+    $global:promoDelayTimer.Start()
+}
+
+function Show-PromoToastNow ($ann) {
+    if (-not $ann -or $global:promoWindow) { return }
+    try {
+        [xml]$toastXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AI Gauge" Width="404" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="13" Opacity="1" Name="Bd">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Bd" Property="Opacity" Value="0.4"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Opacity" Value="0.88"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Border Margin="14" Background="#16171F" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="24" Padding="18,14,18,18">
+        <Border.Effect><DropShadowEffect BlurRadius="30" ShadowDepth="8" Opacity="0.6"/></Border.Effect>
+        <StackPanel>
+            <StackPanel Orientation="Horizontal" Height="20">
+                <Image Name="PromoIcon" Width="16" Height="16"/>
+                <TextBlock Text="AI GAUGE - ADVERTISING" Foreground="#94A3B8" FontSize="11.5" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+            <Border Name="MediaBox" Height="185" CornerRadius="16" ClipToBounds="True" Background="#0E1015" Margin="0,12,0,0" Visibility="Collapsed">
+                <Image Name="PromoImage" Stretch="UniformToFill"/>
+            </Border>
+            <TextBlock Name="PromoTitle" FontSize="19" FontWeight="Bold" Foreground="White" TextWrapping="Wrap" Margin="0,14,0,6"/>
+            <TextBlock Name="PromoText" FontSize="13.5" Foreground="#94A3B8" TextWrapping="Wrap" MaxHeight="62" TextTrimming="CharacterEllipsis" Margin="0,0,0,16"/>
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Button Name="BtnLater" Grid.Column="0" Height="44" Margin="0,0,5,0" Content="Agora não" Background="#14FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" Foreground="#E2E8F0" FontSize="14" FontWeight="SemiBold"/>
+                <Button Name="BtnPromo" Grid.Column="1" Height="44" Margin="5,0,0,0" Content="Ver Detalhes" BorderThickness="0" Foreground="White" FontSize="14" FontWeight="SemiBold">
+                    <Button.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#6366F1" Offset="0"/><GradientStop Color="#4F46E5" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Button.Background>
+                </Button>
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>
+"@
+        $tw = [System.Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $toastXaml))
+        $global:promoWindow = $tw
+
+        $tw.FindName("PromoTitle").Text = if ($ann.title) { "$($ann.title)" } else { "AI Gauge Pro" }
+        $tw.FindName("PromoText").Text = "$($ann.message)"
+
+        try {
+            if (Test-Path $iconFile) { $tw.FindName("PromoIcon").Source = [System.Windows.Media.Imaging.BitmapFrame]::Create($iconFile) }
+        } catch {}
+
+        # Optional image (loaded asynchronously; the box stays hidden if it fails)
+        $imgUrl = "$($ann.image_url)".Trim()
+        if ($imgUrl) {
+            if ($imgUrl.StartsWith("http://")) { $imgUrl = "https://" + $imgUrl.Substring(7) }
+            try {
+                $img = $tw.FindName("PromoImage")
+                $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
+                $bmp.BeginInit()
+                $bmp.UriSource = New-Object System.Uri($imgUrl)
+                $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+                $bmp.EndInit()
+                $img.Source = $bmp
+                if ("$($ann.image_fit)" -eq "contain") { $img.Stretch = [System.Windows.Media.Stretch]::Uniform }
+                $sc = 1.0
+                if ($ann.image_scale) { $sc = [double]$ann.image_scale }
+                if ($sc -ne 1.0) {
+                    $img.RenderTransformOrigin = New-Object System.Windows.Point(0.5, 0.5)
+                    $img.RenderTransform = New-Object System.Windows.Media.ScaleTransform($sc, $sc)
+                }
+                $img.Add_ImageFailed({ param($s, $e) $s.Parent.Visibility = [System.Windows.Visibility]::Collapsed })
+                $tw.FindName("MediaBox").Visibility = [System.Windows.Visibility]::Visible
+            } catch { Write-AppError $_.Exception }
+        }
+
+        # Action button (only when the ad has a link)
+        $btnPromo = $tw.FindName("BtnPromo")
+        $btnLater = $tw.FindName("BtnLater")
+        $actUrl = "$($ann.action_url)".Trim()
+        if ($actUrl) {
+            if ($actUrl -match '\{machine_id\}') {
+                $midp = ""
+                if (Test-Path $DeviceIdFile) { $midp = (Get-Content $DeviceIdFile -Raw).Trim() }
+                $actUrl = $actUrl.Replace("{machine_id}", $midp)
+            }
+            if ($ann.action_label -and "$($ann.action_label)".Trim()) { $btnPromo.Content = "$($ann.action_label)".Trim() }
+            $btnPromo.Tag = $actUrl
+            $btnPromo.Add_Click({
+                param($s, $e)
+                try { [System.Diagnostics.Process]::Start("$($s.Tag)") } catch { Write-AppError $_.Exception }
+                Close-PromoToast
+            })
+        } else {
+            $btnPromo.Visibility = [System.Windows.Visibility]::Collapsed
+            $btnLater.Margin = New-Object System.Windows.Thickness(0)
+            [System.Windows.Controls.Grid]::SetColumnSpan($btnLater, 2)
+        }
+
+        # "Agora não" is locked for duracao_segundos (countdown), like on macOS
+        $global:promoRemaining = if ($ann.duracao_segundos) { [int]$ann.duracao_segundos } else { 0 }
+        $btnLater.Add_Click({ param($s, $e) if ($global:promoRemaining -le 0) { Close-PromoToast } })
+        if ($global:promoRemaining -gt 0) {
+            $btnLater.IsEnabled = $false
+            $btnLater.Content = "Agora não ($($global:promoRemaining)s)"
+            $global:promoTimer = New-Object System.Windows.Threading.DispatcherTimer
+            $global:promoTimer.Interval = [TimeSpan]::FromSeconds(1)
+            $global:promoTimer.Add_Tick({
+                $global:promoRemaining--
+                $lb = $global:promoWindow.FindName("BtnLater")
+                if ($global:promoRemaining -le 0) {
+                    $global:promoTimer.Stop()
+                    $lb.IsEnabled = $true
+                    $lb.Content = "Agora não"
+                } else {
+                    $lb.Content = "Agora não ($($global:promoRemaining)s)"
+                }
+            })
+            $global:promoTimer.Start()
+        }
+
+        $tw.Add_MouseLeftButtonDown({ param($s, $e) try { $s.DragMove() } catch {} })
+        $tw.Add_Closed({ $global:promoWindow = $null })
+        $tw.Show()
+    } catch {
+        Write-AppError $_.Exception
+        $global:promoWindow = $null
+    }
+}
+
 # 5. Render Full Cockpit UI
 function Render-UI ($data) {
     $global:currentData = $data
@@ -921,93 +1230,36 @@ function Render-UI ($data) {
     $txtAcc.Text = "$($data.account)  •  Plano $($data.plan)"
     $txtUpdated.Text = "Atualizado às $($data.updated_at) ($cacheInfo)"
     
-    # ----------------- ANNOUNCEMENT / UPDATE BANNER (Mac-identical) -----------------
+    # ----------------- BANNERS (top of the window) + independent promo toast -----------------
     $ann = $data.announcement
     $annType = if ($ann) { "$($ann.type)" } else { "" }
-    $isVersao = ($annType -eq "versao")
-    $hasAnn = ($ann -and $ann.message -and "$($ann.message)".Trim())
+    $annIsAd = ($annType -eq "publicidade")
     $updAvail = ($data.update -and $data.update.update_available)
 
-    # A standalone "new version" notice is shown only when there is no announcement of its own
-    if ($updAvail -and -not $hasAnn) {
-        $isVersao = $true
-        $ann = @{ title = "Nova Versão Disponível"; message = "Versão $($data.update.latest_version) disponível para download."; action_label = "Download Now"; action_url = $data.update.download_url; type = "versao" }
-        $hasAnn = $true
+    # 1. New-version notice (from the app's own update check)
+    if ($updAvail -and $annType -ne "versao") {
+        $upAnn = @{ type = "versao"; title = "Nova Versão Disponível"; message = "Versão $($data.update.latest_version) disponível para download."; action_label = "Download Now"; action_url = $data.update.download_url }
+        $cardsPanel.Children.Add((New-NoticeBanner $upAnn $data)) | Out-Null
     }
 
-    if ($hasAnn) {
-        $mk = { param($a, $r, $g, $b) New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb($a, $r, $g, $b)) }
-        if ($isVersao) {
-            $fill = & $mk 0x80 0x06 0x2A 0x1E;  $border = & $mk 0x99 0x10 0xB9 0x81
-            $titleC = & $mk 0xFF 0x34 0xD3 0x99; $btnFill = & $mk 0x38 0x10 0xB9 0x81; $btnBorder = & $mk 0xB3 0x10 0xB9 0x81
-        } else {
-            $fill = & $mk 0x80 0x2D 0x24 0x18;  $border = & $mk 0x99 0xF5 0x9E 0x0B
-            $titleC = & $mk 0xFF 0xFB 0xBF 0x24; $btnFill = & $mk 0x38 0xF5 0x9E 0x0B; $btnBorder = & $mk 0xB3 0xF5 0x9E 0x0B
-        }
-
-        $annBorder = New-Object System.Windows.Controls.Border
-        $annBorder.Background = $fill
-        $annBorder.BorderBrush = $border
-        $annBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
-        $annBorder.CornerRadius = (New-Object System.Windows.CornerRadius(8))
-        $annBorder.Padding = (New-Object System.Windows.Thickness(16, 12, 16, 14))
-        $annBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 12))
-
-        $annStack = New-Object System.Windows.Controls.StackPanel
-
-        $annHead = New-Object System.Windows.Controls.TextBlock
-        $annHead.Text = if ($ann.title) { "$($ann.title)" } elseif ($isVersao) { "Nova Versão Disponível" } else { "Informativo" }
-        $annHead.FontWeight = [System.Windows.FontWeights]::Bold
-        $annHead.FontSize = 14
-        $annHead.Foreground = $titleC
-        $annStack.Children.Add($annHead) | Out-Null
-
-        $annMsg = New-Object System.Windows.Controls.TextBlock
-        $annMsg.Text = "$($ann.message)"
-        $annMsg.TextWrapping = [System.Windows.TextWrapping]::Wrap
-        $annMsg.FontSize = 12.5
-        $annMsg.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD9, 0xD9, 0xD9)))
-        $annMsg.Margin = (New-Object System.Windows.Thickness(0, 4, 0, 0))
-        $annStack.Children.Add($annMsg) | Out-Null
-
-        $annUrl = "$($ann.action_url)".Trim()
-        $hasAction = $isVersao -or ($ann.action_label -and "$($ann.action_label)".Trim()) -or $annUrl
-        if ($hasAction) {
-            $defaultLabel = if ($isVersao) { "Download Now" } else { "View Details" }
-            $actLabel = if ($ann.action_label -and "$($ann.action_label)".Trim()) { "$($ann.action_label)".Trim() } else { $defaultLabel }
-            $arrow = [string][char]0x2192
-            $btnText = if ($actLabel.EndsWith("!") -or $actLabel.Contains($arrow)) { $actLabel } else { "$actLabel $arrow" }
-
-            $updUrl = if ($data.update) { "$($data.update.download_url)".Trim() } else { "" }
-            $target = if ($isVersao) {
-                if ($annUrl) { $annUrl } elseif ($updUrl) { $updUrl } else { "https://github.com/vh2c/gemini-gauge/releases/latest" }
-            } else {
-                if ($annUrl) { $annUrl } else { "https://ai-gauge.vh2c.com.br/donate" }
-            }
-
-            $btnAct = New-Object System.Windows.Controls.Button
-            $btnAct.Content = $btnText
-            $btnAct.Tag = $target
-            $btnAct.MinWidth = 190
-            $btnAct.Height = 30
-            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
-            $btnAct.Margin = (New-Object System.Windows.Thickness(0, 10, 0, 0))
-            $btnAct.Padding = (New-Object System.Windows.Thickness(18, 0, 18, 0))
-            $btnAct.Background = $btnFill
-            $btnAct.BorderBrush = $btnBorder
-            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(1))
-            $btnAct.Foreground = $titleC
-            $btnAct.FontWeight = [System.Windows.FontWeights]::Bold
-            $btnAct.FontSize = 12.5
-            $btnAct.Cursor = [System.Windows.Input.Cursors]::Hand
-            # URL kept in Tag: this function's locals are gone by the time the click happens
-            $btnAct.Add_Click({ param($sender, $e) try { [System.Diagnostics.Process]::Start("$($sender.Tag)") } catch { Write-AppError $_.Exception } })
-            $annStack.Children.Add($btnAct) | Out-Null
-        }
-
-        $annBorder.Child = $annStack
-        $cardsPanel.Children.Add($annBorder) | Out-Null
+    # 2. Dashboard notice (version / info / warning). Ads are NOT banners: they go to the toast below.
+    if ($ann -and -not $annIsAd -and $ann.message -and "$($ann.message)".Trim() -and ("$($ann.title)".Trim().ToLower() -ne $global:FixedFreeTitle.ToLower())) {
+        $cardsPanel.Children.Add((New-NoticeBanner $ann $data)) | Out-Null
     }
+
+    # 3. Fixed banner for FREE users
+    $tierName = if ($data.tier) { "$($data.tier)".ToLower() } else { "free" }
+    if ($tierName -ne "pro" -and $tierName -ne "enterprise") {
+        $mid = ""
+        if (Test-Path $DeviceIdFile) { $mid = (Get-Content $DeviceIdFile -Raw).Trim() }
+        $donateUrl = if ($mid) { "https://ai-gauge.vh2c.com.br/donate?mid=$mid" } else { "https://ai-gauge.vh2c.com.br/donate" }
+        $fixedAnn = @{ type = "promo"; title = $global:FixedFreeTitle; message = "AI GAUGE is developed by independent developers. Support this initiative by making a donation of any amount."; action_label = "MAKE A DONATION!"; action_url = $donateUrl }
+        $cardsPanel.Children.Add((New-NoticeBanner $fixedAnn $data)) | Out-Null
+    }
+
+    # 4. Advertising = independent toast window: API `promo` (or, with an older API, an ad in `announcement`)
+    $adPromo = if ($data.promo) { $data.promo } elseif ($annIsAd) { $ann } else { $null }
+    if ($adPromo) { Show-PromoToast $adPromo }
 
     foreach ($g in $data.groups) {
         $provKey = Get-ProviderKey $g.name $g.provider

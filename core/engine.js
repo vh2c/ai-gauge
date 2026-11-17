@@ -113,6 +113,7 @@ class UniversalQuotaEngine {
         tier: updateData?.tier || 'free',
         update: updateData || { current_version: CURRENT_VERSION, update_available: false },
         announcement: updateData?.announcement || null,
+        promo: updateData?.promo || null,
         updated_at: new Date().toLocaleTimeString('pt-BR')
       };
     }
@@ -140,6 +141,7 @@ class UniversalQuotaEngine {
       tier: updateData?.tier || 'free',
       update: updateData || { current_version: CURRENT_VERSION, update_available: false },
       announcement: updateData?.announcement || null,
+        promo: updateData?.promo || null,
       updated_at: new Date().toLocaleTimeString('pt-BR')
     };
   }

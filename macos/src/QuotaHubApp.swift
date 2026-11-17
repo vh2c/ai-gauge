@@ -63,6 +63,50 @@ struct QuotaData: Codable {
     var tier: String?
     var update: UpdateInfo?
     var announcement: AnnouncementInfo?
+    var promo: AnnouncementInfo?
+}
+
+extension QuotaData {
+    /// Fixed banner shown to FREE users only (independent from the dashboard-managed notice/toast).
+    static let fixedFreeBanner = AnnouncementInfo(
+        id: "fixed-free-help",
+        type: "promo",
+        badge: nil,
+        title: "Help AI GAUGE developers team",
+        message: "AI GAUGE is developed by independent developers. Support this initiative by making a donation of any amount.",
+        action_label: "MAKE A DONATION!",
+        action_url: "https://ai-gauge.vh2c.com.br/donate?mid={machine_id}",
+        image_url: nil,
+        image_fit: nil,
+        image_position: nil,
+        image_scale: nil,
+        duracao_segundos: nil
+    )
+
+    /// Advertising toast: the API's `promo`, or (older API) an `announcement` of type "publicidade".
+    var adPromo: AnnouncementInfo? {
+        if let p = promo { return p }
+        if let a = announcement, a.type == "publicidade" { return a }
+        return nil
+    }
+
+    var isFreeTier: Bool {
+        let t = (tier ?? "free").lowercased()
+        return t != "pro" && t != "enterprise"
+    }
+
+    /// Top-of-window banners: the dashboard notice (version/info, never an ad) first, then the fixed FREE banner.
+    var banners: [AnnouncementInfo] {
+        var list: [AnnouncementInfo] = []
+        let fixedTitle = (QuotaData.fixedFreeBanner.title ?? "").lowercased()
+        if let ann = announcement, ann.type != "publicidade",
+           let msg = ann.message, !msg.isEmpty,
+           (ann.title ?? "").lowercased() != fixedTitle {
+            list.append(ann)
+        }
+        if isFreeTier { list.append(QuotaData.fixedFreeBanner) }
+        return list
+    }
 }
 
 struct GaugeSection {
@@ -767,8 +811,8 @@ class QuotaManager {
             task.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if task.terminationStatus == 0, let quota = try? JSONDecoder().decode(QuotaData.self, from: data) {
-                if let ann = quota.announcement, ann.type == "publicidade" {
-                    PromoDockManager.shared.presentIfNeeded(ann)
+                if let ad = quota.adPromo {
+                    PromoDockManager.shared.presentIfNeeded(ad)
                 }
                 var qWithTs = quota
                 qWithTs.timestamp = Date().timeIntervalSince1970
@@ -2255,8 +2299,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if quota.update?.update_available == true {
             calcContentH += 46 + 12
         }
-        if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
-            calcContentH += (ann.action_label != nil ? 92 : 62) + 12
+        for ann in quota.banners {
+            let hasAct = (ann.type == "versao") || !((ann.action_label ?? "").isEmpty) || !((ann.action_url ?? "").isEmpty)
+            calcContentH += (ann.type == "versao" ? 62 : (hasAct ? 100 : 64)) + 12
         }
         
         if quota.groups.isEmpty {
@@ -2403,18 +2448,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // ----------------- ANNOUNCEMENT / PRO STATUS -----------------
-        if let ann = quota.announcement, ann.type == "publicidade" {
-            PromoDockManager.shared.presentIfNeeded(ann)
-        } else if let ann = quota.announcement, let msg = ann.message, !msg.isEmpty {
+        // The ad ("publicidade") is an independent toast window; banners are drawn at the top.
+        if let promo = quota.adPromo {
+            PromoDockManager.shared.presentIfNeeded(promo)
+        }
+        for ann in quota.banners {
+            let msg = ann.message ?? ""
             let isVersao = (ann.type == "versao")
-            let annUrl = ann.action_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let annUrl = ann.action_url?
+                .replacingOccurrences(of: "{machine_id}", with: getMachineId())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             let effectiveAnnUrl = (annUrl != nil && !annUrl!.isEmpty) ? annUrl : nil
             let updateUrl = quota.update?.download_url?.trimmingCharacters(in: .whitespacesAndNewlines)
             let effectiveUpdateUrl = (updateUrl != nil && !updateUrl!.isEmpty) ? updateUrl : nil
             let defaultVersionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
             
             let hasAction = isVersao || (ann.action_label != nil && !ann.action_label!.isEmpty) || (effectiveAnnUrl != nil)
-            let annH: CGFloat = hasAction ? 100 : 64
+            // Version notice = compact strip (action button on the right, vertically centered)
+            var compactBtnW: CGFloat = 0
+            if isVersao {
+                let l = (ann.action_label ?? "").isEmpty ? "Download Now" : ann.action_label!
+                let t = (l.hasSuffix("!") || l.contains("→")) ? l : "\(l) →"
+                compactBtnW = max(150, CGFloat(t.count) * 8 + 28)
+            }
+            let textW: CGFloat = isVersao ? (windowWidth - 36) - 24 - compactBtnW - 12 : (windowWidth - 36) - 24
+            let annH: CGFloat = isVersao ? 62 : (hasAction ? 100 : 64)
             let annBox = FlippedBox(frame: NSRect(x: 18, y: y, width: windowWidth - 36, height: annH))
             annBox.boxType = .custom
             
@@ -2438,14 +2496,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             titleLabel.textColor = isVersao
                 ? NSColor(srgbRed: 0x34/255.0, green: 0xD3/255.0, blue: 0x99/255.0, alpha: 1.0)
                 : NSColor(srgbRed: 0xFB/255.0, green: 0xBF/255.0, blue: 0x24/255.0, alpha: 1.0)
-            titleLabel.frame = NSRect(x: 12, y: 10, width: annBox.frame.width - 24, height: 16)
+            titleLabel.frame = NSRect(x: 12, y: 10, width: textW, height: 16)
             annBox.addSubview(titleLabel)
             
             // 2. Multiline Message (Wrapping)
             let msgLabel = NSTextField(wrappingLabelWithString: msg)
             msgLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
             msgLabel.textColor = NSColor(white: 0.85, alpha: 1.0)
-            msgLabel.frame = NSRect(x: 12, y: 28, width: annBox.frame.width - 24, height: 30)
+            msgLabel.frame = NSRect(x: 12, y: 28, width: textW, height: 30)
             annBox.addSubview(msgLabel)
             
             // 3. Action Button (Botão 'Baixar Agora' para Versão; ou 'Ver Detalhes' para Info)
@@ -2455,10 +2513,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let actUrl = isVersao ? defaultVersionUrl : (effectiveAnnUrl ?? "https://ai-gauge.vh2c.com.br/donate")
                 
                 let btnText = (actLabel.hasSuffix("!") || actLabel.contains("→")) ? actLabel : "\(actLabel) →"
-                let btnW: CGFloat = max(170, CGFloat(btnText.count * 8 + 36))
-                let btnX: CGFloat = (annBox.frame.width - btnW) / 2
+                let btnW: CGFloat = isVersao ? compactBtnW : max(170, CGFloat(btnText.count * 8 + 36))
+                let btnX: CGFloat = isVersao ? (annBox.frame.width - btnW - 12) : (annBox.frame.width - btnW) / 2
+                let btnY: CGFloat = isVersao ? ((annH - 26) / 2).rounded() : 64
                 
-                let actBtn = UrlButton(frame: NSRect(x: btnX, y: 64, width: btnW, height: 26))
+                let actBtn = UrlButton(frame: NSRect(x: btnX, y: btnY, width: btnW, height: 26))
                 actBtn.target = self
                 actBtn.action = #selector(openExternalUrl(_:))
                 actBtn.targetUrl = actUrl
@@ -3898,14 +3957,38 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
     private var promoWindow: NSWindow?
     private var lastShownAt: TimeInterval = 0
     private let intervalSeconds: TimeInterval = 6 * 3600 // 6 horas
+    private let initialDelay: TimeInterval = 60          // espera 1 minuto após abrir o app
+    private let launchTime = Date().timeIntervalSince1970
+    private var scheduled = false
+
+    private var lastShownFile: String {
+        return NSHomeDirectory() + "/.config/UniversalAIQuota/promo_last_shown"
+    }
+
+    private func persistedLastShown() -> TimeInterval {
+        guard let raw = try? String(contentsOfFile: lastShownFile, encoding: .utf8) else { return 0 }
+        return TimeInterval(raw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    private func persistLastShown(_ ts: TimeInterval) {
+        try? String(Int(ts)).write(toFile: lastShownFile, atomically: true, encoding: .utf8)
+    }
 
     func presentIfNeeded(_ ann: AnnouncementInfo) {
         let now = Date().timeIntervalSince1970
-        if lastShownAt > 0 && (now - lastShownAt) < intervalSeconds {
+        let last = max(lastShownAt, persistedLastShown())
+        if last > 0 && (now - last) < intervalSeconds {
             return
         }
-        lastShownAt = now
-        DispatchQueue.main.async {
+        if scheduled || promoWindow != nil { return }
+        scheduled = true
+        let wait = max(0, initialDelay - (now - launchTime))
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+            guard let self = self else { return }
+            self.scheduled = false
+            let shownAt = Date().timeIntervalSince1970
+            self.lastShownAt = shownAt
+            self.persistLastShown(shownAt)
             self.showWindow(ann)
         }
     }

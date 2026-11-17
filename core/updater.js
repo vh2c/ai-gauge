@@ -12,6 +12,8 @@ const os = require('os');
 const CURRENT_VERSION = '1.1.0';
 const GITHUB_REPO = 'vh2c/gemini-gauge';
 const CACHE_TTL_MS = 15 * 60 * 1000;        // how often announcements/version are re-checked
+const SLOW_TTL_MS = 6 * 60 * 60 * 1000;       // server without check_only support: do not poll often (each call would count as a launch)
+const PROBE_MS = 15 * 60 * 1000;               // how often the public list is probed for changes (no launch counted)
 const STALE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // keep last known announcement this long if the API is unreachable
 const API_URL = process.env.AIGAUGE_API_URL || 'https://ai-gauge.vh2c.com.br/v1/geminigauje';
 
@@ -32,7 +34,7 @@ function readCache() {
   if (fs.existsSync(file)) {
     try {
       const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (data && data.timestamp && (Date.now() - data.timestamp < CACHE_TTL_MS)) {
+      if (data && data.timestamp && (Date.now() - data.timestamp < (data.poll_ttl_ms || CACHE_TTL_MS))) {
         return data;
       }
     } catch (_) {}
@@ -49,6 +51,13 @@ function readStaleCache() {
     } catch (_) {}
   }
   return null;
+}
+
+function writeCacheRaw(data) {
+  const file = getCacheFile();
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+  } catch (_) {}
 }
 
 function writeCache(data) {
@@ -112,6 +121,45 @@ function fetchGithubRelease() {
   });
 }
 
+/**
+ * Cheap change detector for servers WITHOUT check_only support: GET the public list of active announcements
+ * (read-only, sends nothing about the user) and reduce it to a signature. If the signature changes, the app
+ * does one full check; otherwise it keeps the cache. Returns null if the list cannot be read.
+ */
+function fetchAnnouncementSignature() {
+  return new Promise((resolve) => {
+    if (telemetryOptedOut()) return resolve(null);
+    let url;
+    try { url = new URL(API_URL); } catch (_) { return resolve(null); }
+    const client = url.protocol === 'https:' ? https : http;
+    const req = client.request({
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: '/api/announcements',
+      method: 'GET',
+      headers: { 'User-Agent': `AIGauge/${CURRENT_VERSION} (VH2C; Desktop)`, 'Accept': 'application/json' },
+      timeout: 3000
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const data = JSON.parse(body);
+            if (data && Array.isArray(data.items)) {
+              return resolve(data.items.map(i => `${i.id}:${i.tipo || ''}:${i.data_fim || ''}`).sort().join('|'));
+            }
+          }
+        } catch (_) {}
+        resolve(null);
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { try { req.destroy(); } catch (_) {} resolve(null); });
+    req.end();
+  });
+}
+
 function telemetryOptedOut() {
   try {
     const cfg = JSON.parse(fs.readFileSync(path.join(getConfigDir(), 'config.json'), 'utf8'));
@@ -170,7 +218,9 @@ function fetchApiCheck() {
                 latest_version: data.latest_version || '',
                 download_url: data.download_url || '',
                 tier: data.tier || 'free',
-                announcement: data.announcement || null
+                announcement: data.announcement || null,
+                promo: data.promo || null,
+                supports_check_only: data.check_only === true
               });
             }
           }
@@ -192,7 +242,19 @@ async function checkForUpdates(force = false) {
   if (!force) {
     const cached = readCache();
     if (cached) {
-      return cached;
+      // Server without check_only: the cache can live for hours, but we probe the public list
+      // every 15 min so a new/disabled announcement is picked up quickly without counting a launch.
+      const probeDue = cached.supports_check_only !== true &&
+        (Date.now() - (cached.probe_at || cached.timestamp || 0)) > PROBE_MS;
+      if (!probeDue) {
+        return cached;
+      }
+      const sig = await fetchAnnouncementSignature();
+      if (sig === null || sig === cached.list_sig) {
+        if (sig !== null) writeCacheRaw({ ...cached, probe_at: Date.now() });
+        return cached;
+      }
+      // signature changed: fall through to a full refresh
     }
   }
 
@@ -216,12 +278,21 @@ async function checkForUpdates(force = false) {
   const latestVer = apiData?.latest_version || remoteData?.latest_version || stale?.latest_version || CURRENT_VERSION;
   const updateAvailable = isNewer(latestVer, CURRENT_VERSION);
 
+  let listSig = null;
+  if (apiData && !apiData.supports_check_only) {
+    try { listSig = await fetchAnnouncementSignature(); } catch (_) {}
+  }
+
   const result = {
     current_version: CURRENT_VERSION,
     latest_version: latestVer,
     update_available: updateAvailable,
     download_url: apiData?.download_url || remoteData?.download_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
     release_notes: remoteData?.release_notes || '',
+    poll_ttl_ms: (apiData && !apiData.supports_check_only) ? SLOW_TTL_MS : CACHE_TTL_MS,
+    supports_check_only: !!(apiData && apiData.supports_check_only),
+    list_sig: listSig,
+    probe_at: Date.now(),
 
     // Tier structure: 'free' (default) or 'pro'
     tier: apiData ? apiData.tier : (staleFresh && stale.tier) || 'free',
@@ -230,6 +301,18 @@ async function checkForUpdates(force = false) {
     // API unreachable: keep the last known announcement for up to 24h.
     announcement: apiData ? (apiData.announcement || null) : (staleFresh ? (stale.announcement || null) : null)
   };
+
+  // Advertising toast. New API sends `promo`; an older API only sends `announcement`, where an ad
+  // (type "publicidade") means "show the toast".
+  if (apiData && apiData.promo) {
+    result.promo = apiData.promo;
+  } else if (result.announcement && result.announcement.type === 'publicidade') {
+    result.promo = result.announcement;
+  } else if (!apiData && staleFresh && stale.promo) {
+    result.promo = stale.promo;
+  } else {
+    result.promo = null;
+  }
 
   writeCache(result);
   return result;
