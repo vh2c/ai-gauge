@@ -33,7 +33,7 @@ Para testadores e usuários leigos: **não é necessário compilar código**. Ba
 | :--- | :--- | :---: | :--- |
 | 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](releases/v1.1/AI-Gauge-macOS-vh2c.zip?raw=true) | `2.5 MB` | Extraia e arraste o **AI Gauge.app** para a pasta `/Applications`, ou execute `./install.sh`. |
 | 🪟 **Windows** | [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true) | `0.2 MB` | Extraia o ZIP e dê dois cliques em **`install.bat`**. O Node.js portátil é baixado automaticamente. |
-| 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.tar.gz**](releases/v1.1/AI-Gauge-Linux-vh2c.tar.gz?raw=true) | `5.9 MB` | Extraia o arquivo e execute **`./install.sh`** no terminal. |
+| 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.tar.gz**](releases/v1.1/AI-Gauge-Linux-vh2c.tar.gz?raw=true) | `0.6 MB` | Extraia o arquivo e execute **`./install.sh`** no terminal. |
 
 ---
 
