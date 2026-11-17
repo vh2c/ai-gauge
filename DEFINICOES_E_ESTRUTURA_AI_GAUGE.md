@@ -50,7 +50,7 @@ Seguindo rigorosamente a skill `desenvolvimento`, a raiz do projeto em `/Volumes
 │   ├── macos/                # App Swift nativo (HUD Flutuante, Tacômetros, Dock)
 │   ├── windows/              # App PowerShell + WPF + VBS launcher
 │   ├── linux/                # App Python + Tkinter/Canvas
-│   └── dist/                 # Pacotes ZIP/tar.gz para download
+│   └── dist/                 # Pacotes ZIP para download
 ├── ai_gauge_api/             # Backend REST em PHP 8.2.35-apache + PostgreSQL
 │   ├── docker-compose.yml    # Configuração do serviço na VPS (redes database_network e npm_network)
 │   ├── Dockerfile            # Base segura php:8.2.35-apache + Apache Security Hardening

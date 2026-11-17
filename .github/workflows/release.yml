@@ -87,7 +87,6 @@ jobs:
       - name: Package Linux files
         run: |
           chmod +x linux/install.sh linux/quota-hub linux/quota-hub.py linux/ai-gauge
-          tar -czvf AI-Gauge-Linux-vh2c.tar.gz core linux assets/icon.png config.example.json LICENSE README.md
           zip -r AI-Gauge-Linux-vh2c.zip core linux assets/icon.png config.example.json LICENSE README.md
 
       - name: Upload Linux artifacts
@@ -95,7 +94,6 @@ jobs:
         with:
           name: package-linux
           path: |
-            AI-Gauge-Linux-vh2c.tar.gz
             AI-Gauge-Linux-vh2c.zip
 
   publish-release:
@@ -123,7 +121,6 @@ jobs:
             release/AI-Gauge-Setup.exe
             release/AI-Gauge-Windows-vh2c.zip
             release/AI-Gauge-macOS-vh2c.zip
-            release/AI-Gauge-Linux-vh2c.tar.gz
             release/AI-Gauge-Linux-vh2c.zip
             release/SHA256SUMS.txt
           fail_on_unmatched_files: true

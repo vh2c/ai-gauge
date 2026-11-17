@@ -29,11 +29,11 @@
 
 Para testadores e usuários leigos: **não é necessário compilar código**. Basta baixar o pacote correspondente ao seu sistema operacional:
 
-| Plataforma | Pacote (.zip / .tar.gz) | Tamanho | Como Instalar |
+| Plataforma | Pacote (.zip) | Tamanho | Como Instalar |
 | :--- | :--- | :---: | :--- |
 | 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](releases/v1.1/AI-Gauge-macOS-vh2c.zip?raw=true) | `2.5 MB` | Extraia e arraste o **AI Gauge.app** para a pasta `/Applications`, ou execute `./install.sh`. |
 | 🪟 **Windows** | [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true) | `0.2 MB` | Extraia o ZIP e dê dois cliques em **`install.bat`**. O Node.js portátil é baixado automaticamente. |
-| 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.tar.gz**](releases/v1.1/AI-Gauge-Linux-vh2c.tar.gz?raw=true) | `0.6 MB` | Extraia o arquivo e execute **`./install.sh`** no terminal. |
+| 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.zip**](releases/v1.1/AI-Gauge-Linux-vh2c.zip?raw=true) | `0.6 MB` | Extraia o ZIP e execute **`./linux/install.sh`** no terminal. |
 
 ---
 
@@ -134,12 +134,12 @@ cd gemini-gauge/ai_gauge_app/macos
 ---
 
 ### 🐧 Linux (Ubuntu, Debian, Fedora, Arch, Mint)
-1. Baixe o pacote: [**AI-Gauge-Linux-vh2c.tar.gz**](releases/v1.1/AI-Gauge-Linux-vh2c.tar.gz?raw=true)
+1. Baixe o pacote: [**AI-Gauge-Linux-vh2c.zip**](releases/v1.1/AI-Gauge-Linux-vh2c.zip?raw=true)
 2. Extraia o arquivo e execute o script autossuficiente:
 ```bash
-tar -xzf AI-Gauge-Linux-vh2c.tar.gz
+unzip AI-Gauge-Linux-vh2c.zip -d AI-Gauge-Linux
 cd AI-Gauge-Linux
-./install.sh
+./linux/install.sh
 ```
 
 ---
