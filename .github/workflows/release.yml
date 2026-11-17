@@ -1,5 +1,7 @@
 name: Release Build
 
+# Push a tag like v1.2.0 to build every package and create a DRAFT GitHub Release (file host).
+# "Run workflow" (manual) builds the packages as downloadable artifacts only.
 on:
   push:
     tags:
@@ -16,18 +18,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build macOS App
+      - name: Build macOS app
         run: |
           chmod +x macos/build.sh
           ./macos/build.sh
           cd macos
-          zip -r ../Universal-AI-Quota-macOS-vh2c.zip "Universal AI Quota.app"
+          zip -r ../AI-Gauge-macOS-vh2c.zip "AI Gauge.app"
 
-      - name: Upload macOS Artifact
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Universal-AI-Quota-macOS-vh2c
-          path: Universal-AI-Quota-macOS-vh2c.zip
+          name: package-macos
+          path: AI-Gauge-macOS-vh2c.zip
 
   package-windows:
     runs-on: windows-latest
@@ -35,16 +37,46 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Package Windows files
+      - name: Resolve version
+        id: ver
         shell: pwsh
         run: |
-          Compress-Archive -Path core, windows, config.example.json -DestinationPath Universal-AI-Quota-Windows-vh2c.zip
+          $ref = "${{ github.ref_name }}"
+          $v = if ($ref -match '^v(\d+\.\d+(\.\d+)?)') { $Matches[1] } else { "1.1.0" }
+          "version=$v" >> $env:GITHUB_OUTPUT
 
-      - name: Upload Windows Artifact
+      - name: Fetch Node.js (SHA-256 verified)
+        shell: pwsh
+        run: ./windows/installer/fetch-node.ps1
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build AI-Gauge-Setup.exe
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" "windows\installer\AIGauge.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+          if (-not (Test-Path "dist\AI-Gauge-Setup.exe")) { throw "dist\AI-Gauge-Setup.exe was not produced" }
+
+      - name: Build portable ZIP (script installer, fallback)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path stage\windows -Force | Out-Null
+          Copy-Item install.bat, AIGauge.bat, config.example.json, README.md, LICENSE -Destination stage\
+          Copy-Item -Recurse core stage\core
+          Copy-Item windows\AIGauge.ps1, windows\AIGauge.vbs, windows\AIGauge.bat, windows\install.ps1, windows\install.bat, windows\uninstall.ps1, windows\icon.ico -Destination stage\windows\
+          Compress-Archive -Path stage\* -DestinationPath AI-Gauge-Windows-vh2c.zip
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Universal-AI-Quota-Windows-vh2c
-          path: Universal-AI-Quota-Windows-vh2c.zip
+          name: package-windows
+          path: |
+            dist/AI-Gauge-Setup.exe
+            AI-Gauge-Windows-vh2c.zip
 
   package-linux:
     runs-on: ubuntu-latest
@@ -54,45 +86,49 @@ jobs:
 
       - name: Package Linux files
         run: |
-          chmod +x linux/install.sh linux/quota-hub linux/quota-hub.py
-          tar -czvf Universal-AI-Quota-Linux-vh2c.tar.gz core linux config.example.json LICENSE README.md
+          chmod +x linux/install.sh linux/quota-hub linux/quota-hub.py linux/ai-gauge
+          tar -czvf AI-Gauge-Linux-vh2c.tar.gz core linux assets/icon.png config.example.json LICENSE README.md
+          zip -r AI-Gauge-Linux-vh2c.zip core linux assets/icon.png config.example.json LICENSE README.md
 
-      - name: Upload Linux Artifact
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Universal-AI-Quota-Linux-vh2c
-          path: Universal-AI-Quota-Linux-vh2c.tar.gz
+          name: package-linux
+          path: |
+            AI-Gauge-Linux-vh2c.tar.gz
+            AI-Gauge-Linux-vh2c.zip
 
   publish-release:
+    if: startsWith(github.ref, 'refs/tags/')
     needs: [build-macos, package-windows, package-linux]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download macOS Artifact
+      - name: Download all packages
         uses: actions/download-artifact@v4
         with:
-          name: Universal-AI-Quota-macOS-vh2c
+          path: release
+          merge-multiple: true
 
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: Universal-AI-Quota-Windows-vh2c
-
-      - name: Download Linux Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: Universal-AI-Quota-Linux-vh2c
+      - name: Checksums
+        working-directory: release
+        run: |
+          ls -la
+          sha256sum AI-Gauge-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            Universal-AI-Quota-macOS-vh2c.zip
-            Universal-AI-Quota-Windows-vh2c.zip
-            Universal-AI-Quota-Linux-vh2c.tar.gz
-          draft: false
+            release/AI-Gauge-Setup.exe
+            release/AI-Gauge-Windows-vh2c.zip
+            release/AI-Gauge-macOS-vh2c.zip
+            release/AI-Gauge-Linux-vh2c.tar.gz
+            release/AI-Gauge-Linux-vh2c.zip
+            release/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          # Draft: nothing becomes public (or visible to /releases/latest) until you publish it.
+          # The API decides latest_version/download_url shown to users.
+          draft: true
           prerelease: false
           generate_release_notes: true

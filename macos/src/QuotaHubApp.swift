@@ -1537,7 +1537,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
-        sendTelemetryHeartbeat()
+        // Telemetry heartbeat is sent by the Node engine (core/telemetry.js, throttled to 6h) so launches
+        // are not counted twice and the API answer (announcements) is cached in one place.
         
         if let savedMode = UserDefaults.standard.string(forKey: "uaqm_display_mode"),
            let mode = DisplayMode(rawValue: savedMode) {

@@ -145,6 +145,9 @@ cd AI-Gauge-Linux
 ---
 
 ### 🪟 Windows (Windows 10 / 11)
+**Opção recomendada (1 clique):** baixe **`AI-Gauge-Setup.exe`** na página de [Releases](https://github.com/vh2c/gemini-gauge/releases/latest) e execute. Já inclui o Node.js, não pede administrador, cria os atalhos e substitui versões anteriores.
+
+**Opção alternativa (ZIP):**
 1. Baixe o pacote: [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true)
 2. Extraia o ZIP (não execute de dentro do ZIP).
 3. Dê dois cliques em **`install.bat`**. Não precisa de administrador nem de Node.js instalado: se faltar, o instalador baixa um Node.js portátil (~30 MB, uma única vez, com verificação SHA-256).

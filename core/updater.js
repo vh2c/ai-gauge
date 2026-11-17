@@ -11,7 +11,9 @@ const os = require('os');
 
 const CURRENT_VERSION = '1.1.0';
 const GITHUB_REPO = 'vh2c/gemini-gauge';
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL_MS = 15 * 60 * 1000;        // how often announcements/version are re-checked
+const STALE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // keep last known announcement this long if the API is unreachable
+const API_URL = process.env.AIGAUGE_API_URL || 'https://ai-gauge.vh2c.com.br/v1/geminigauje';
 
 function getConfigDir() {
   const dir = path.join(os.homedir(), '.config', 'UniversalAIQuota');
@@ -33,6 +35,17 @@ function readCache() {
       if (data && data.timestamp && (Date.now() - data.timestamp < CACHE_TTL_MS)) {
         return data;
       }
+    } catch (_) {}
+  }
+  return null;
+}
+
+// Last cached payload regardless of age (used to keep the announcement alive between heartbeats)
+function readStaleCache() {
+  const file = getCacheFile();
+  if (fs.existsSync(file)) {
+    try {
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
     } catch (_) {}
   }
   return null;
@@ -99,6 +112,79 @@ function fetchGithubRelease() {
   });
 }
 
+function telemetryOptedOut() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(getConfigDir(), 'config.json'), 'utf8'));
+    return cfg.telemetry === false || cfg.telemetry_enabled === false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Asks the AI Gauge API for the current announcement / tier / latest version WITHOUT counting a launch
+ * (check_only). The API is the source of truth for banners; nothing about providers or accounts is sent.
+ */
+function fetchApiCheck() {
+  return new Promise((resolve) => {
+    if (telemetryOptedOut()) return resolve(null);
+    let payload;
+    try {
+      const { getMachineId } = require('./telemetry');
+      payload = JSON.stringify({
+        app: 'ai-gauge',
+        version: CURRENT_VERSION,
+        os: os.platform(),
+        arch: os.arch(),
+        machine_id: getMachineId(),
+        timestamp: Math.floor(Date.now() / 1000),
+        check_only: true
+      });
+    } catch (_) {
+      return resolve(null);
+    }
+
+    let url;
+    try { url = new URL(API_URL); } catch (_) { return resolve(null); }
+    const client = url.protocol === 'https:' ? https : http;
+    const req = client.request({
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        'User-Agent': `AIGauge/${CURRENT_VERSION} (VH2C; Desktop)`
+      },
+      timeout: 3000
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const data = JSON.parse(body);
+            if (data && data.success !== false) {
+              return resolve({
+                latest_version: data.latest_version || '',
+                download_url: data.download_url || '',
+                tier: data.tier || 'free',
+                announcement: data.announcement || null
+              });
+            }
+          }
+        } catch (_) {}
+        resolve(null);
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { try { req.destroy(); } catch (_) {} resolve(null); });
+    req.write(payload);
+    req.end();
+  });
+}
+
 /**
  * Checks for updates and returns version state + announcement/tier structure
  */
@@ -110,27 +196,39 @@ async function checkForUpdates(force = false) {
     }
   }
 
-  let remoteData = null;
+  const stale = readStaleCache();
+  const staleFresh = stale && stale.timestamp && (Date.now() - stale.timestamp < STALE_MAX_AGE_MS);
+
+  // 1. The API decides announcements, tier, latest version and download URL
+  let apiData = null;
   try {
-    remoteData = await fetchGithubRelease();
+    apiData = await fetchApiCheck();
   } catch (_) {}
 
-  const latestVer = remoteData?.latest_version || CURRENT_VERSION;
+  // 2. GitHub is only a fallback for the version when the API is unreachable
+  let remoteData = null;
+  if (!apiData) {
+    try {
+      remoteData = await fetchGithubRelease();
+    } catch (_) {}
+  }
+
+  const latestVer = apiData?.latest_version || remoteData?.latest_version || stale?.latest_version || CURRENT_VERSION;
   const updateAvailable = isNewer(latestVer, CURRENT_VERSION);
 
-  // Logical structure for announcements and tiers (Free vs PRO)
   const result = {
     current_version: CURRENT_VERSION,
     latest_version: latestVer,
     update_available: updateAvailable,
-    download_url: remoteData?.download_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
+    download_url: apiData?.download_url || remoteData?.download_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
     release_notes: remoteData?.release_notes || '',
-    
+
     // Tier structure: 'free' (default) or 'pro'
-    tier: remoteData?.tier || 'free',
-    
-    // Announcement only exists when explicitly sent by the remote API / backend
-    announcement: remoteData?.announcement || null
+    tier: apiData ? apiData.tier : (staleFresh && stale.tier) || 'free',
+
+    // API reachable: its answer is authoritative (null = no announcement, clears an old banner).
+    // API unreachable: keep the last known announcement for up to 24h.
+    announcement: apiData ? (apiData.announcement || null) : (staleFresh ? (stale.announcement || null) : null)
   };
 
   writeCache(result);

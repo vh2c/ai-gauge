@@ -58,6 +58,43 @@ if ($DemoMode -and -not (Test-Path $ConfigFile)) {
 }
 $DeviceIdFile = Join-Path $ConfigDir "device_id"
 
+# First run without config (e.g. installed via Setup.exe): detect installed AI tools and write a starter config.
+function Initialize-DefaultConfig {
+    if (Test-Path $ConfigFile) { return }
+    try {
+        $up = $env:USERPROFILE
+        $hasClaude = (Test-Path (Join-Path $up ".claude")) -or [bool](Get-Command "claude.cmd" -ErrorAction SilentlyContinue) -or [bool](Get-Command "claude.exe" -ErrorAction SilentlyContinue)
+        $hasChatGPT = (Test-Path (Join-Path $up ".codex\auth.json")) -or (Test-Path (Join-Path $env:APPDATA "ChatGPT"))
+        $hasCursor = (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or (Test-Path (Join-Path $env:APPDATA "Cursor")) -or [bool](Get-Process "Cursor" -ErrorAction SilentlyContinue)
+        $hasCopilot = (Test-Path (Join-Path $env:APPDATA "Code\User\globalStorage\github.copilot-chat")) -or [bool](Get-Command "gh.exe" -ErrorAction SilentlyContinue)
+        $hasGemini = [bool]$env:GEMINI_API_KEY
+        $cfg = @{
+            providers = @{
+                antigravity = @{ enabled = $true }
+                claude_pro = @{ enabled = [bool]$hasClaude }
+                chatgpt_subscription = @{ enabled = [bool]$hasChatGPT }
+                cursor = @{ enabled = [bool]$hasCursor }
+                github_copilot = @{ enabled = [bool]$hasCopilot }
+                gemini = @{ enabled = [bool]$hasGemini; api_key = if ($env:GEMINI_API_KEY) { $env:GEMINI_API_KEY } else { "" } }
+                openai = @{ enabled = $false; api_key = "" }
+                anthropic = @{ enabled = $false; api_key = "" }
+            }
+            refresh_interval_seconds = 30
+            hidden_hud_gauges = @()
+            onboarding_completed = $true
+        }
+        [IO.File]::WriteAllText($ConfigFile, ($cfg | ConvertTo-Json -Depth 5), [Text.Encoding]::UTF8)
+        try {
+            $acl = Get-Acl -Path $ConfigFile
+            $acl.SetAccessRuleProtection($true, $false)
+            $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($user, "FullControl", "Allow")))
+            Set-Acl -Path $ConfigFile -AclObject $acl
+        } catch {}
+    } catch {}
+}
+Initialize-DefaultConfig
+
 # 1. Curated 6 Pastel Colors (Yellow removed, 1:1 match with providers)
 $PastelDefaults = @{
     "antigravity"          = "#8FBCFF"
@@ -208,61 +245,9 @@ function Get-BucketModelName ($bucketName, $groupName) {
     return $bn
 }
 
-# 2. Telemetry Heartbeat (Anonymous, Throttled, Opt-out supported)
-function Send-TelemetryHeartbeat {
-    try {
-        if (Test-Path $ConfigFile) {
-            try {
-                $rawCfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-                if ($rawCfg.telemetry -eq $false -or $rawCfg.telemetry_enabled -eq $false) {
-                    return
-                }
-            } catch {}
-        }
-
-        $stampFile = Join-Path $ConfigDir ".last_ping"
-        $now = [int][double]::Parse((Get-Date -UFormat %s))
-        if (Test-Path $stampFile) {
-            try {
-                $last = [int](Get-Content $stampFile -Raw).Trim()
-                if ($now - $last -lt 21600) {
-                    return
-                }
-            } catch {}
-        }
-
-        $machineId = ""
-        if (Test-Path $DeviceIdFile) {
-            $machineId = (Get-Content $DeviceIdFile -Raw).Trim()
-        }
-        if (-not $machineId) {
-            $machineId = [guid]::NewGuid().ToString("N")
-            Set-Content -Path $DeviceIdFile -Value $machineId -Encoding UTF8
-        }
-
-        $payload = @{
-            app = "ai-gauge"
-            version = "1.1.0"
-            os = "Windows"
-            arch = $env:PROCESSOR_ARCHITECTURE
-            machine_id = $machineId
-            timestamp = $now
-        } | ConvertTo-Json
-
-        Start-Job -ScriptBlock {
-            param($body, $sFile, $tNow)
-            try {
-                $endpoint = "https://ai-gauge.vh2c.com.br/api/telemetry"
-                $res = Invoke-RestMethod -Uri $endpoint -Method Post -Body $body -ContentType "application/json" -TimeoutSec 3 -ErrorAction SilentlyContinue
-                if ($res) {
-                    Set-Content -Path $sFile -Value $tNow -Encoding UTF8 -Force
-                }
-            } catch {}
-        } -ArgumentList $payload, $stampFile, $now | Out-Null
-    } catch {}
-}
-
-if (-not $DemoMode) { Send-TelemetryHeartbeat }
+# 2. Telemetry: sent only by the Node engine (core/telemetry.js), which also caches the
+#    update/announcement data returned by the API. A second PowerShell heartbeat used to consume
+#    the 6h throttle and discard the announcement, so it was removed.
 
 # 3. Find Node binary (bundled copy first, so the app works without a system Node.js)
 function Find-NodeBinary {
@@ -302,6 +287,13 @@ function New-DemoData {
         account = "demo@aigauge.test  (MODO DEMO)"
         plan = "DEMO"
         updated_at = (Get-Date -Format "HH:mm:ss")
+        announcement = @{
+            type = "info"
+            title = "Help AI GAUGE developers team"
+            message = "AI GAUGE is developed by independent developers. Support this initiative by making a donation of any amount."
+            action_label = "MAKE A DONATION!"
+            action_url = "https://ai-gauge.vh2c.com.br/donate"
+        }
         groups = @(
             @{ name = "Antigravity"; provider = "Antigravity (Live)"; buckets = @(
                 (B "demo-ag-gemini-weekly" "Gemini Weekly Limit Remaining" 43 "4d 1h"),
@@ -929,85 +921,90 @@ function Render-UI ($data) {
     $txtAcc.Text = "$($data.account)  •  Plano $($data.plan)"
     $txtUpdated.Text = "Atualizado às $($data.updated_at) ($cacheInfo)"
     
-    # ----------------- UPDATE BANNER -----------------
-    if ($data.update -and $data.update.update_available) {
-        $upBorder = New-Object System.Windows.Controls.Border
-        $upBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(40, 0, 0xE6, 0x99)))
-        $upBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
-        $upBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
-        $upBorder.CornerRadius = (New-Object System.Windows.CornerRadius(6))
-        $upBorder.Padding = (New-Object System.Windows.Thickness(10, 8, 10, 8))
-        $upBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
-        
-        $upDock = New-Object System.Windows.Controls.DockPanel
-        
-        $btnDl = New-Object System.Windows.Controls.Button
-        $btnDl.Content = "Download"
-        $btnDl.Padding = (New-Object System.Windows.Thickness(12, 3, 12, 3))
-        $btnDl.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
-        $btnDl.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x12)))
-        $btnDl.FontWeight = [System.Windows.FontWeights]::Bold
-        [System.Windows.Controls.DockPanel]::SetDock($btnDl, [System.Windows.Controls.Dock]::Right)
-        $dlUrl = if ($data.update.download_url) { $data.update.download_url } else { "https://github.com/vh2c/gemini-gauge/releases/latest" }
-        $btnDl.Add_Click({ [System.Diagnostics.Process]::Start($dlUrl) })
-        $upDock.Children.Add($btnDl) | Out-Null
-        
-        $upTxt = New-Object System.Windows.Controls.TextBlock
-        $upTxt.Text = "New release v$($data.update.latest_version) available"
-        $upTxt.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0, 0xE6, 0x99)))
-        $upTxt.FontWeight = [System.Windows.FontWeights]::Bold
-        $upTxt.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
-        $upDock.Children.Add($upTxt) | Out-Null
-        
-        $upBorder.Child = $upDock
-        $cardsPanel.Children.Add($upBorder) | Out-Null
+    # ----------------- ANNOUNCEMENT / UPDATE BANNER (Mac-identical) -----------------
+    $ann = $data.announcement
+    $annType = if ($ann) { "$($ann.type)" } else { "" }
+    $isVersao = ($annType -eq "versao")
+    $hasAnn = ($ann -and $ann.message -and "$($ann.message)".Trim())
+    $updAvail = ($data.update -and $data.update.update_available)
+
+    # A standalone "new version" notice is shown only when there is no announcement of its own
+    if ($updAvail -and -not $hasAnn) {
+        $isVersao = $true
+        $ann = @{ title = "Nova Versão Disponível"; message = "Versão $($data.update.latest_version) disponível para download."; action_label = "Download Now"; action_url = $data.update.download_url; type = "versao" }
+        $hasAnn = $true
     }
 
-    # ----------------- ANNOUNCEMENT / DONATION -----------------
-    if ($data.announcement -and $data.announcement.message) {
+    if ($hasAnn) {
+        $mk = { param($a, $r, $g, $b) New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb($a, $r, $g, $b)) }
+        if ($isVersao) {
+            $fill = & $mk 0x80 0x06 0x2A 0x1E;  $border = & $mk 0x99 0x10 0xB9 0x81
+            $titleC = & $mk 0xFF 0x34 0xD3 0x99; $btnFill = & $mk 0x38 0x10 0xB9 0x81; $btnBorder = & $mk 0xB3 0x10 0xB9 0x81
+        } else {
+            $fill = & $mk 0x80 0x2D 0x24 0x18;  $border = & $mk 0x99 0xF5 0x9E 0x0B
+            $titleC = & $mk 0xFF 0xFB 0xBF 0x24; $btnFill = & $mk 0x38 0xF5 0x9E 0x0B; $btnBorder = & $mk 0xB3 0xF5 0x9E 0x0B
+        }
+
         $annBorder = New-Object System.Windows.Controls.Border
-        $annBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(40, 0x38, 0xBD, 0xF8)))
-        $annBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
+        $annBorder.Background = $fill
+        $annBorder.BorderBrush = $border
         $annBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
-        $annBorder.CornerRadius = (New-Object System.Windows.CornerRadius(6))
-        $annBorder.Padding = (New-Object System.Windows.Thickness(12, 8, 12, 8))
-        $annBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
-        
+        $annBorder.CornerRadius = (New-Object System.Windows.CornerRadius(8))
+        $annBorder.Padding = (New-Object System.Windows.Thickness(16, 12, 16, 14))
+        $annBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 12))
+
         $annStack = New-Object System.Windows.Controls.StackPanel
-        
-        $badgeText = if ($data.announcement.badge) { "$($data.announcement.badge)" -replace '[^\x20-\x7E]', '' } else { "PRO" }
-        if (-not $badgeText.Trim()) { $badgeText = "PRO" }
-        
+
         $annHead = New-Object System.Windows.Controls.TextBlock
-        $annHead.Text = "[$badgeText] $($data.announcement.title)"
+        $annHead.Text = if ($ann.title) { "$($ann.title)" } elseif ($isVersao) { "Nova Versão Disponível" } else { "Informativo" }
         $annHead.FontWeight = [System.Windows.FontWeights]::Bold
-        $annHead.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
+        $annHead.FontSize = 14
+        $annHead.Foreground = $titleC
         $annStack.Children.Add($annHead) | Out-Null
-        
+
         $annMsg = New-Object System.Windows.Controls.TextBlock
-        $annMsg.Text = "$($data.announcement.message)"
+        $annMsg.Text = "$($ann.message)"
         $annMsg.TextWrapping = [System.Windows.TextWrapping]::Wrap
-        $annMsg.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xCC)))
-        $annMsg.Margin = (New-Object System.Windows.Thickness(0, 2, 0, 4))
+        $annMsg.FontSize = 12.5
+        $annMsg.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD9, 0xD9, 0xD9)))
+        $annMsg.Margin = (New-Object System.Windows.Thickness(0, 4, 0, 0))
         $annStack.Children.Add($annMsg) | Out-Null
-        
-        if ($data.announcement.action_label -and $data.announcement.action_url) {
-            $actLabel = "$($data.announcement.action_label)" -replace '→', '->'
-            if (-not ($actLabel.Contains("->") -or $actLabel.Contains(">"))) {
-                $actLabel = "$actLabel ->"
+
+        $annUrl = "$($ann.action_url)".Trim()
+        $hasAction = $isVersao -or ($ann.action_label -and "$($ann.action_label)".Trim()) -or $annUrl
+        if ($hasAction) {
+            $defaultLabel = if ($isVersao) { "Download Now" } else { "View Details" }
+            $actLabel = if ($ann.action_label -and "$($ann.action_label)".Trim()) { "$($ann.action_label)".Trim() } else { $defaultLabel }
+            $arrow = [string][char]0x2192
+            $btnText = if ($actLabel.EndsWith("!") -or $actLabel.Contains($arrow)) { $actLabel } else { "$actLabel $arrow" }
+
+            $updUrl = if ($data.update) { "$($data.update.download_url)".Trim() } else { "" }
+            $target = if ($isVersao) {
+                if ($annUrl) { $annUrl } elseif ($updUrl) { $updUrl } else { "https://github.com/vh2c/gemini-gauge/releases/latest" }
+            } else {
+                if ($annUrl) { $annUrl } else { "https://ai-gauge.vh2c.com.br/donate" }
             }
+
             $btnAct = New-Object System.Windows.Controls.Button
-            $btnAct.Content = $actLabel
-            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
-            $btnAct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xC9, 0xFF)))
-            $btnAct.Background = [System.Windows.Media.Brushes]::Transparent
-            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(0))
+            $btnAct.Content = $btnText
+            $btnAct.Tag = $target
+            $btnAct.MinWidth = 190
+            $btnAct.Height = 30
+            $btnAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+            $btnAct.Margin = (New-Object System.Windows.Thickness(0, 10, 0, 0))
+            $btnAct.Padding = (New-Object System.Windows.Thickness(18, 0, 18, 0))
+            $btnAct.Background = $btnFill
+            $btnAct.BorderBrush = $btnBorder
+            $btnAct.BorderThickness = (New-Object System.Windows.Thickness(1))
+            $btnAct.Foreground = $titleC
+            $btnAct.FontWeight = [System.Windows.FontWeights]::Bold
+            $btnAct.FontSize = 12.5
             $btnAct.Cursor = [System.Windows.Input.Cursors]::Hand
-            $actUrl = $data.announcement.action_url
-            $btnAct.Add_Click({ [System.Diagnostics.Process]::Start($actUrl) })
+            # URL kept in Tag: this function's locals are gone by the time the click happens
+            $btnAct.Add_Click({ param($sender, $e) try { [System.Diagnostics.Process]::Start("$($sender.Tag)") } catch { Write-AppError $_.Exception } })
             $annStack.Children.Add($btnAct) | Out-Null
         }
-        
+
         $annBorder.Child = $annStack
         $cardsPanel.Children.Add($annBorder) | Out-Null
     }
