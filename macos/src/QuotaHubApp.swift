@@ -2217,7 +2217,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         pinItem.state = isAlwaysOnTop ? .on : .off
         menu.addItem(pinItem)
         
-        let brandItem = NSMenuItem(title: "Visit vh2c.com.br", action: #selector(brandClicked), keyEquivalent: "")
+        let brandItem = NSMenuItem(title: "Support / Donate (Stripe)", action: #selector(brandClicked), keyEquivalent: "")
         brandItem.target = self
         menu.addItem(brandItem)
         
@@ -2451,7 +2451,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if hasAction {
                 let defaultLabel = isVersao ? "Download Now" : "View Details"
                 let actLabel = (ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : defaultLabel
-                let actUrl = isVersao ? defaultVersionUrl : (effectiveAnnUrl ?? "https://vh2c.com.br")
+                let actUrl = isVersao ? defaultVersionUrl : (effectiveAnnUrl ?? "https://ai-gauge.vh2c.com.br/donate")
                 
                 let btnText = (actLabel.hasSuffix("!") || actLabel.contains("→")) ? actLabel : "\(actLabel) →"
                 let btnW: CGFloat = max(170, CGFloat(btnText.count * 8 + 36))
@@ -2816,7 +2816,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let brandBtn = NSButton(title: "", target: self, action: #selector(brandClicked))
         brandBtn.isBordered = false
         brandBtn.frame = NSRect(x: 14, y: 5, width: windowWidth - 28, height: 20)
-        brandBtn.toolTip = "Visit vh2c.com.br"
+        brandBtn.toolTip = "Support AI Gauge via Stripe Donation"
         brandBtn.attributedTitle = NSAttributedString(
             string: "Developed by vh2c.com.br",
             attributes: [
@@ -3561,7 +3561,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc func brandClicked() {
-        if let url = URL(string: "https://vh2c.com.br") {
+        let mid = getMachineId()
+        let donateUrlStr = mid.isEmpty
+            ? "https://ai-gauge.vh2c.com.br/donate"
+            : "https://ai-gauge.vh2c.com.br/donate?mid=\(mid)"
+        if let url = URL(string: donateUrlStr) {
             NSWorkspace.shared.open(url)
         }
     }

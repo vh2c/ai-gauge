@@ -850,10 +850,12 @@ class QuotaHubAppLinux:
                 bar_canvas.create_rectangle(0, 0, fill_w, 6, fill=val_col, outline="")
         close_btn.pack(side="right")
 
+        mid = get_machine_id()
+        donate_url = f"https://ai-gauge.vh2c.com.br/donate?mid={mid}" if mid else "https://ai-gauge.vh2c.com.br/donate"
         brand_lbl = tk.Label(footer, text="⚡ AI Gauge  •  Developed by vh2c.com.br", font=("Sans", 8),
                              fg="#9CA3AF", bg="#181818", cursor="hand2")
         brand_lbl.pack(pady=(8, 2))
-        brand_lbl.bind("<Button-1>", lambda e: webbrowser.open("https://vh2c.com.br"))
+        brand_lbl.bind("<Button-1>", lambda e: webbrowser.open(donate_url))
 
     def setup_hud_ui(self):
         self.root.overrideredirect(True)
@@ -927,7 +929,10 @@ class QuotaHubAppLinux:
                 d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
                 canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
             else:
-                canvas.create_text(52, h - 8, text="vh2c.com.br", font=("Sans", 7), fill="#555555")
+                mid = get_machine_id()
+                donate_url = f"https://ai-gauge.vh2c.com.br/donate?mid={mid}" if mid else "https://ai-gauge.vh2c.com.br/donate"
+                t_brand = canvas.create_text(52, h - 8, text="vh2c.com.br", font=("Sans", 7), fill="#555555")
+                canvas.tag_bind(t_brand, "<Button-1>", lambda e: webbrowser.open(donate_url))
         else:
             cur_x = 28
             for item in items:

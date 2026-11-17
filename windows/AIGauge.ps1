@@ -304,6 +304,7 @@ function Get-QuotaData ($force = $false) {
                     
                     <!-- Brand Link -->
                     <TextBlock Name="TxtBrand" Text="⚡ AI Gauge • Developed by vh2c.com.br"
+                               ToolTip="Support AI Gauge via Stripe Donation"
                                Foreground="#38BDF8" FontSize="10.5" FontWeight="SemiBold"
                                HorizontalAlignment="Center" Margin="0,10,0,0" Cursor="Hand"/>
                 </StackPanel>
@@ -1380,7 +1381,12 @@ function Refresh-Data {
 $btnRefresh.Add_Click({ Refresh-Data })
 $btnSettings.Add_Click({ Show-SettingsDialog })
 $txtBrand.Add_MouseDown({
-    [System.Diagnostics.Process]::Start("https://vh2c.com.br")
+     = ""
+    if (Test-Path ) {
+         = (Get-Content  -Raw).Trim()
+    }
+     = if () { "https://ai-gauge.vh2c.com.br/donate?mid=" } else { "https://ai-gauge.vh2c.com.br/donate" }
+    [System.Diagnostics.Process]::Start()
 })
 
 # Initial Load
