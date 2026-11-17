@@ -1,3 +1,12 @@
 Set WshShell = CreateObject("WScript.Shell")
-ScriptDir = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
-WshShell.Run "powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File """ & ScriptDir & "\AIGauge.ps1""", 0, False
+Set Fso = CreateObject("Scripting.FileSystemObject")
+ScriptDir = Fso.GetParentFolderName(WScript.ScriptFullName)
+PsFile = ScriptDir & "\AIGauge.ps1"
+If Not Fso.FileExists(PsFile) Then
+    PsFile = ScriptDir & "\GeminiGauge.ps1"
+End If
+If Fso.FileExists(PsFile) Then
+    WshShell.Run "powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File """ & PsFile & """", 0, False
+Else
+    MsgBox "Arquivo de inicializacao nao encontrado:" & vbCrLf & PsFile, 16, "AI Gauge"
+End If

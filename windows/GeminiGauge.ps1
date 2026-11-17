@@ -27,6 +27,16 @@ Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Web
 
+trap {
+    try {
+        $err = $_.Exception.ToString()
+        $logPath = Join-Path $env:TEMP "ai_gauge_error.log"
+        Set-Content -Path $logPath -Value $err -Encoding UTF8 -Force
+        [System.Windows.MessageBox]::Show("Ocorreu um erro ao executar o AI Gauge:`n`n$($_.Exception.Message)`n`nArquivo de log salvo em:`n$logPath", "AI Gauge - Erro", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+    } catch {}
+    exit 1
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoDir = Split-Path -Parent $ScriptDir
 $EngineScript = Join-Path $ScriptDir "core\engine.js"
@@ -1521,12 +1531,12 @@ if ($txtHudBrand) {
 }
 
 $txtBrand.Add_MouseDown({
-     = ""
-    if (Test-Path ) {
-         = (Get-Content  -Raw).Trim()
+    $mid = ""
+    if (Test-Path $DeviceIdFile) {
+        $mid = (Get-Content $DeviceIdFile -Raw).Trim()
     }
-     = if () { "https://ai-gauge.vh2c.com.br/donate?mid=" } else { "https://ai-gauge.vh2c.com.br/donate" }
-    [System.Diagnostics.Process]::Start()
+    $dUrl = if ($mid) { "https://ai-gauge.vh2c.com.br/donate?mid=$mid" } else { "https://ai-gauge.vh2c.com.br/donate" }
+    [System.Diagnostics.Process]::Start($dUrl)
 })
 
 # Initial Load
