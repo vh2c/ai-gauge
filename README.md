@@ -32,7 +32,7 @@ Para testadores e usuários leigos: **não é necessário compilar código**. Ba
 | Plataforma | Pacote (.zip / .tar.gz) | Tamanho | Como Instalar |
 | :--- | :--- | :---: | :--- |
 | 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](releases/v1.1/AI-Gauge-macOS-vh2c.zip?raw=true) | `2.5 MB` | Extraia e arraste o **AI Gauge.app** para a pasta `/Applications`, ou execute `./install.sh`. |
-| 🪟 **Windows** | [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true) | `5.7 MB` | Extraia o arquivo e execute o instalador interativo **`install.ps1`** com o PowerShell. |
+| 🪟 **Windows** | [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true) | `0.2 MB` | Extraia o ZIP e dê dois cliques em **`install.bat`**. O Node.js portátil é baixado automaticamente. |
 | 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.tar.gz**](releases/v1.1/AI-Gauge-Linux-vh2c.tar.gz?raw=true) | `5.9 MB` | Extraia o arquivo e execute **`./install.sh`** no terminal. |
 
 ---
@@ -146,9 +146,10 @@ cd AI-Gauge-Linux
 
 ### 🪟 Windows (Windows 10 / 11)
 1. Baixe o pacote: [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true)
-2. Extraia o ZIP.
-3. Clique com o botão direito em **`install.ps1`** e selecione **"Executar com o PowerShell"** (ou execute `AIGauge.bat`).
-4. Os atalhos serão criados automaticamente na sua Área de Trabalho e Menu Iniciar.
+2. Extraia o ZIP (não execute de dentro do ZIP).
+3. Dê dois cliques em **`install.bat`**. Não precisa de administrador nem de Node.js instalado: se faltar, o instalador baixa um Node.js portátil (~30 MB, uma única vez, com verificação SHA-256).
+4. Os atalhos são criados na Área de Trabalho e no Menu Iniciar. Uma versão anterior é removida automaticamente e suas configurações são mantidas.
+5. Para desinstalar: **Configurações → Aplicativos** (ou Menu Iniciar → *Desinstalar AI Gauge*).
 
 ---
 

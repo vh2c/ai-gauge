@@ -8,14 +8,55 @@ Write-Host " ⚡ AI Gauge - Instalador Windows (VH2C)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host ""
 
-# Target Directory: %LOCALAPPDATA%\GeminiGauge
-$TargetDir = Join-Path $env:LOCALAPPDATA "GeminiGauge"
-if (-not (Test-Path $TargetDir)) {
-    New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null
-}
+# Target Directory: %LOCALAPPDATA%\AIGauge (older versions used ...\GeminiGauge)
+$TargetDir = Join-Path $env:LOCALAPPDATA "AIGauge"
+$LegacyDir = Join-Path $env:LOCALAPPDATA "GeminiGauge"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoDir = Split-Path -Parent $ScriptDir
+
+# ----------------------------------------------------
+# 0. LIMPEZA DA VERSÃO ANTERIOR (upgrade limpo)
+# ----------------------------------------------------
+Write-Host "🧹 Verificando versão anterior..." -ForegroundColor Cyan
+
+# 0.1 Close any running AI Gauge instance (current or legacy names)
+try {
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'wscript.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match 'AIGauge\.(ps1|vbs)|GeminiGauge\.(ps1|vbs)|AntigravityQuotaHub' -and $_.ProcessId -ne $PID } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 600
+} catch {}
+
+# 0.2 Remove old shortcuts (current and legacy names)
+$oldShortcutNames = @("AI Gauge.lnk", "Desinstalar AI Gauge.lnk", "Gemini Gauge.lnk", "Antigravity Quota Hub.lnk", "Universal AI Quota.lnk")
+$shortcutDirs = @([Environment]::GetFolderPath("Desktop"), (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"))
+foreach ($d in $shortcutDirs) {
+    foreach ($n in $oldShortcutNames) {
+        $f = Join-Path $d $n
+        if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# 0.3 Reuse an already downloaded portable Node, then drop the legacy folder
+if (-not (Test-Path $TargetDir)) { New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null }
+$legacyNode = Join-Path $LegacyDir "bin\node.exe"
+if ((Test-Path $legacyNode) -and -not (Test-Path (Join-Path $TargetDir "bin\node.exe"))) {
+    New-Item -ItemType Directory -Path (Join-Path $TargetDir "bin") -Force | Out-Null
+    Copy-Item $legacyNode (Join-Path $TargetDir "bin\node.exe") -Force
+}
+if ((Test-Path $LegacyDir) -and ($ScriptDir -notlike "$LegacyDir*")) {
+    Remove-Item $LegacyDir -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "   ✓ Versão antiga removida ($LegacyDir)" -ForegroundColor Green
+}
+
+# 0.4 Clean the current install folder (keeps bin\node.exe; your settings live elsewhere and are kept)
+if ($ScriptDir -notlike "$TargetDir*") {
+    Get-ChildItem -Path $TargetDir -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne "bin" } |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+}
+Write-Host ""
 
 # ----------------------------------------------------
 # 1. SCAN DE APLICATIVOS DE IA INSTALADOS
@@ -131,20 +172,7 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
 }
 
 # ----------------------------------------------------
-# 2. VERIFICAÇÃO DE DEPENDÊNCIAS
-# ----------------------------------------------------
-$NodeCmd = Get-Command "node.exe" -ErrorAction SilentlyContinue
-if (-not $NodeCmd) {
-    Write-Host "⚠️  Node.js (v18+) não foi detectado no sistema." -ForegroundColor Yellow
-    Write-Host "   O AI Gauge precisa do Node.js para agregar as cotas." -ForegroundColor Yellow
-    Write-Host "   Baixe e instale gratuitamente em: https://nodejs.org" -ForegroundColor Cyan
-    Write-Host ""
-} else {
-    Write-Host "✅ Node.js detectado: $(& node -v)" -ForegroundColor Green
-}
-
-# ----------------------------------------------------
-# 3. INSTALAÇÃO DOS ARQUIVOS
+# 2. INSTALAÇÃO DOS ARQUIVOS
 # ----------------------------------------------------
 Write-Host "📦 Instalando arquivos em $TargetDir..." -ForegroundColor Gray
 Copy-Item -Path (Join-Path $RepoDir "core") -Destination $TargetDir -Recurse -Force
@@ -154,20 +182,90 @@ if (Test-Path (Join-Path $RepoDir "assets\icon.ico")) {
     Copy-Item -Path (Join-Path $RepoDir "assets\icon.ico") -Destination (Join-Path $TargetDir "icon.ico") -Force
 }
 
+# ----------------------------------------------------
+# 3. NODE.JS PORTÁTIL (não exige instalação no sistema)
+# ----------------------------------------------------
+function Install-PortableNode ($DestDir) {
+    $binDir = Join-Path $DestDir "bin"
+    $nodeExe = Join-Path $binDir "node.exe"
+    if (Test-Path $nodeExe) { return $true }
+
+    Write-Host "⬇️  Baixando Node.js portátil (apenas uma vez, ~30 MB)..." -ForegroundColor Cyan
+    $tmp = Join-Path $env:TEMP ("aigauge_node_" + [guid]::NewGuid().ToString("N"))
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $ProgressPreference = "SilentlyContinue"
+        New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+
+        $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "win-arm64" } else { "win-x64" }
+        $index = Invoke-RestMethod -Uri "https://nodejs.org/dist/index.json" -UseBasicParsing
+        $rel = $index | Where-Object { $_.lts -and ($_.files -contains "$arch-zip") } | Select-Object -First 1
+        if (-not $rel) { throw "Nenhuma versão LTS do Node.js encontrada para $arch" }
+        $ver = $rel.version
+        $zipName = "node-$ver-$arch.zip"
+        $zipPath = Join-Path $tmp $zipName
+
+        Invoke-WebRequest -Uri "https://nodejs.org/dist/$ver/$zipName" -OutFile $zipPath -UseBasicParsing
+        $sums = (Invoke-WebRequest -Uri "https://nodejs.org/dist/$ver/SHASUMS256.txt" -UseBasicParsing).Content
+        $expected = ($sums -split "`n" | Where-Object { $_ -match [regex]::Escape($zipName) } | Select-Object -First 1) -split "\s+" | Select-Object -First 1
+        $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash
+        if (-not $expected -or ($expected.ToLower() -ne $actual.ToLower())) { throw "Falha na verificação SHA-256 do Node.js" }
+
+        Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
+        New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+        Copy-Item -Path (Join-Path $tmp "node-$ver-$arch\node.exe") -Destination $nodeExe -Force
+        Write-Host "✅ Node.js $ver instalado em $binDir" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "⚠️  Não foi possível obter o Node.js automaticamente: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "   O AI Gauge abrirá e mostrará um botão para baixar o Node.js manualmente." -ForegroundColor Yellow
+        return $false
+    } finally {
+        Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+if (Test-Path (Join-Path $TargetDir "bin\node.exe")) {
+    Write-Host "✅ Node.js embutido encontrado." -ForegroundColor Green
+} else {
+    Install-PortableNode $TargetDir | Out-Null
+}
+
 $WshShell = New-Object -ComObject WScript.Shell
 $IconPath = Join-Path $TargetDir "icon.ico"
 
 $targetVbs = if (Test-Path (Join-Path $TargetDir "AIGauge.vbs")) { "$TargetDir\AIGauge.vbs" } else { "$TargetDir\GeminiGauge.vbs" }
 
-# 1. Desktop Shortcut
-$DesktopDir = [Environment]::GetFolderPath("Desktop")
-$DesktopShortcut = $WshShell.CreateShortcut((Join-Path $DesktopDir "AI Gauge.lnk"))
-$DesktopShortcut.TargetPath = "wscript.exe"
-$DesktopShortcut.Arguments = "`"$targetVbs`""
-$DesktopShortcut.WorkingDirectory = $TargetDir
-$DesktopShortcut.IconLocation = "$IconPath,0"
-$DesktopShortcut.Description = "AI Gauge - AI Quota & Rate Limit Monitor (VH2C)"
-$DesktopShortcut.Save()
+# 1. Desktop Shortcut (verified; falls back to %USERPROFILE%\Desktop if the shell folder fails)
+function New-AppShortcut ($lnkPath) {
+    $sc = $WshShell.CreateShortcut($lnkPath)
+    $sc.TargetPath = "wscript.exe"
+    $sc.Arguments = "`"$targetVbs`""
+    $sc.WorkingDirectory = $TargetDir
+    $sc.IconLocation = "$IconPath,0"
+    $sc.Description = "AI Gauge - AI Quota & Rate Limit Monitor (VH2C)"
+    $sc.Save()
+    return (Test-Path $lnkPath)
+}
+
+$desktopOk = $false
+$desktopCandidates = @([Environment]::GetFolderPath("DesktopDirectory"), (Join-Path $env:USERPROFILE "Desktop")) | Where-Object { $_ } | Select-Object -Unique
+foreach ($dd in $desktopCandidates) {
+    if ($desktopOk) { break }
+    try {
+        if (-not (Test-Path $dd)) { continue }
+        $lnk = Join-Path $dd "AI Gauge.lnk"
+        if (New-AppShortcut $lnk) {
+            $desktopOk = $true
+            Write-Host "✅ Atalho criado na Área de Trabalho: $lnk" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "⚠️  Não foi possível criar o atalho em ${dd}: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+if (-not $desktopOk) {
+    Write-Host "⚠️  O atalho da Área de Trabalho não foi criado. Use o Menu Iniciar > AI Gauge." -ForegroundColor Yellow
+}
 
 # 2. Start Menu Shortcut
 $StartMenuDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
@@ -179,7 +277,31 @@ $StartShortcut.IconLocation = "$IconPath,0"
 $StartShortcut.Description = "AI Gauge - AI Quota & Rate Limit Monitor (VH2C)"
 $StartShortcut.Save()
 
-Write-Host "✅ Atalhos criados com sucesso na Área de Trabalho e no Menu Iniciar!" -ForegroundColor Green
+# 3. Uninstall shortcut + entry in Windows "Apps installed" (per-user, no admin needed)
+$UninstallPs1 = Join-Path $TargetDir "uninstall.ps1"
+if (Test-Path $UninstallPs1) {
+    $UninstShortcut = $WshShell.CreateShortcut((Join-Path $StartMenuDir "Desinstalar AI Gauge.lnk"))
+    $UninstShortcut.TargetPath = "powershell.exe"
+    $UninstShortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$UninstallPs1`""
+    $UninstShortcut.WorkingDirectory = $TargetDir
+    $UninstShortcut.IconLocation = "$IconPath,0"
+    $UninstShortcut.Save()
+
+    try {
+        $uk = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AIGauge"
+        New-Item -Path $uk -Force | Out-Null
+        Set-ItemProperty -Path $uk -Name "DisplayName" -Value "AI Gauge"
+        Set-ItemProperty -Path $uk -Name "DisplayVersion" -Value "1.1"
+        Set-ItemProperty -Path $uk -Name "Publisher" -Value "VH2C"
+        Set-ItemProperty -Path $uk -Name "DisplayIcon" -Value $IconPath
+        Set-ItemProperty -Path $uk -Name "InstallLocation" -Value $TargetDir
+        Set-ItemProperty -Path $uk -Name "UninstallString" -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$UninstallPs1`""
+        Set-ItemProperty -Path $uk -Name "NoModify" -Value 1 -Type DWord
+        Set-ItemProperty -Path $uk -Name "NoRepair" -Value 1 -Type DWord
+    } catch {}
+}
+
+Write-Host "✅ Atalho criado no Menu Iniciar!" -ForegroundColor Green
 Write-Host "🚀 Iniciando o AI Gauge..." -ForegroundColor Cyan
 
 Start-Process "wscript.exe" -ArgumentList "`"$targetVbs`""

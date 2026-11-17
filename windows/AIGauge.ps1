@@ -44,11 +44,18 @@ if (-not (Test-Path $EngineScript)) {
     $EngineScript = Join-Path $RepoDir "core\engine.js"
 }
 
+# Demo mode (--demo): fictitious accounts, isolated config, no Node, no telemetry.
+$DemoMode = ($args -contains "--demo")
+
 $ConfigDir = Join-Path $env:USERPROFILE ".config\UniversalAIQuota"
+if ($DemoMode) { $ConfigDir = Join-Path $env:TEMP "AIGaugeDemo" }
 if (-not (Test-Path $ConfigDir)) {
     New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
 }
 $ConfigFile = Join-Path $ConfigDir "config.json"
+if ($DemoMode -and -not (Test-Path $ConfigFile)) {
+    [IO.File]::WriteAllText($ConfigFile, '{"providers":{},"hidden_hud_gauges":[],"onboarding_completed":true}', [Text.Encoding]::UTF8)
+}
 $DeviceIdFile = Join-Path $ConfigDir "device_id"
 
 # 1. Curated 6 Pastel Colors (Yellow removed, 1:1 match with providers)
@@ -255,39 +262,120 @@ function Send-TelemetryHeartbeat {
     } catch {}
 }
 
-Send-TelemetryHeartbeat
+if (-not $DemoMode) { Send-TelemetryHeartbeat }
 
-# 3. Find Node binary
+# 3. Find Node binary (bundled copy first, so the app works without a system Node.js)
 function Find-NodeBinary {
-    $cmd = Get-Command "node.exe" -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
     $localNode = Join-Path $ScriptDir "bin\node.exe"
     if (Test-Path $localNode) { return $localNode }
+    $cmd = Get-Command "node.exe" -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
     return $null
 }
 
 $NodeExe = Find-NodeBinary
 
-function Get-QuotaData ($force = $false) {
+function Write-AppError ($ex) {
+    try {
+        $logPath = Join-Path $env:TEMP "ai_gauge_error.log"
+        Add-Content -Path $logPath -Value ("[{0}] {1}" -f (Get-Date -Format "s"), $ex.ToString()) -Encoding UTF8
+    } catch {}
+}
+
+function New-NodeMissingData {
+    return @{
+        account = "Node.js não detectado"
+        plan = "Requer Instalação"
+        updated_at = (Get-Date -Format "HH:mm:ss")
+        groups = @()
+        node_missing = $true
+    }
+}
+
+# Asynchronous engine runner: the UI thread never blocks while node.exe collects quotas.
+$global:quotaFetch = $null
+$global:initialLoad = $true
+
+function New-DemoData {
+    function B ($id, $name, $pct, $reset) { return @{ id = $id; name = $name; remaining_pct = $pct; reset_in = $reset } }
+    return @{
+        account = "demo@aigauge.test  (MODO DEMO)"
+        plan = "DEMO"
+        updated_at = (Get-Date -Format "HH:mm:ss")
+        groups = @(
+            @{ name = "Antigravity"; provider = "Antigravity (Live)"; buckets = @(
+                (B "demo-ag-gemini-weekly" "Gemini Weekly Limit Remaining" 43 "4d 1h"),
+                (B "demo-ag-gemini-5h" "Gemini Five Hour Limit Remaining" 98 "4h 51m"),
+                (B "demo-ag-argon-weekly" "Argon Weekly Limit Remaining" 27 "4d 1h")) },
+            @{ name = "Claude Pro"; provider = "Claude Pro"; buckets = @(
+                (B "demo-claude-5h" "Claude 5 Hour Limit" 84 "4h 27m"),
+                (B "demo-claude-weekly" "Claude Weekly Limit" 82 "2d 18h")) },
+            @{ name = "ChatGPT Plus"; provider = "ChatGPT"; buckets = @(
+                (B "demo-gpt4o-3h" "GPT-4o 3 Hour Limit" 100 "29d 23h"),
+                (B "demo-o1-weekly" "o1 Reasoning Weekly" 100 "7d")) },
+            @{ name = "Cursor"; provider = "Cursor"; buckets = @(
+                (B "demo-cursor-fast" "Fast Requests (Claude)" 64 "14d"),
+                (B "demo-cursor-month" "Ciclo Mensal de Faturamento" 12 "14d")) }
+        )
+    }
+}
+
+function Start-QuotaFetch ($force = $false) {
+    if ($global:quotaFetch) { return }
+    if ($DemoMode) {
+        Complete-QuotaFetch (New-DemoData)
+        return
+    }
     if (-not $NodeExe) {
-        return @{
-            account = "Node.js não detectado"
-            plan = "Requer Instalação"
-            updated_at = (Get-Date -Format "HH:mm:ss")
-            groups = @()
-            node_missing = $true
-        }
+        Complete-QuotaFetch (New-NodeMissingData)
+        return
     }
     try {
-        $argsList = @($EngineScript)
-        if ($force) { $argsList += "--force" }
-        $json = & $NodeExe $argsList 2>$null
-        if ($LASTEXITCODE -eq 0 -and $json) {
-            return ($json | ConvertFrom-Json)
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $NodeExe
+        $psi.Arguments = if ($force) { "`"$EngineScript`" --force" } else { "`"$EngineScript`"" }
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $global:quotaFetch = @{
+            Proc    = $proc
+            Out     = $proc.StandardOutput.ReadToEndAsync()
+            Err     = $proc.StandardError.ReadToEndAsync()
+            Started = Get-Date
         }
-    } catch {}
-    return $null
+        $global:quotaPoll.Start()
+    } catch {
+        Write-AppError $_.Exception
+        Complete-QuotaFetch $null
+    }
 }
+
+$global:quotaPoll = New-Object System.Windows.Threading.DispatcherTimer
+$global:quotaPoll.Interval = [TimeSpan]::FromMilliseconds(150)
+$global:quotaPoll.Add_Tick({
+    $f = $global:quotaFetch
+    if (-not $f) { $global:quotaPoll.Stop(); return }
+    $timedOut = (((Get-Date) - $f.Started).TotalSeconds -gt 60)
+    if (-not $f.Proc.HasExited -and -not $timedOut) { return }
+    $global:quotaPoll.Stop()
+    $global:quotaFetch = $null
+    $result = $null
+    try {
+        if (-not $f.Proc.HasExited) {
+            $f.Proc.Kill()
+        } else {
+            $f.Proc.WaitForExit()
+            if ($f.Proc.ExitCode -eq 0) {
+                $json = $f.Out.Result
+                if ($json) { $result = $json | ConvertFrom-Json }
+            }
+        }
+    } catch { Write-AppError $_.Exception }
+    try { Complete-QuotaFetch $result } catch { Write-AppError $_.Exception }
+})
 
 # 4. Main Window XAML (Frameless Glass Cockpit & Radial HUD Dock)
 [xml]$xaml = @"
@@ -335,8 +423,7 @@ function Get-QuotaData ($force = $false) {
                 <Grid Name="CockpitTitleBar" Grid.Row="0" Height="32" Background="Transparent" Margin="0,0,0,4">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Image Name="AppLogo" Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="AI Gauge" Foreground="#00E699" FontSize="13.5" FontWeight="Bold"/>
-                        <TextBlock Text=" • Universal AI Quota Cockpit" Foreground="#9CA3AF" FontSize="12.5" FontWeight="SemiBold"/>
+                        <TextBlock Text="AI Gauge - Universal AI Quota Cockpit" Foreground="#B4B4BE" FontSize="12.5" FontWeight="SemiBold"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Button Name="BtnMin" Content="—" Width="28" Height="24" Background="#24242C" Foreground="#9CA3AF" BorderBrush="#353542" BorderThickness="1" FontSize="11" FontWeight="Bold" Cursor="Hand" Margin="0,0,4,0"/>
@@ -345,35 +432,43 @@ function Get-QuotaData ($force = $false) {
                 </Grid>
                 
                 <!-- Subtitle / Account Info -->
-                <TextBlock Name="TxtAccount" Grid.Row="1" Text="Loading quotas..." Foreground="#888894" FontSize="11" Margin="2,0,0,10"/>
+                <StackPanel Grid.Row="1" Margin="2,2,0,12">
+                    <TextBlock Name="TxtAppName" Text="AI Gauge" Foreground="White" FontSize="21" FontWeight="Bold"/>
+                    <TextBlock Name="TxtAccount" Text="Carregando cotas..." Foreground="#E5E7EB" FontSize="13.5" Margin="0,4,0,0"/>
+                    <TextBlock Name="TxtUpdated" Text="" Foreground="#888894" FontSize="11.5" Margin="0,3,0,0"/>
+                    <Border Height="1" Background="#2C2C34" Margin="0,12,0,0"/>
+                </StackPanel>
                 
                 <!-- Cards List -->
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                     <StackPanel Name="CardsPanel" Margin="0,0,4,0"/>
                 </ScrollViewer>
                 
-                <!-- Cockpit Footer -->
+                <!-- Cockpit Footer (4 equal-width buttons, like the Mac) -->
                 <StackPanel Grid.Row="3" Margin="0,12,0,0">
                     <Grid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <Button Name="BtnRefresh" Content="↻ Refresh" Height="28" Padding="12,0,12,0" Background="#25252D" Foreground="#E5E7EB" BorderBrush="#3B3B48" BorderThickness="1" FontWeight="SemiBold" FontSize="11" Cursor="Hand" Margin="0,0,6,0"/>
-                            <Button Name="BtnHud" Content="⤢ HUD Bar" Height="28" Padding="12,0,12,0" Background="#25252D" Foreground="#E5E7EB" BorderBrush="#3B3B48" BorderThickness="1" FontWeight="SemiBold" FontSize="11" Cursor="Hand" Margin="0,0,6,0"/>
-                            <Button Name="BtnSettings" Content="⚙ Settings" Height="28" Padding="12,0,12,0" Background="#25252D" Foreground="#E5E7EB" BorderBrush="#3B3B48" BorderThickness="1" FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
-                        </StackPanel>
-                        
-                        <Button Name="BtnClose" Content="✕ Close" Height="28" Padding="14,0,14,0" HorizontalAlignment="Right" Background="#25252D" Foreground="#E5E7EB" BorderBrush="#3B3B48" BorderThickness="1" FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Name="BtnRefresh" Grid.Column="0" Content="↻ Refresh" Height="34" Margin="0,0,6,0" Background="#F2F2F4" Foreground="#1C1C1E" BorderThickness="0" FontWeight="SemiBold" FontSize="12.5" Cursor="Hand"/>
+                        <Button Name="BtnHud" Grid.Column="1" Content="⤢ HUD Bar" Height="34" Margin="0,0,6,0" Background="#F2F2F4" Foreground="#1C1C1E" BorderThickness="0" FontWeight="SemiBold" FontSize="12.5" Cursor="Hand"/>
+                        <Button Name="BtnSettings" Grid.Column="2" Content="⚙ Settings" Height="34" Margin="0,0,6,0" Background="#F2F2F4" Foreground="#1C1C1E" BorderThickness="0" FontWeight="SemiBold" FontSize="12.5" Cursor="Hand"/>
+                        <Button Name="BtnClose" Grid.Column="3" Content="✕ Close" Height="34" Background="#F2F2F4" Foreground="#1C1C1E" BorderThickness="0" FontWeight="SemiBold" FontSize="12.5" Cursor="Hand"/>
                     </Grid>
                     
                     <!-- Brand Link -->
-                    <TextBlock Name="TxtBrand" Text="⚡ AI Gauge • Developed by vh2c.com.br"
+                    <TextBlock Name="TxtBrand" Text="Developed by vh2c.com.br"
                                ToolTip="Support AI Gauge via Stripe Donation"
-                               Foreground="#38BDF8" FontSize="10.5" FontWeight="SemiBold"
+                               Foreground="#8A8A96" FontSize="12" FontWeight="SemiBold"
                                HorizontalAlignment="Center" Margin="0,10,0,0" Cursor="Hand"/>
                 </StackPanel>
             </Grid>
             
             <!-- 2. COMPACT HUD BAR VIEW (Mac-identical aesthetic) -->
-            <Border Name="HudView" Background="#141417" Padding="6,8,6,6" Visibility="Collapsed" CornerRadius="12">
+            <Border Name="HudView" Background="Transparent" Padding="6,8,6,6" Visibility="Collapsed" CornerRadius="14">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -381,14 +476,11 @@ function Get-QuotaData ($force = $false) {
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     
-                    <!-- HUD Top Controls -->
-                    <Grid Grid.Row="0" Margin="0,0,0,6">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <Button Name="BtnHudCockpit" Content="⤢" Width="24" Height="22" ToolTip="Cockpit Mode" Background="#202026" Foreground="#9CA3AF" BorderBrush="#2D2D38" BorderThickness="1" FontSize="11" FontWeight="Bold" Cursor="Hand" Margin="0,0,3,0"/>
-                            <Button Name="BtnHudSettings" Content="⚙" Width="24" Height="22" ToolTip="Settings" Background="#202026" Foreground="#9CA3AF" BorderBrush="#2D2D38" BorderThickness="1" FontSize="10" FontWeight="Bold" Cursor="Hand" Margin="0,0,3,0"/>
-                            <Button Name="BtnHudRefresh" Content="↻" Width="24" Height="22" ToolTip="Refresh" Background="#202026" Foreground="#9CA3AF" BorderBrush="#2D2D38" BorderThickness="1" FontSize="11" FontWeight="Bold" Cursor="Hand" Margin="0,0,3,0"/>
-                            <Button Name="BtnHudClose" Content="✕" Width="24" Height="22" ToolTip="Close AI Gauge" Background="#202026" Foreground="#9CA3AF" BorderBrush="#2D2D38" BorderThickness="1" FontSize="9.5" FontWeight="Bold" Cursor="Hand"/>
-                        </StackPanel>
+                    <!-- HUD Top Controls (Mac-identical: borderless icons) -->
+                    <Grid Grid.Row="0" Margin="2,0,2,6" Height="22">
+                        <Button Name="BtnHudCockpit" Content="⤢" Width="24" Height="22" HorizontalAlignment="Left" ToolTip="Cockpit Mode (Ctrl+M)" Background="Transparent" Foreground="#A6A6AE" BorderThickness="0" FontSize="13" FontWeight="Bold" Cursor="Hand"/>
+                        <Button Name="BtnHudMenu" Content="⋯" Width="24" Height="22" HorizontalAlignment="Center" ToolTip="Options" Background="Transparent" Foreground="#A6A6AE" BorderThickness="0" FontSize="15" FontWeight="Bold" Cursor="Hand"/>
+                        <Button Name="BtnHudClose" Content="✕" Width="24" Height="22" HorizontalAlignment="Right" ToolTip="Close AI Gauge" Background="Transparent" Foreground="#A6A6AE" BorderThickness="0" FontSize="10.5" FontWeight="Bold" Cursor="Hand"/>
                     </Grid>
                     
                     <!-- HUD Tachometer Gauges List (Zero wide scrollbar, smooth wheel scroll) -->
@@ -430,6 +522,7 @@ $cockpitTitleBar = $window.FindName("CockpitTitleBar")
 $btnMin = $window.FindName("BtnMin")
 $btnTopClose = $window.FindName("BtnTopClose")
 $txtAcc = $window.FindName("TxtAccount")
+$txtUpdated = $window.FindName("TxtUpdated")
 $cardsPanel = $window.FindName("CardsPanel")
 $btnRefresh = $window.FindName("BtnRefresh")
 $btnHud = $window.FindName("BtnHud")
@@ -441,13 +534,134 @@ $hudView = $window.FindName("HudView")
 $hudCardsPanel = $window.FindName("HudCardsPanel")
 $btnHudClose = $window.FindName("BtnHudClose")
 $btnHudCockpit = $window.FindName("BtnHudCockpit")
-$btnHudSettings = $window.FindName("BtnHudSettings")
-$btnHudRefresh = $window.FindName("BtnHudRefresh")
+$btnHudMenu = $window.FindName("BtnHudMenu")
+$rootBorder = $window.FindName("RootBorder")
 
 $global:isHudMode = $false
 $global:currentData = $null
 $global:prevLeft = $null
 $global:prevTop = $null
+
+# ---------- HUD helpers (metrics identical in spirit to the macOS HUD) ----------
+$global:HudWidth = 124
+
+function Get-GaugeKey ($b) {
+    if ($b.id) { return "$($b.id)" }
+    return "$($b.name)"
+}
+
+function Get-HiddenGauges {
+    $cfg = Load-CurrentConfig
+    if ($cfg -and $cfg.hidden_hud_gauges) {
+        return @($cfg.hidden_hud_gauges | ForEach-Object { "$_" })
+    }
+    return @()
+}
+
+function Get-VisibleBuckets ($g, $hidden) {
+    if (-not $g.buckets) { return @() }
+    return @($g.buckets | Where-Object { $hidden -notcontains (Get-GaugeKey $_) })
+}
+
+function Get-HudHeight ($data) {
+    $workArea = [System.Windows.SystemParameters]::WorkArea
+    $hidden = Get-HiddenGauges
+    $sections = 0
+    $items = 0
+    if ($data -and $data.groups) {
+        foreach ($g in $data.groups) {
+            $n = @(Get-VisibleBuckets $g $hidden).Count
+            if ($n -gt 0) { $sections++; $items += $n }
+        }
+    }
+    if ($items -eq 0) { return 175 }
+    $calc = 64 + ($sections * 35) + ($items * 122) - 10
+    $maxH = [Math]::Min(780, $workArea.Height - 60)
+    return [Math]::Min($maxH, [Math]::Max(160, $calc))
+}
+
+function Set-HudChrome ($hud) {
+    if ($hud) {
+        $rootBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0xF0, 0x18, 0x18, 0x18)))
+        $rootBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2A, 0x2A, 0x2E)))
+        $rootBorder.CornerRadius = (New-Object System.Windows.CornerRadius(14))
+    } else {
+        $rootBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x16, 0x16, 0x19)))
+        $rootBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2C, 0x2C, 0x34)))
+        $rootBorder.CornerRadius = (New-Object System.Windows.CornerRadius(12))
+    }
+}
+
+function Set-HudGaugeHidden ($key, $hide) {
+    $cfg = Load-CurrentConfig
+    if (-not $cfg) { return }
+    $list = @(Get-HiddenGauges | Where-Object { $_ -ne $key })
+    if ($hide) { $list += $key }
+    $cfg | Add-Member -NotePropertyName "hidden_hud_gauges" -NotePropertyValue @($list) -Force
+    Set-Content -Path $ConfigFile -Value ($cfg | ConvertTo-Json -Depth 6) -Encoding UTF8
+    if ($global:isHudMode) {
+        $window.Height = Get-HudHeight $global:currentData
+        Render-HUD $global:currentData
+    }
+}
+
+function Show-HudMenu {
+    $menu = New-Object System.Windows.Controls.ContextMenu
+    $menu.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x20, 0x20, 0x26)))
+    $menu.Foreground = [System.Windows.Media.Brushes]::White
+    $menu.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2A, 0x2A, 0x2E)))
+
+    $miSettings = New-Object System.Windows.Controls.MenuItem
+    $miSettings.Header = "Configurações"
+    $miSettings.Add_Click({ Show-SettingsDialog })
+    $menu.Items.Add($miSettings) | Out-Null
+
+    $miRefresh = New-Object System.Windows.Controls.MenuItem
+    $miRefresh.Header = "Atualizar agora"
+    $miRefresh.Add_Click({ Refresh-Data })
+    $menu.Items.Add($miRefresh) | Out-Null
+
+    $miTop = New-Object System.Windows.Controls.MenuItem
+    $miTop.Header = "Sempre no topo"
+    $miTop.IsCheckable = $true
+    $miTop.IsChecked = [bool]$window.Topmost
+    $miTop.Add_Click({ param($s, $e) $window.Topmost = [bool]$s.IsChecked })
+    $menu.Items.Add($miTop) | Out-Null
+
+    $menu.Items.Add((New-Object System.Windows.Controls.Separator)) | Out-Null
+
+    $miGauges = New-Object System.Windows.Controls.MenuItem
+    $miGauges.Header = "Medidores no HUD"
+    $hidden = Get-HiddenGauges
+    if ($global:currentData -and $global:currentData.groups) {
+        foreach ($g in $global:currentData.groups) {
+            if (-not $g.buckets) { continue }
+            foreach ($b in $g.buckets) {
+                $key = Get-GaugeKey $b
+                $mi = New-Object System.Windows.Controls.MenuItem
+                $mi.Header = "$($g.name) - $(Get-BucketWindowLabel $b.name $b.id)"
+                $mi.IsCheckable = $true
+                $mi.StaysOpenOnClick = $true
+                $mi.IsChecked = ($hidden -notcontains $key)
+                $mi.Tag = $key
+                $mi.Add_Click({ param($s, $e) Set-HudGaugeHidden $s.Tag (-not $s.IsChecked) })
+                $miGauges.Items.Add($mi) | Out-Null
+            }
+        }
+    }
+    $menu.Items.Add($miGauges) | Out-Null
+
+    $menu.Items.Add((New-Object System.Windows.Controls.Separator)) | Out-Null
+
+    $miCockpit = New-Object System.Windows.Controls.MenuItem
+    $miCockpit.Header = "Abrir janela completa"
+    $miCockpit.Add_Click({ Toggle-HudMode })
+    $menu.Items.Add($miCockpit) | Out-Null
+
+    $menu.PlacementTarget = $btnHudMenu
+    $menu.Placement = [System.Windows.Controls.Primitives.PlacementMode]::Bottom
+    $menu.IsOpen = $true
+}
 
 function Toggle-HudMode {
     $workArea = [System.Windows.SystemParameters]::WorkArea
@@ -457,6 +671,7 @@ function Toggle-HudMode {
         $hudView.Visibility = [System.Windows.Visibility]::Collapsed
         $cockpitView.Visibility = [System.Windows.Visibility]::Visible
         
+        Set-HudChrome $false
         $window.Title = "AI Gauge - Universal AI Quota Cockpit"
         $window.Topmost = $false
         $window.Width = 480
@@ -479,30 +694,14 @@ function Toggle-HudMode {
         $cockpitView.Visibility = [System.Windows.Visibility]::Collapsed
         $hudView.Visibility = [System.Windows.Visibility]::Visible
         
-        $totalBuckets = 0
-        $sectionCount = 0
-        if ($global:currentData -and $global:currentData.groups) {
-            foreach ($g in $global:currentData.groups) {
-                if ($g.buckets -and $g.buckets.Count -gt 0) {
-                    $sectionCount++
-                    $totalBuckets += $g.buckets.Count
-                }
-            }
-        }
-        
-        if ($totalBuckets -eq 0) {
-            $hudH = 175
-        } else {
-            $calcH = 34 + ($sectionCount * 22) + ($totalBuckets * 86) + (($sectionCount - 1) * 10) + 26
-            $maxH = [Math]::Min(780, $workArea.Height - 60)
-            $hudH = [Math]::Min($maxH, [Math]::Max(160, $calcH))
-        }
+        Set-HudChrome $true
+        $hudH = Get-HudHeight $global:currentData
         
         $window.Title = "AI Gauge HUD"
         $window.Topmost = $true
-        $window.Width = 118
+        $window.Width = $global:HudWidth
         $window.Height = $hudH
-        $window.Left = $workArea.Right - 134
+        $window.Left = $workArea.Right - ($global:HudWidth + 16)
         $window.Top = [Math]::Max(20, ($workArea.Height - $hudH) / 2)
         
         Render-HUD $global:currentData
@@ -517,8 +716,7 @@ $btnHud.Add_Click({ Toggle-HudMode })
 
 $btnHudClose.Add_Click({ $window.Close() })
 $btnHudCockpit.Add_Click({ Toggle-HudMode })
-$btnHudSettings.Add_Click({ Show-SettingsDialog })
-$btnHudRefresh.Add_Click({ Refresh-Data })
+$btnHudMenu.Add_Click({ Show-HudMenu })
 
 # Dragging Support
 $cockpitTitleBar.Add_MouseLeftButtonDown({
@@ -555,6 +753,7 @@ $window.Add_KeyDown({
 function Render-UI ($data) {
     $global:currentData = $data
     $cardsPanel.Children.Clear()
+    $txtUpdated.Text = ""
     
     $hasGroups = ($data -and $data.groups -and $data.groups.Count -gt 0)
     
@@ -726,8 +925,9 @@ function Render-UI ($data) {
         return
     }
     
-    $cacheInfo = if ($data.from_cache) { " (Cache)" } else { " (Live)" }
-    $txtAcc.Text = "$($data.account) | Plan $($data.plan) | Updated at $($data.updated_at)$cacheInfo"
+    $cacheInfo = if ($data.from_cache) { "Cache" } elseif ($DemoMode) { "Demo" } else { "Tempo real" }
+    $txtAcc.Text = "$($data.account)  •  Plano $($data.plan)"
+    $txtUpdated.Text = "Atualizado às $($data.updated_at) ($cacheInfo)"
     
     # ----------------- UPDATE BANNER -----------------
     if ($data.update -and $data.update.update_available) {
@@ -824,92 +1024,130 @@ function Render-UI ($data) {
         elseif ($provKey -eq "github_copilot") { $cleanTitle = "Copilot" }
         elseif ($provKey -eq "gemini") { $cleanTitle = "Google Gemini" }
         
-        # Header Row
-        $headerGrid = New-Object System.Windows.Controls.Grid
-        $headerGrid.Margin = New-Object System.Windows.Thickness(0, 8, 0, 4)
-        $hCol1 = New-Object System.Windows.Controls.ColumnDefinition; $hCol1.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
-        $hCol2 = New-Object System.Windows.Controls.ColumnDefinition; $hCol2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Auto)
-        $headerGrid.ColumnDefinitions.Add($hCol1)
-        $headerGrid.ColumnDefinitions.Add($hCol2)
-        
-        $gbTitle = New-Object System.Windows.Controls.TextBlock
-        $gbTitle.Text = ($cleanTitle).ToUpper()
-        $gbTitle.Foreground = [System.Windows.Media.Brushes]::White
-        $gbTitle.FontSize = 11
-        $gbTitle.FontWeight = [System.Windows.FontWeights]::Bold
-        [System.Windows.Controls.Grid]::SetColumn($gbTitle, 0)
-        $headerGrid.Children.Add($gbTitle) | Out-Null
-        
-        $tagBadge = New-Object System.Windows.Controls.TextBlock
-        $tagBadge.Text = ($provKey).ToUpper()
-        $tagBadge.Foreground = $accentBrush
-        $tagBadge.FontSize = 9.5
-        $tagBadge.FontWeight = [System.Windows.FontWeights]::Bold
-        [System.Windows.Controls.Grid]::SetColumn($tagBadge, 1)
-        $headerGrid.Children.Add($tagBadge) | Out-Null
-        
-        $cardsPanel.Children.Add($headerGrid) | Out-Null
-        
+        $provLabels = @{ antigravity = "ANTIGRAVITY"; claude_pro = "CLAUDE"; chatgpt_subscription = "CHATGPT"; cursor = "CURSOR"; github_copilot = "COPILOT"; gemini = "GEMINI"; openai = "OPENAI"; anthropic = "ANTHROPIC" }
+        $badgeLabel = if ($provLabels.ContainsKey($provKey)) { $provLabels[$provKey] } else { "$provKey".ToUpper() }
+
         $card = New-Object System.Windows.Controls.Border
         $card.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x1F, 0x1F, 0x22))
         $card.BorderBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2C, 0x2C, 0x33))
         $card.BorderThickness = New-Object System.Windows.Thickness(1)
-        $card.CornerRadius = New-Object System.Windows.CornerRadius(6)
-        $card.Padding = New-Object System.Windows.Thickness(14, 10, 14, 10)
-        $card.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)
+        $card.CornerRadius = New-Object System.Windows.CornerRadius(10)
+        $card.Padding = New-Object System.Windows.Thickness(16, 12, 16, 14)
+        $card.Margin = New-Object System.Windows.Thickness(0, 0, 0, 12)
         
         $cardStack = New-Object System.Windows.Controls.StackPanel
+
+        # Card header INSIDE the card: group title (left) + provider badge (right)
+        $headerGrid = New-Object System.Windows.Controls.Grid
+        $hCol1 = New-Object System.Windows.Controls.ColumnDefinition; $hCol1.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
+        $hCol2 = New-Object System.Windows.Controls.ColumnDefinition; $hCol2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Auto)
+        $headerGrid.ColumnDefinitions.Add($hCol1)
+        $headerGrid.ColumnDefinitions.Add($hCol2)
+
+        $gbTitle = New-Object System.Windows.Controls.TextBlock
+        $gbTitle.Text = "$($g.name)"
+        $gbTitle.Foreground = [System.Windows.Media.Brushes]::White
+        $gbTitle.FontSize = 16
+        $gbTitle.FontWeight = [System.Windows.FontWeights]::Bold
+        $gbTitle.TextTrimming = [System.Windows.TextTrimming]::CharacterEllipsis
+        [System.Windows.Controls.Grid]::SetColumn($gbTitle, 0)
+        $headerGrid.Children.Add($gbTitle) | Out-Null
+
+        $tagBadge = New-Object System.Windows.Controls.TextBlock
+        $tagBadge.Text = $badgeLabel
+        $tagBadge.Foreground = $accentBrush
+        $tagBadge.FontSize = 10.5
+        $tagBadge.FontWeight = [System.Windows.FontWeights]::Bold
+        $tagBadge.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        [System.Windows.Controls.Grid]::SetColumn($tagBadge, 1)
+        $headerGrid.Children.Add($tagBadge) | Out-Null
+        $cardStack.Children.Add($headerGrid) | Out-Null
+
+        $hSep = New-Object System.Windows.Controls.Border
+        $hSep.Height = 1
+        $hSep.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2C, 0x2C, 0x33))
+        $hSep.Margin = New-Object System.Windows.Thickness(0, 10, 0, 8)
+        $cardStack.Children.Add($hSep) | Out-Null
         
         $idx = 0
         foreach ($b in $g.buckets) {
             if ($idx -gt 0) {
-                $sep = New-Object System.Windows.Controls.Separator
+                $sep = New-Object System.Windows.Controls.Border
+                $sep.Height = 1
                 $sep.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x28, 0x28, 0x2E))
-                $sep.Margin = New-Object System.Windows.Thickness(0, 6, 0, 6)
+                $sep.Margin = New-Object System.Windows.Thickness(0, 8, 0, 8)
                 $cardStack.Children.Add($sep) | Out-Null
             }
             
+            $pct = [int]$b.remaining_pct
+            $statusBrush = Get-StatusBrush $pct $accentHex
+
             $row = New-Object System.Windows.Controls.Grid
             $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
             $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Auto)
+            $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Auto)
             $row.ColumnDefinitions.Add($c1)
             $row.ColumnDefinitions.Add($c2)
+            $row.ColumnDefinitions.Add($c3)
             
             $tbName = New-Object System.Windows.Controls.TextBlock
             $tbName.Text = $b.name
             $tbName.Foreground = [System.Windows.Media.Brushes]::White
-            $tbName.FontSize = 11.5
+            $tbName.FontSize = 14
+            $tbName.FontWeight = [System.Windows.FontWeights]::SemiBold
+            $tbName.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+            $tbName.TextTrimming = [System.Windows.TextTrimming]::CharacterEllipsis
             [System.Windows.Controls.Grid]::SetColumn($tbName, 0)
             $row.Children.Add($tbName) | Out-Null
+
+            if ($b.reset_in) {
+                $tbReset = New-Object System.Windows.Controls.TextBlock
+                $tbReset.Text = "Renova em $($b.reset_in)"
+                $tbReset.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8E, 0x8E, 0x9A))
+                $tbReset.FontSize = 11
+                $tbReset.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+                $tbReset.Margin = New-Object System.Windows.Thickness(10, 0, 12, 0)
+                [System.Windows.Controls.Grid]::SetColumn($tbReset, 1)
+                $row.Children.Add($tbReset) | Out-Null
+            }
             
-            $pct = [int]$b.remaining_pct
-            $resetStr = if ($b.reset_in) { " | $($b.reset_in)" } else { "" }
             $tbVal = New-Object System.Windows.Controls.TextBlock
-            $tbVal.Text = "$pct%$resetStr"
-            $tbVal.Foreground = Get-StatusBrush $pct $accentHex
+            $tbVal.Text = "$pct%"
+            $tbVal.Foreground = $statusBrush
             $tbVal.FontWeight = [System.Windows.FontWeights]::Bold
-            $tbVal.FontSize = 11.5
-            [System.Windows.Controls.Grid]::SetColumn($tbVal, 1)
+            $tbVal.FontSize = 18
+            $tbVal.MinWidth = 56
+            $tbVal.TextAlignment = [System.Windows.TextAlignment]::Right
+            $tbVal.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+            [System.Windows.Controls.Grid]::SetColumn($tbVal, 2)
             $row.Children.Add($tbVal) | Out-Null
             
             $cardStack.Children.Add($row) | Out-Null
             
-            # Progress Bar
+            # Progress bar: two star columns, so it always fills the card width (flex)
+            $pctClamped = [Math]::Min([Math]::Max($pct, 0), 100)
+            $pbar = New-Object System.Windows.Controls.Grid
+            $pbar.Height = 8
+            $pbar.Margin = New-Object System.Windows.Thickness(0, 6, 0, 0)
+            $pb1 = New-Object System.Windows.Controls.ColumnDefinition; $pb1.Width = New-Object System.Windows.GridLength($pctClamped, [System.Windows.GridUnitType]::Star)
+            $pb2 = New-Object System.Windows.Controls.ColumnDefinition; $pb2.Width = New-Object System.Windows.GridLength((100 - $pctClamped), [System.Windows.GridUnitType]::Star)
+            $pbar.ColumnDefinitions.Add($pb1)
+            $pbar.ColumnDefinitions.Add($pb2)
+
             $pbarBg = New-Object System.Windows.Controls.Border
-            $pbarBg.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x28, 0x28, 0x2E))
-            $pbarBg.Height = 6
-            $pbarBg.CornerRadius = New-Object System.Windows.CornerRadius(3)
-            $pbarBg.Margin = New-Object System.Windows.Thickness(0, 4, 0, 4)
-            
+            $pbarBg.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2A, 0x2A, 0x30))
+            $pbarBg.CornerRadius = New-Object System.Windows.CornerRadius(4)
+            [System.Windows.Controls.Grid]::SetColumn($pbarBg, 0)
+            [System.Windows.Controls.Grid]::SetColumnSpan($pbarBg, 2)
+            $pbar.Children.Add($pbarBg) | Out-Null
+
             $pbarFill = New-Object System.Windows.Controls.Border
-            $pbarFill.Background = Get-StatusBrush $pct $accentHex
-            $pbarFill.Height = 6
-            $pbarFill.CornerRadius = New-Object System.Windows.CornerRadius(3)
-            $pbarFill.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
-            $pbarFill.Width = [Math]::Max(6, (380 * ($pct / 100.0)))
-            
-            $pbarBg.Child = $pbarFill
-            $cardStack.Children.Add($pbarBg) | Out-Null
+            $pbarFill.Background = $statusBrush
+            $pbarFill.CornerRadius = New-Object System.Windows.CornerRadius(4)
+            [System.Windows.Controls.Grid]::SetColumn($pbarFill, 0)
+            $pbar.Children.Add($pbarFill) | Out-Null
+
+            $cardStack.Children.Add($pbar) | Out-Null
             
             $idx++
         }
@@ -931,7 +1169,7 @@ function Render-HUD ($data) {
         $card.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x28, 0x28, 0x32)))
         $card.BorderThickness = (New-Object System.Windows.Thickness(1))
         $card.CornerRadius = (New-Object System.Windows.CornerRadius(10))
-        $card.Width = 104
+        $card.Width = 106
         $card.Height = 116
         $card.Margin = (New-Object System.Windows.Thickness(0, 4, 0, 6))
         $card.Padding = (New-Object System.Windows.Thickness(6, 10, 6, 8))
@@ -970,8 +1208,10 @@ function Render-HUD ($data) {
         return
     }
     
+    $hiddenKeys = Get-HiddenGauges
     foreach ($g in $data.groups) {
-        if (-not $g.buckets -or $g.buckets.Count -eq 0) { continue }
+        $visibleBuckets = @(Get-VisibleBuckets $g $hiddenKeys)
+        if ($visibleBuckets.Count -eq 0) { continue }
         
         $provKey = Get-ProviderKey $g.name $g.provider
         $accentHex = Get-GroupColorHex $g.name $g.provider
@@ -987,7 +1227,7 @@ function Render-HUD ($data) {
 
         # Section Frame Container Grid
         $secGrid = New-Object System.Windows.Controls.Grid
-        $secGrid.Width = 104
+        $secGrid.Width = 112
         $secGrid.Margin = New-Object System.Windows.Thickness(0, 0, 0, 10)
         $secGrid.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
 
@@ -1007,7 +1247,7 @@ function Render-HUD ($data) {
 
         # Cut-out Title on Top Line (Design idêntico ao Mac)
         $titleBadge = New-Object System.Windows.Controls.Border
-        $titleBadge.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x14, 0x14, 0x17))
+        $titleBadge.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x18, 0x18, 0x18))
         $titleBadge.Padding = New-Object System.Windows.Thickness(6, 0, 6, 0)
         $titleBadge.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
         $titleBadge.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
@@ -1020,100 +1260,120 @@ function Render-HUD ($data) {
         $titleBadge.Child = $titleTb
         $secGrid.Children.Add($titleBadge) | Out-Null
 
-        foreach ($b in $g.buckets) {
+        foreach ($b in $visibleBuckets) {
             $pct = [int]$b.remaining_pct
             $statusBrush = Get-StatusBrush $pct $accentHex
             
-            # Tachometer Gauge Item Container (Floating, no individual box)
+            # Tachometer Gauge Item Container (fixed 100px tall, like the Mac 96pt item)
             $dialStack = New-Object System.Windows.Controls.StackPanel
             $dialStack.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
-            $dialStack.Margin = New-Object System.Windows.Thickness(0, 4, 0, 6)
-            $dialStack.Width = 92
-            
-            # 1. Top Window Label (e.g. "WEEKLY LIMIT", "5 HOURS LIMIT")
-            $wLabel = Get-BucketWindowLabel $b.name $b.id
-            $tbWLabel = New-Object System.Windows.Controls.TextBlock
-            $tbWLabel.Text = $wLabel
-            $tbWLabel.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x76, 0x76, 0x82)))
-            $tbWLabel.FontSize = 7.2
-            $tbWLabel.FontWeight = [System.Windows.FontWeights]::SemiBold
-            $tbWLabel.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
-            $dialStack.Children.Add($tbWLabel) | Out-Null
-            
-            # 2. Tachometer Circular Dial Grid (64x52)
+            $dialStack.Margin = New-Object System.Windows.Thickness(0)
+            $dialStack.Width = 106
+            $dialStack.Height = 122
+
+            $cx = 48.0; $cy = 48.0; $ar = 33.0
             $dialGrid = New-Object System.Windows.Controls.Grid
-            $dialGrid.Width = 64
-            $dialGrid.Height = 52
-            $dialGrid.Margin = New-Object System.Windows.Thickness(0, 1, 0, 1)
-            
-            # Background circular shadow / tint
+            $dialGrid.Width = 96
+            $dialGrid.Height = 96
+
+            # Background circular tint
             $bgCircle = New-Object System.Windows.Shapes.Ellipse
-            $bgCircle.Width = 44
-            $bgCircle.Height = 44
+            $bgCircle.Width = 66
+            $bgCircle.Height = 66
             $bgCircle.Fill = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(180, 0x16, 0x16, 0x1A)))
             $bgCircle.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
             $bgCircle.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
             $dialGrid.Children.Add($bgCircle) | Out-Null
-            
+
+            # Curved window label (e.g. WEEKLY / 5 HOURS) along the top of the dial
+            $wLabel = (Get-BucketWindowLabel $b.name $b.id) -replace '\s+(LIMIT|CYCLE|REQUESTS)$', ''
+            $labelR = 43.5
+            $stepDeg = 6.9 / $labelR * 180.0 / [Math]::PI
+            $startAng = -($wLabel.Length - 1) * $stepDeg / 2.0
+            $labelBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xD0, 0xD0, 0xDA)))
+            for ($ci = 0; $ci -lt $wLabel.Length; $ci++) {
+                $ch = $wLabel.Substring($ci, 1)
+                if ($ch -eq " ") { continue }
+                $angDeg = $startAng + $ci * $stepDeg
+                $angRad = $angDeg * [Math]::PI / 180.0
+                $px = $cx + $labelR * [Math]::Sin($angRad)
+                $py = $cy - $labelR * [Math]::Cos($angRad)
+                $tbCh = New-Object System.Windows.Controls.TextBlock
+                $tbCh.Text = $ch
+                $tbCh.Width = 8
+                $tbCh.Height = 10
+                $tbCh.TextAlignment = [System.Windows.TextAlignment]::Center
+                $tbCh.FontSize = 7.8
+                $tbCh.FontWeight = [System.Windows.FontWeights]::Bold
+                $tbCh.Foreground = $labelBrush
+                $tbCh.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+                $tbCh.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
+                $tbCh.Margin = New-Object System.Windows.Thickness(($px - 4), ($py - 5), 0, 0)
+                $tbCh.RenderTransformOrigin = New-Object System.Windows.Point(0.5, 0.5)
+                $tbCh.RenderTransform = New-Object System.Windows.Media.RotateTransform($angDeg)
+                $dialGrid.Children.Add($tbCh) | Out-Null
+            }
+
             # Track Arc (260° from 140° to 400°)
-            $trackStr = Get-ArcGeometry 32 26 20 140 260
+            $trackStr = Get-ArcGeometry $cx $cy $ar 140 260
             if ($trackStr) {
                 $trackPath = New-Object System.Windows.Shapes.Path
                 $trackPath.Data = [System.Windows.Media.Geometry]::Parse($trackStr)
                 $trackPath.Stroke = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x27, 0x27, 0x30)))
-                $trackPath.StrokeThickness = 4.2
+                $trackPath.StrokeThickness = 5.5
                 $trackPath.StrokeStartLineCap = [System.Windows.Media.PenLineCap]::Round
                 $trackPath.StrokeEndLineCap = [System.Windows.Media.PenLineCap]::Round
                 $dialGrid.Children.Add($trackPath) | Out-Null
             }
-            
+
             # Active Progress Arc
             $sweep = ($pct / 100.0) * 260.0
             if ($sweep -gt 260.0) { $sweep = 260.0 }
             if ($sweep -ge 1.0) {
-                $progStr = Get-ArcGeometry 32 26 20 140 $sweep
+                $progStr = Get-ArcGeometry $cx $cy $ar 140 $sweep
                 if ($progStr) {
                     $progPath = New-Object System.Windows.Shapes.Path
                     $progPath.Data = [System.Windows.Media.Geometry]::Parse($progStr)
                     $progPath.Stroke = $statusBrush
-                    $progPath.StrokeThickness = 4.2
+                    $progPath.StrokeThickness = 5.5
                     $progPath.StrokeStartLineCap = [System.Windows.Media.PenLineCap]::Round
                     $progPath.StrokeEndLineCap = [System.Windows.Media.PenLineCap]::Round
                     $dialGrid.Children.Add($progPath) | Out-Null
                 }
             }
-            
-            # Needle Pointer (Apontador idêntico ao velocímetro do Mac)
-            $needleStr = Get-NeedleGeometry 32 26 20 $pct 140 260
+
+            # Needle Pointer
+            $needleStr = Get-NeedleGeometry $cx $cy $ar $pct 140 260
             if ($needleStr) {
                 $needlePath = New-Object System.Windows.Shapes.Path
                 $needlePath.Data = [System.Windows.Media.Geometry]::Parse($needleStr)
                 $needlePath.Fill = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(240, 245, 245, 250)))
                 $dialGrid.Children.Add($needlePath) | Out-Null
             }
-            
-            # Center Hub Pin (Pino central)
+
+            # Center Hub Pin
             $hub = New-Object System.Windows.Shapes.Ellipse
-            $hub.Width = 6.5
-            $hub.Height = 6.5
+            $hub.Width = 8
+            $hub.Height = 8
             $hub.Fill = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x18, 0x18, 0x1C)))
             $hub.Stroke = $statusBrush
             $hub.StrokeThickness = 1.2
-            $hub.Margin = New-Object System.Windows.Thickness(28.75, 22.75, 0, 0)
+            $hub.Margin = New-Object System.Windows.Thickness(44, 44, 0, 0)
             $hub.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
             $hub.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
             $dialGrid.Children.Add($hub) | Out-Null
-            
-            # Center Percentage Text
+
+            # Center Percentage Text (sits in the gap at the bottom of the arc)
             $tbPct = New-Object System.Windows.Controls.TextBlock
             $tbPct.Text = "$pct%"
             $tbPct.Foreground = [System.Windows.Media.Brushes]::White
-            $tbPct.FontSize = if ($pct -ge 100) { 9.5 } else { 10 }
+            $tbPct.FontSize = if ($pct -ge 100) { 11 } else { 12 }
             $tbPct.FontWeight = [System.Windows.FontWeights]::Bold
             $tbPct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
-            $tbPct.Margin = New-Object System.Windows.Thickness(0, 32, 0, 0)
+            $tbPct.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
+            $tbPct.Margin = New-Object System.Windows.Thickness(0, 62, 0, 0)
             $dialGrid.Children.Add($tbPct) | Out-Null
-            
+
             $dialStack.Children.Add($dialGrid) | Out-Null
             
             # 3. Model Name Underneath (e.g. "Gemini", "Argon", "Claude")
@@ -1121,21 +1381,22 @@ function Render-HUD ($data) {
             $tbMName = New-Object System.Windows.Controls.TextBlock
             $tbMName.Text = $mName
             $tbMName.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xE2, 0xE8, 0xF0)))
-            $tbMName.FontSize = 9.2
+            $tbMName.FontSize = 10.5
             $tbMName.FontWeight = [System.Windows.FontWeights]::SemiBold
             $tbMName.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
             $tbMName.TextTrimming = [System.Windows.TextTrimming]::CharacterEllipsis
-            $tbMName.MaxWidth = 88
+            $tbMName.MaxWidth = 102
+            $tbMName.Margin = New-Object System.Windows.Thickness(0, -16, 0, 0)
             $dialStack.Children.Add($tbMName) | Out-Null
             
             # 4. Reset Countdown Underneath (e.g. "4d 1h", "4h 51m")
             $tbReset = New-Object System.Windows.Controls.TextBlock
             $tbReset.Text = if ($b.reset_in) { $b.reset_in } else { "Ativo" }
-            $tbReset.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8E, 0x8E, 0x9A)))
-            $tbReset.FontSize = 8
+            $tbReset.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xA8, 0xA8, 0xB4)))
+            $tbReset.FontSize = 9.5
             $tbReset.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
             $tbReset.TextTrimming = [System.Windows.TextTrimming]::CharacterEllipsis
-            $tbReset.MaxWidth = 88
+            $tbReset.MaxWidth = 102
             $dialStack.Children.Add($tbReset) | Out-Null
             
             $secStack.Children.Add($dialStack) | Out-Null
@@ -1290,7 +1551,14 @@ function Show-SettingsDialog {
 
     $cfgReader = (New-Object System.Xml.XmlNodeReader $cfgXaml)
     $cfgWin = [System.Windows.Markup.XamlReader]::Load($cfgReader)
-    $cfgWin.Owner = $window
+    # Owner can only be set on a window that has already been shown (WPF restriction).
+    $ownerSet = $false
+    try {
+        if ($window -and $window.IsVisible) { $cfgWin.Owner = $window; $ownerSet = $true }
+    } catch {}
+    if (-not $ownerSet) {
+        $cfgWin.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterScreen
+    }
     
     $chkAnti = $cfgWin.FindName("ChkAnti")
     $chkClaudePro = $cfgWin.FindName("ChkClaudePro")
@@ -1342,6 +1610,7 @@ function Show-SettingsDialog {
         $parentPanel = $swatchPanels[$secKey]
         $activeHex = if ($sColors.$secKey) { "$($sColors.$secKey)" } else { $PastelDefaults[$secKey] }
         $chosenColors[$secKey] = $activeHex
+        $parentPanel.Tag = "$activeHex"
 
         $bordersList = @()
         foreach ($swatch in $PastelPalette) {
@@ -1362,18 +1631,20 @@ function Show-SettingsDialog {
                 $b.BorderThickness = New-Object System.Windows.Thickness(0)
             }
 
-            $currentSec = $secKey
-            $currentHex = $hex
-            $allBorders = $bordersList
-
+            # State lives in WPF Tag properties (no closures / loop variables):
+            # swatch.Tag = its hex; panel.Tag = currently chosen hex for that section.
+            $b.Tag = $hex
             $b.Add_MouseLeftButtonDown({
                 param($sender, $e)
-                $chosenColors[$currentSec] = $currentHex
-                foreach ($other in $allBorders) {
-                    $other.BorderThickness = New-Object System.Windows.Thickness(0)
-                }
-                $sender.BorderBrush = [System.Windows.Media.Brushes]::White
-                $sender.BorderThickness = New-Object System.Windows.Thickness(2)
+                try {
+                    $panel = $sender.Parent
+                    $panel.Tag = "$($sender.Tag)"
+                    foreach ($other in $panel.Children) {
+                        $other.BorderThickness = New-Object System.Windows.Thickness(0)
+                    }
+                    $sender.BorderBrush = [System.Windows.Media.Brushes]::White
+                    $sender.BorderThickness = New-Object System.Windows.Thickness(2)
+                } catch { Write-AppError $_.Exception }
             })
 
             $bordersList += $b
@@ -1442,6 +1713,11 @@ function Show-SettingsDialog {
     })
 
     $btnSave.Add_Click({
+        $colorsOut = @{}
+        foreach ($k in $swatchPanels.Keys) {
+            $v = "$($swatchPanels[$k].Tag)"
+            if ($v) { $colorsOut[$k] = $v }
+        }
         $newCfg = @{
             providers = @{
                 antigravity          = @{ enabled = [bool]$chkAnti.IsChecked }
@@ -1453,8 +1729,10 @@ function Show-SettingsDialog {
                 openai               = @{ enabled = [bool]$chkOpenAI.IsChecked; api_key = $txtOpenAIKey.Password.Trim() }
                 anthropic            = @{ enabled = [bool]$chkClaude.IsChecked; api_key = $txtClaudeKey.Password.Trim() }
             }
-            section_colors = $chosenColors
+            section_colors = $colorsOut
             refresh_interval_seconds = 30
+            hidden_hud_gauges = @(Get-HiddenGauges)
+            onboarding_completed = $true
         }
         
         $jsonStr = $newCfg | ConvertTo-Json -Depth 5
@@ -1468,6 +1746,8 @@ function Show-SettingsDialog {
             Set-Acl -Path $ConfigFile -AclObject $acl
         } catch {}
         $cfgWin.Close()
+        # Repaint immediately with the new colors (cockpit + HUD), then fetch fresh data
+        try { Redraw-All } catch { Write-AppError $_.Exception }
         Refresh-Data
     })
     
@@ -1479,37 +1759,40 @@ function Show-SettingsDialog {
 }
 
 function Refresh-Data {
+    if ($global:quotaFetch) { return }
     $btnRefresh.Content = "Refreshing..."
     $btnRefresh.IsEnabled = $false
-    $window.Dispatcher.Invoke([Action]{}, "Background")
-    
-    $newData = Get-QuotaData -force $true
+    Start-QuotaFetch $true
+}
+
+# Called on the UI thread when a quota fetch (async) finishes.
+function Redraw-All {
+    if ($global:currentData) {
+        Render-UI $global:currentData
+        if ($global:isHudMode) { Render-HUD $global:currentData }
+    }
+}
+
+function Complete-QuotaFetch ($newData) {
     Render-UI $newData
     if ($global:isHudMode) {
-        $totalBuckets = 0
-        $sectionCount = 0
-        if ($newData -and $newData.groups) {
-            foreach ($g in $newData.groups) {
-                if ($g.buckets -and $g.buckets.Count -gt 0) {
-                    $sectionCount++
-                    $totalBuckets += $g.buckets.Count
-                }
-            }
-        }
-        $workArea = [System.Windows.SystemParameters]::WorkArea
-        if ($totalBuckets -eq 0) {
-            $hudH = 175
-        } else {
-            $calcH = 34 + ($sectionCount * 22) + ($totalBuckets * 86) + (($sectionCount - 1) * 10) + 26
-            $maxH = [Math]::Min(780, $workArea.Height - 60)
-            $hudH = [Math]::Min($maxH, [Math]::Max(160, $calcH))
-        }
-        $window.Width = 118
-        $window.Height = $hudH
+        $window.Width = $global:HudWidth
+        $window.Height = Get-HudHeight $newData
         Render-HUD $newData
     }
     $btnRefresh.Content = "↻ Refresh"
     $btnRefresh.IsEnabled = $true
+
+    # First run: open the settings dialog only after the main window is on screen.
+    if ($global:initialLoad) {
+        $global:initialLoad = $false
+        $nodeMissing = ($newData -and $newData.node_missing)
+        if (-not $nodeMissing) {
+            if ((-not $newData) -or $newData.needs_setup -or (-not $newData.groups) -or $newData.groups.Count -eq 0) {
+                Show-SettingsDialog
+            }
+        }
+    }
 }
 
 # Event Listeners
@@ -1539,16 +1822,20 @@ $txtBrand.Add_MouseDown({
     [System.Diagnostics.Process]::Start($dUrl)
 })
 
-# Initial Load
-$quota = Get-QuotaData
-Render-UI $quota
-if ($quota) {
-    if ($quota.needs_setup -or -not $quota.groups -or $quota.groups.Count -eq 0) {
-        Show-SettingsDialog
-    }
-} else {
-    Show-SettingsDialog
-}
+# Initial Load: runs after the window is rendered (never before, so dialogs can use it as Owner)
+$txtAcc.Text = "Carregando cotas..."
+$window.Add_ContentRendered({
+    if ($global:contentRenderedOnce) { return }
+    $global:contentRenderedOnce = $true
+    Start-QuotaFetch $false
+})
+
+# Keep the app alive on handler errors and log them instead of crashing
+$window.Dispatcher.Add_UnhandledException({
+    param($sender, $e)
+    Write-AppError $e.Exception
+    $e.Handled = $true
+})
 
 # Auto-refresh Timer (30s)
 $timer = New-Object System.Windows.Threading.DispatcherTimer
