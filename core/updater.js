@@ -11,9 +11,9 @@ const os = require('os');
 
 const CURRENT_VERSION = '1.1.0';
 const GITHUB_REPO = 'vh2c/gemini-gauge';
-const CACHE_TTL_MS = 15 * 60 * 1000;        // how often announcements/version are re-checked
+const CACHE_TTL_MS = 60 * 60 * 1000;        // how often announcements/version are re-checked
 const SLOW_TTL_MS = 6 * 60 * 60 * 1000;       // server without check_only support: do not poll often (each call would count as a launch)
-const PROBE_MS = 15 * 60 * 1000;               // how often the public list is probed for changes (no launch counted)
+const PROBE_MS = 60 * 60 * 1000;               // how often the public list is probed for changes (no launch counted)
 const STALE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // keep last known announcement this long if the API is unreachable
 const API_URL = process.env.AIGAUGE_API_URL || 'https://ai-gauge.vh2c.com.br/v1/geminigauje';
 
@@ -243,7 +243,7 @@ async function checkForUpdates(force = false) {
     const cached = readCache();
     if (cached) {
       // Server without check_only: the cache can live for hours, but we probe the public list
-      // every 15 min so a new/disabled announcement is picked up quickly without counting a launch.
+      // every hour so a new/disabled announcement is picked up quickly without counting a launch.
       const probeDue = cached.supports_check_only !== true &&
         (Date.now() - (cached.probe_at || cached.timestamp || 0)) > PROBE_MS;
       if (!probeDue) {

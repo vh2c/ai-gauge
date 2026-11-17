@@ -158,8 +158,10 @@ cd AI-Gauge-Linux
 
 ## 📊 Telemetria & Privacidade
 
-O AI Gauge envia apenas um ping anônimo de inicialização para verificação de novas versões e contagem global de usuários:
-- **O que é enviado**: Hash anônimo de máquina (`machine_id`), sistema operacional (`macOS`/`Linux`/`Windows`) e versão do aplicativo.
+O AI Gauge envia apenas pings anônimos para verificação de novas versões, avisos e contagem global de usuários:
+- **Quando**: um ping de inicialização (no máximo a cada 6 horas) e, no máximo uma vez por hora, uma consulta de avisos/versão que não conta como nova abertura.
+- **O que é enviado**: Hash anônimo de máquina (`machine_id`), sistema operacional (`macOS`/`Linux`/`Windows`), arquitetura e versão do aplicativo.
+- **Como desligar**: defina `"telemetry": false` no `config.json` (sem telemetria, os avisos também deixam de ser recebidos).
 - **O que NUNCA é enviado**: Nenhuma chave de API, prompt, token, código, projeto ou dado pessoal.
 
 ---
