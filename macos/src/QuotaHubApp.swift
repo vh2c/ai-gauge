@@ -651,6 +651,8 @@ class QuotaManager {
         encoder.outputFormatting = .prettyPrinted
         if let data = try? encoder.encode(cfg) {
             try? data.write(to: URL(fileURLWithPath: configPath))
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configPath)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: configDir)
         }
     }
     
@@ -1135,6 +1137,28 @@ class VerticallyCenteredTextFieldCell: NSTextFieldCell {
 func makeCenteredDarkField(frame: NSRect, placeholder: String, value: String) -> NSTextField {
     let field = NSTextField(frame: frame)
     field.cell = VerticallyCenteredTextFieldCell(textCell: value)
+    field.isBordered = false
+    field.focusRingType = .none
+    field.wantsLayer = true
+    field.backgroundColor = NSColor(srgbRed: 0x14/255.0, green: 0x14/255.0, blue: 0x16/255.0, alpha: 1.0)
+    field.textColor = .white
+    field.font = NSFont.systemFont(ofSize: 12.0)
+    field.layer?.borderColor = NSColor(srgbRed: 0x2E/255.0, green: 0x2E/255.0, blue: 0x33/255.0, alpha: 1.0).cgColor
+    field.layer?.borderWidth = 1.0
+    field.layer?.cornerRadius = 6.0
+    field.placeholderAttributedString = NSAttributedString(
+        string: placeholder,
+        attributes: [
+            .foregroundColor: NSColor(white: 0.40, alpha: 1.0),
+            .font: NSFont.systemFont(ofSize: 12.0)
+        ]
+    )
+    field.stringValue = value
+    return field
+}
+
+func makeCenteredDarkSecureField(frame: NSRect, placeholder: String, value: String) -> NSSecureTextField {
+    let field = NSSecureTextField(frame: frame)
     field.isBordered = false
     field.focusRingType = .none
     field.wantsLayer = true
@@ -3027,7 +3051,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         claudeCard.addSubview(claudeStatus)
         self.claudeProStatusLabel = claudeStatus
         
-        let claudeToken = makeCenteredDarkField(
+        let claudeToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
             placeholder: hasKeychain ? "Token OAuth gerenciado automaticamente pelo Keychain" : "Token OAuth Claude (sk-ant-oat01-...)",
             value: claudeCfg?.token ?? ""
@@ -3076,7 +3100,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         chatgptCard.addSubview(gptStatus)
         self.chatgptStatusLabel = gptStatus
         
-        let chatgptToken = makeCenteredDarkField(
+        let chatgptToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
             placeholder: hasGptKeychain ? "Token gerenciado automaticamente" : "Access Token / Session Token do ChatGPT",
             value: chatgptCfg?.token ?? ""
@@ -3121,7 +3145,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         cursorStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
         cursorCard.addSubview(cursorStatus)
         
-        let cursorToken = makeCenteredDarkField(
+        let cursorToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
             placeholder: "Token de Sessão do Cursor (opcional se logado no Cursor)",
             value: cursorCfg?.token ?? ""
@@ -3166,7 +3190,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         copilotStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
         copilotCard.addSubview(copilotStatus)
         
-        let copilotToken = makeCenteredDarkField(
+        let copilotToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
             placeholder: "GitHub Personal Access Token (opcional)",
             value: copilotCfg?.token ?? ""
@@ -3211,7 +3235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         geminiCard.addSubview(geminiHint)
         
         let fieldW: CGFloat = cardW - 28 - 92
-        let geminiField = makeCenteredDarkField(
+        let geminiField = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: fieldW, height: 34),
             placeholder: "Chave de API Gemini (AIzaSy...)",
             value: geminiCfg?.api_key ?? ""
@@ -3286,7 +3310,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.openaiCheck = openBtn
         addPastelPicker(providerKey: "openai", in: openCard)
         
-        let openField = makeCenteredDarkField(
+        let openField = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
             placeholder: "Chave de API OpenAI (sk-...)",
             value: openCfg?.api_key ?? ""
@@ -3320,7 +3344,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.anthropicCheck = antBtn
         addPastelPicker(providerKey: "anthropic", in: antCard)
         
-        let antField = makeCenteredDarkField(
+        let antField = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
             placeholder: "Chave de API Anthropic (sk-ant-...)",
             value: antCfg?.api_key ?? ""

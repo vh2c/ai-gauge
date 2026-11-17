@@ -119,6 +119,14 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
     }
     $CfgJson = $CfgObj | ConvertTo-Json -Depth 5
     [IO.File]::WriteAllText($ConfigFile, $CfgJson, [Text.Encoding]::UTF8)
+    try {
+        $acl = Get-Acl -Path $ConfigFile
+        $acl.SetAccessRuleProtection($true, $false)
+        $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user, "FullControl", "Allow")
+        $acl.AddAccessRule($rule)
+        Set-Acl -Path $ConfigFile -AclObject $acl
+    } catch {}
     Write-Host "✅ Configuração inicial gravada com sucesso em ~/.config/UniversalAIQuota/config.json!" -ForegroundColor Green
 }
 

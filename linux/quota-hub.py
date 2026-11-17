@@ -99,8 +99,6 @@ def load_config():
                 data = json.load(f)
                 if "providers" not in data:
                     data["providers"] = {}
-                if "claude_pro" not in data["providers"]:
-                    data["providers"]["claude_pro"] = {"enabled": True}
                 if "hidden_hud_gauges" not in data:
                     data["hidden_hud_gauges"] = []
                 return data
@@ -123,6 +121,11 @@ def save_config(cfg):
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
+        try:
+            os.chmod(CONFIG_FILE, 0o600)
+            os.chmod(CONFIG_DIR, 0o700)
+        except Exception:
+            pass
     except Exception as e:
         print(f"Erro ao salvar configurações: {e}")
 
@@ -531,7 +534,7 @@ class QuotaHubAppLinux:
         cb_cpro = tk.Checkbutton(f_cpro, text="Claude (Sessão & Limites)", variable=var_claude_pro,
                                  font=("Sans", 9, "bold"), fg="#D78C68", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#D78C68")
         cb_cpro.pack(anchor="w")
-        ent_claude_token = tk.Entry(f_cpro, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_claude_token = tk.Entry(f_cpro, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_claude_token.insert(0, cpro_cfg.get("token", ""))
         ent_claude_token.pack(fill="x", pady=2)
         tk.Label(f_cpro, text="💡 Token OAuth opcional (detectado automaticamente se houver sessão)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
@@ -549,7 +552,7 @@ class QuotaHubAppLinux:
         cb_gpt = tk.Checkbutton(f_gpt, text="ChatGPT", variable=var_chatgpt,
                                 font=("Sans", 9, "bold"), fg="#8AE39A", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#8AE39A")
         cb_gpt.pack(anchor="w")
-        ent_chatgpt_token = tk.Entry(f_gpt, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_chatgpt_token = tk.Entry(f_gpt, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_chatgpt_token.insert(0, gpt_cfg.get("token", ""))
         ent_chatgpt_token.pack(fill="x", pady=2)
         tk.Label(f_gpt, text="💡 Token de Acesso / Sessão do ChatGPT (janela de 3h e cota o1)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
@@ -567,7 +570,7 @@ class QuotaHubAppLinux:
         cb_cur = tk.Checkbutton(f_cur, text="Cursor", variable=var_cursor,
                                 font=("Sans", 9, "bold"), fg="#C084FC", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#C084FC")
         cb_cur.pack(anchor="w")
-        ent_cursor_token = tk.Entry(f_cur, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_cursor_token = tk.Entry(f_cur, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_cursor_token.insert(0, cur_cfg.get("token", ""))
         ent_cursor_token.pack(fill="x", pady=2)
         tk.Label(f_cur, text="💡 Token de Sessão do Cursor (opcional se logado no Cursor)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
@@ -585,7 +588,7 @@ class QuotaHubAppLinux:
         cb_cop = tk.Checkbutton(f_cop, text="Copilot", variable=var_copilot,
                                 font=("Sans", 9, "bold"), fg="#FF5265", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FF5265")
         cb_cop.pack(anchor="w")
-        ent_copilot_token = tk.Entry(f_cop, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_copilot_token = tk.Entry(f_cop, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_copilot_token.insert(0, cop_cfg.get("token", ""))
         ent_copilot_token.pack(fill="x", pady=2)
         tk.Label(f_cop, text="💡 GitHub Personal Access Token para Copilot (opcional)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
@@ -603,7 +606,7 @@ class QuotaHubAppLinux:
         cb_gem = tk.Checkbutton(f_gem, text="Google Gemini API (AI Studio)", variable=var_gem, font=("Sans", 9, "bold"),
                                 fg="#38BDF8", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#38BDF8")
         cb_gem.pack(anchor="w")
-        ent_gem = tk.Entry(f_gem, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_gem = tk.Entry(f_gem, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_gem.insert(0, gem_cfg.get("api_key", ""))
         ent_gem.pack(fill="x", pady=2)
         link_gem = tk.Label(f_gem, text="🔗 Obter chave grátis no Google AI Studio", font=("Sans", 7), fg="#4DA3FF", bg="#1F1F1F", cursor="hand2")
@@ -624,7 +627,7 @@ class QuotaHubAppLinux:
         cb_oa = tk.Checkbutton(f_oa, text="OpenAI API (sk-...)", variable=var_oa, font=("Sans", 9, "bold"),
                                fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
         cb_oa.pack(anchor="w")
-        ent_oa = tk.Entry(f_oa, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_oa = tk.Entry(f_oa, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_oa.insert(0, oa_cfg.get("api_key", ""))
         ent_oa.pack(fill="x", pady=2)
 
@@ -636,7 +639,7 @@ class QuotaHubAppLinux:
         cb_ant = tk.Checkbutton(f_ant, text="Anthropic Claude API (sk-ant-...)", variable=var_ant, font=("Sans", 9, "bold"),
                                 fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
         cb_ant.pack(anchor="w")
-        ent_ant = tk.Entry(f_ant, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white")
+        ent_ant = tk.Entry(f_ant, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_ant.insert(0, ant_cfg.get("api_key", ""))
         ent_ant.pack(fill="x", pady=2)
 

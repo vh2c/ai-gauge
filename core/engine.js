@@ -23,11 +23,22 @@ const { checkForUpdates, CURRENT_VERSION } = require('./updater');
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'UniversalAIQuota');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
+let _lastValidConfig = null;
+
 function loadConfig() {
   if (fs.existsSync(CONFIG_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    } catch (_) {}
+      const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      _lastValidConfig = parsed;
+      return parsed;
+    } catch (e) {
+      // Security: If config exists on disk but failed to parse, reuse last known valid config.
+      // NEVER silently re-enable disabled sessions!
+      if (_lastValidConfig) {
+        return _lastValidConfig;
+      }
+      return { providers: {} };
+    }
   }
   return {
     providers: {
@@ -49,37 +60,37 @@ class UniversalQuotaEngine {
   }
 
   async fetchAll() {
-    // Send background telemetry heartbeat to VH2C API
+    // Send anonymous telemetry update check (strictly throttled to max once per 6h, no provider tracking)
     try {
-      const activeProviders = Object.keys(this.config.providers || {}).filter(k => this.config.providers[k]?.enabled);
-      sendHeartbeat({ active_providers: activeProviders });
+      sendHeartbeat();
     } catch (_) {}
 
     const providers = [];
     const pCfg = this.config.providers || {};
 
-    if (pCfg.antigravity?.enabled !== false) {
+    // Security: Only probe providers explicitly enabled by user
+    if (pCfg.antigravity?.enabled === true) {
       providers.push(new AntigravityProvider().fetch());
     }
-    if (pCfg.claude_pro?.enabled !== false) {
+    if (pCfg.claude_pro?.enabled === true) {
       providers.push(new ClaudeProProvider(pCfg.claude_pro?.token).fetch());
     }
-    if (pCfg.chatgpt_subscription?.enabled !== false) {
+    if (pCfg.chatgpt_subscription?.enabled === true) {
       providers.push(new ChatGPTSubscriptionProvider(pCfg.chatgpt_subscription?.token).fetch());
     }
-    if (pCfg.cursor?.enabled !== false) {
+    if (pCfg.cursor?.enabled === true) {
       providers.push(new CursorProvider(pCfg.cursor?.token).fetch());
     }
-    if (pCfg.github_copilot?.enabled !== false) {
+    if (pCfg.github_copilot?.enabled === true) {
       providers.push(new GitHubCopilotProvider(pCfg.github_copilot?.token).fetch());
     }
-    if (pCfg.gemini?.enabled && pCfg.gemini?.api_key) {
+    if (pCfg.gemini?.enabled === true && pCfg.gemini?.api_key) {
       providers.push(new GeminiProvider(pCfg.gemini.api_key).fetch());
     }
-    if (pCfg.openai?.enabled && pCfg.openai?.api_key) {
+    if (pCfg.openai?.enabled === true && pCfg.openai?.api_key) {
       providers.push(new OpenAIProvider(pCfg.openai.api_key).fetch());
     }
-    if (pCfg.anthropic?.enabled && pCfg.anthropic?.api_key) {
+    if (pCfg.anthropic?.enabled === true && pCfg.anthropic?.api_key) {
       providers.push(new AnthropicProvider(pCfg.anthropic.api_key).fetch());
     }
 

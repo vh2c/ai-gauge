@@ -139,9 +139,29 @@ function Get-ArcGeometry ($cx, $cy, $r, $startDeg, $sweepDeg) {
     return [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, "M {0},{1} A {2},{2} 0 {3} 1 {4},{5}", $x1, $y1, $r, $isLarge, $x2, $y2)
 }
 
-# 2. Telemetry Heartbeat
+# 2. Telemetry Heartbeat (Anonymous, Throttled, Opt-out supported)
 function Send-TelemetryHeartbeat {
     try {
+        if (Test-Path $ConfigFile) {
+            try {
+                $rawCfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+                if ($rawCfg.telemetry -eq $false -or $rawCfg.telemetry_enabled -eq $false) {
+                    return
+                }
+            } catch {}
+        }
+
+        $stampFile = Join-Path $ConfigDir ".last_ping"
+        $now = [int][double]::Parse((Get-Date -UFormat %s))
+        if (Test-Path $stampFile) {
+            try {
+                $last = [int](Get-Content $stampFile -Raw).Trim()
+                if ($now - $last -lt 21600) {
+                    return
+                }
+            } catch {}
+        }
+
         $machineId = ""
         if (Test-Path $DeviceIdFile) {
             $machineId = (Get-Content $DeviceIdFile -Raw).Trim()
@@ -152,21 +172,24 @@ function Send-TelemetryHeartbeat {
         }
 
         $payload = @{
-            app = "gemini-gauge"
+            app = "ai-gauge"
             version = "1.1.0"
             os = "Windows"
             arch = $env:PROCESSOR_ARCHITECTURE
             machine_id = $machineId
-            timestamp = [int][double]::Parse((Get-Date -UFormat %s))
+            timestamp = $now
         } | ConvertTo-Json
 
         Start-Job -ScriptBlock {
-            param($body)
+            param($body, $sFile, $tNow)
             try {
                 $endpoint = "https://ai-gauge.vh2c.com.br/api/telemetry"
-                Invoke-RestMethod -Uri $endpoint -Method Post -Body $body -ContentType "application/json" -TimeoutSec 3 -ErrorAction SilentlyContinue
+                $res = Invoke-RestMethod -Uri $endpoint -Method Post -Body $body -ContentType "application/json" -TimeoutSec 3 -ErrorAction SilentlyContinue
+                if ($res) {
+                    Set-Content -Path $sFile -Value $tNow -Encoding UTF8 -Force
+                }
             } catch {}
-        } -ArgumentList $payload | Out-Null
+        } -ArgumentList $payload, $stampFile, $now | Out-Null
     } catch {}
 }
 
@@ -178,12 +201,21 @@ function Find-NodeBinary {
     if ($cmd) { return $cmd.Source }
     $localNode = Join-Path $ScriptDir "bin\node.exe"
     if (Test-Path $localNode) { return $localNode }
-    return "node"
+    return $null
 }
 
 $NodeExe = Find-NodeBinary
 
 function Get-QuotaData ($force = $false) {
+    if (-not $NodeExe) {
+        return @{
+            account = "Node.js não detectado"
+            plan = "Requer Instalação"
+            updated_at = (Get-Date -Format "HH:mm:ss")
+            groups = @()
+            node_missing = $true
+        }
+    }
     try {
         $argsList = @($EngineScript)
         if ($force) { $argsList += "--force" }
@@ -469,6 +501,51 @@ function Render-UI ($data) {
         
         $emptyStack = New-Object System.Windows.Controls.StackPanel
         
+        # Check if Node.js is missing
+        if ($data -and $data.node_missing) {
+            $txtAcc.Text = "Node.js não foi encontrado no sistema"
+            $tIconNode = New-Object System.Windows.Controls.TextBlock
+            $tIconNode.Text = "⚠️"
+            $tIconNode.FontSize = 18
+            $tIconNode.Margin = (New-Object System.Windows.Thickness(0, 0, 8, 0))
+            
+            $tTitleNode = New-Object System.Windows.Controls.TextBlock
+            $tTitleNode.Text = "Node.js Necessário"
+            $tTitleNode.FontSize = 14
+            $tTitleNode.FontWeight = [System.Windows.FontWeights]::Bold
+            $tTitleNode.Foreground = [System.Windows.Media.Brushes]::White
+            
+            $tRowNode = New-Object System.Windows.Controls.StackPanel
+            $tRowNode.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+            $tRowNode.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 6))
+            $tRowNode.Children.Add($tIconNode) | Out-Null
+            $tRowNode.Children.Add($tTitleNode) | Out-Null
+            $emptyStack.Children.Add($tRowNode) | Out-Null
+            
+            $tDescNode = New-Object System.Windows.Controls.TextBlock
+            $tDescNode.Text = "O AI Gauge precisa do Node.js (v18+) para agregar as cotas em segundo plano. Clique no botão abaixo para baixar gratuitamente:"
+            $tDescNode.TextWrapping = [System.Windows.TextWrapping]::Wrap
+            $tDescNode.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xBB, 0xBB, 0xC4)))
+            $tDescNode.FontSize = 11
+            $tDescNode.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 14))
+            $emptyStack.Children.Add($tDescNode) | Out-Null
+            
+            $btnNode = New-Object System.Windows.Controls.Button
+            $btnNode.Content = "⬇ Baixar Node.js Oficial (nodejs.org)"
+            $btnNode.Height = 32
+            $btnNode.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
+            $btnNode.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x14)))
+            $btnNode.FontWeight = [System.Windows.FontWeights]::Bold
+            $btnNode.FontSize = 11.5
+            $btnNode.Cursor = [System.Windows.Input.Cursors]::Hand
+            $btnNode.Add_Click({ [System.Diagnostics.Process]::Start("https://nodejs.org") })
+            $emptyStack.Children.Add($btnNode) | Out-Null
+            
+            $emptyBorder.Child = $emptyStack
+            $cardsPanel.Children.Add($emptyBorder) | Out-Null
+            return
+        }
+
         # 1. Title Row
         $tRow = New-Object System.Windows.Controls.StackPanel
         $tRow.Orientation = [System.Windows.Controls.Orientation]::Horizontal
@@ -994,7 +1071,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkClaudePro" Content="Claude" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelClaude" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBox Name="TxtClaudeProToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
+                        <PasswordBox Name="TxtClaudeProToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
                         <TextBlock Text="OAuth Session Token (auto-detected if logged in)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
@@ -1006,7 +1083,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkChatGPT" Content="ChatGPT" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelChatGPT" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBox Name="TxtChatGPTToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
+                        <PasswordBox Name="TxtChatGPTToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
                         <TextBlock Text="Session / Access Token (3h window &amp; weekly o1 quota)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
@@ -1018,7 +1095,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkCursor" Content="Cursor" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelCursor" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBox Name="TxtCursorToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
+                        <PasswordBox Name="TxtCursorToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
                         <TextBlock Text="Cursor Session Token (optional if logged in Cursor)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
@@ -1030,7 +1107,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkCopilot" Content="Copilot" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelCopilot" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBox Name="TxtCopilotToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
+                        <PasswordBox Name="TxtCopilotToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
                         <TextBlock Text="GitHub Personal Access Token (optional)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
@@ -1042,7 +1119,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkGemini" Content="Google Gemini" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelGemini" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBox Name="TxtGeminiKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
+                        <PasswordBox Name="TxtGeminiKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
                         <TextBlock Name="LinkAiStudio" Text="Get free API key at Google AI Studio (aistudio.google.com) ->" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
@@ -1054,7 +1131,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkOpenAI" Content="OpenAI" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelOpenAI" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBox Name="TxtOpenAIKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
+                        <PasswordBox Name="TxtOpenAIKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
                         <TextBlock Text="OpenAI API Key (sk-...)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
@@ -1066,7 +1143,7 @@ function Show-SettingsDialog {
                             <CheckBox Name="ChkClaude" Content="Anthropic" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
                             <StackPanel Name="ColorPanelAnthropic" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBox Name="TxtClaudeKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
+                        <PasswordBox Name="TxtClaudeKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
                         <TextBlock Text="Anthropic API Key (sk-ant-...)" Foreground="#777777" FontSize="9.5"/>
                     </StackPanel>
                 </Border>
@@ -1174,39 +1251,60 @@ function Show-SettingsDialog {
         }
     }
 
-    # Load initial values
-    if ($pData.antigravity) { $chkAnti.IsChecked = [bool]$pData.antigravity.enabled } else { $chkAnti.IsChecked = $true }
-    if ($pData.claude_pro) {
+    # Load initial values (Never automatically re-enable disabled sessions)
+    if ($pData.antigravity -and $null -ne $pData.antigravity.enabled) {
+        $chkAnti.IsChecked = [bool]$pData.antigravity.enabled
+    } else {
+        $chkAnti.IsChecked = $false
+    }
+
+    if ($pData.claude_pro -and $null -ne $pData.claude_pro.enabled) {
         $chkClaudePro.IsChecked = [bool]$pData.claude_pro.enabled
-        $txtClaudeProToken.Text = "$($pData.claude_pro.token)"
-    } else { $chkClaudePro.IsChecked = $true }
+        $txtClaudeProToken.Password = "$($pData.claude_pro.token)"
+    } else {
+        $chkClaudePro.IsChecked = $false
+    }
     
-    if ($pData.chatgpt_subscription) {
+    if ($pData.chatgpt_subscription -and $null -ne $pData.chatgpt_subscription.enabled) {
         $chkChatGPT.IsChecked = [bool]$pData.chatgpt_subscription.enabled
-        $txtChatGPTToken.Text = "$($pData.chatgpt_subscription.token)"
-    } else { $chkChatGPT.IsChecked = $true }
+        $txtChatGPTToken.Password = "$($pData.chatgpt_subscription.token)"
+    } else {
+        $chkChatGPT.IsChecked = $false
+    }
 
-    if ($pData.cursor) {
+    if ($pData.cursor -and $null -ne $pData.cursor.enabled) {
         $chkCursor.IsChecked = [bool]$pData.cursor.enabled
-        $txtCursorToken.Text = "$($pData.cursor.token)"
-    } else { $chkCursor.IsChecked = $true }
+        $txtCursorToken.Password = "$($pData.cursor.token)"
+    } else {
+        $chkCursor.IsChecked = $false
+    }
 
-    if ($pData.github_copilot) {
+    if ($pData.github_copilot -and $null -ne $pData.github_copilot.enabled) {
         $chkCopilot.IsChecked = [bool]$pData.github_copilot.enabled
-        $txtCopilotToken.Text = "$($pData.github_copilot.token)"
-    } else { $chkCopilot.IsChecked = $true }
+        $txtCopilotToken.Password = "$($pData.github_copilot.token)"
+    } else {
+        $chkCopilot.IsChecked = $false
+    }
 
-    if ($pData.gemini) {
+    if ($pData.gemini -and $null -ne $pData.gemini.enabled) {
         $chkGemini.IsChecked = [bool]$pData.gemini.enabled
-        $txtGeminiKey.Text = "$($pData.gemini.api_key)"
+        $txtGeminiKey.Password = "$($pData.gemini.api_key)"
+    } else {
+        $chkGemini.IsChecked = $false
     }
-    if ($pData.openai) {
+
+    if ($pData.openai -and $null -ne $pData.openai.enabled) {
         $chkOpenAI.IsChecked = [bool]$pData.openai.enabled
-        $txtOpenAIKey.Text = "$($pData.openai.api_key)"
+        $txtOpenAIKey.Password = "$($pData.openai.api_key)"
+    } else {
+        $chkOpenAI.IsChecked = $false
     }
-    if ($pData.anthropic) {
+
+    if ($pData.anthropic -and $null -ne $pData.anthropic.enabled) {
         $chkClaude.IsChecked = [bool]$pData.anthropic.enabled
-        $txtClaudeKey.Text = "$($pData.anthropic.api_key)"
+        $txtClaudeKey.Password = "$($pData.anthropic.api_key)"
+    } else {
+        $chkClaude.IsChecked = $false
     }
 
     $linkAiStudio.Add_MouseDown({
@@ -1217,13 +1315,13 @@ function Show-SettingsDialog {
         $newCfg = @{
             providers = @{
                 antigravity          = @{ enabled = [bool]$chkAnti.IsChecked }
-                claude_pro           = @{ enabled = [bool]$chkClaudePro.IsChecked; token = $txtClaudeProToken.Text.Trim() }
-                chatgpt_subscription = @{ enabled = [bool]$chkChatGPT.IsChecked; token = $txtChatGPTToken.Text.Trim() }
-                cursor               = @{ enabled = [bool]$chkCursor.IsChecked; token = $txtCursorToken.Text.Trim() }
-                github_copilot       = @{ enabled = [bool]$chkCopilot.IsChecked; token = $txtCopilotToken.Text.Trim() }
-                gemini               = @{ enabled = [bool]$chkGemini.IsChecked; api_key = $txtGeminiKey.Text.Trim() }
-                openai               = @{ enabled = [bool]$chkOpenAI.IsChecked; api_key = $txtOpenAIKey.Text.Trim() }
-                anthropic            = @{ enabled = [bool]$chkClaude.IsChecked; api_key = $txtClaudeKey.Text.Trim() }
+                claude_pro           = @{ enabled = [bool]$chkClaudePro.IsChecked; token = $txtClaudeProToken.Password.Trim() }
+                chatgpt_subscription = @{ enabled = [bool]$chkChatGPT.IsChecked; token = $txtChatGPTToken.Password.Trim() }
+                cursor               = @{ enabled = [bool]$chkCursor.IsChecked; token = $txtCursorToken.Password.Trim() }
+                github_copilot       = @{ enabled = [bool]$chkCopilot.IsChecked; token = $txtCopilotToken.Password.Trim() }
+                gemini               = @{ enabled = [bool]$chkGemini.IsChecked; api_key = $txtGeminiKey.Password.Trim() }
+                openai               = @{ enabled = [bool]$chkOpenAI.IsChecked; api_key = $txtOpenAIKey.Password.Trim() }
+                anthropic            = @{ enabled = [bool]$chkClaude.IsChecked; api_key = $txtClaudeKey.Password.Trim() }
             }
             section_colors = $chosenColors
             refresh_interval_seconds = 30
@@ -1231,6 +1329,14 @@ function Show-SettingsDialog {
         
         $jsonStr = $newCfg | ConvertTo-Json -Depth 5
         Set-Content -Path $ConfigFile -Value $jsonStr -Encoding UTF8
+        try {
+            $acl = Get-Acl -Path $ConfigFile
+            $acl.SetAccessRuleProtection($true, $false)
+            $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user, "FullControl", "Allow")
+            $acl.AddAccessRule($rule)
+            Set-Acl -Path $ConfigFile -AclObject $acl
+        } catch {}
         $cfgWin.Close()
         Refresh-Data
     })

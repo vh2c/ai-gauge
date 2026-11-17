@@ -1,6 +1,11 @@
 /**
- * AI Gauge Telemetry & Heartbeat
+ * AI Gauge Telemetry & Update Check
  * Developed by VH2C • https://vh2c.com.br
+ *
+ * Privacy Promise:
+ * - Collects ONLY anonymous launch ping: app version, OS platform, arch, and random machine_id.
+ * - NEVER collects or transmits API keys, tokens, prompts, code, active providers or personal data.
+ * - Supports complete opt-out via `telemetry: false` in config.json.
  */
 
 const https = require('https');
@@ -29,34 +34,48 @@ function getMachineId() {
     } catch (_) {}
   }
 
-  // Generate anonymous persistent machine fingerprint
-  const rawSeed = [
-    os.hostname(),
-    os.platform(),
-    os.arch(),
-    os.cpus()?.[0]?.model || 'unknown-cpu',
-    os.totalmem()
-  ].join('|');
-
-  const newId = crypto.createHash('sha256').update(rawSeed).digest('hex').substring(0, 32);
+  // Generate completely random anonymous device ID (no hardware/host fingerprints)
+  const newId = crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : crypto.randomBytes(16).toString('hex');
   try {
     fs.writeFileSync(idFile, newId, 'utf8');
   } catch (_) {}
   return newId;
 }
 
-function sendHeartbeat(extraData = {}) {
+function sendHeartbeat(force = false) {
+  const dir = getTelemetryDir();
+  
+  // 1. Check user opt-out
+  const cfgFile = path.join(dir, 'config.json');
+  if (fs.existsSync(cfgFile)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+      if (cfg.telemetry === false || cfg.telemetry_enabled === false) {
+        return; // User opted out
+      }
+    } catch (_) {}
+  }
+
+  // 2. Throttle pings to at most once per 6 hours (prevent repeated/excessive calls)
+  const stampFile = path.join(dir, '.last_ping');
+  const now = Math.floor(Date.now() / 1000);
+  if (!force && fs.existsSync(stampFile)) {
+    try {
+      const last = parseInt(fs.readFileSync(stampFile, 'utf8').trim(), 10);
+      if (now - last < 21600) { // 6 hours
+        return;
+      }
+    } catch (_) {}
+  }
+
+  // 3. Strictly minimal, privacy-first payload matching README declaration
   const payload = JSON.stringify({
-    app: 'gemini-gauge',
+    app: 'ai-gauge',
     version: '1.1.0',
     os: os.platform(),
-    os_release: os.release(),
     arch: os.arch(),
     machine_id: getMachineId(),
-    locale: Intl.DateTimeFormat().resolvedOptions().locale || 'pt-BR',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
-    timestamp: Math.floor(Date.now() / 1000),
-    ...extraData
+    timestamp: now
   });
 
   try {
@@ -81,6 +100,7 @@ function sendHeartbeat(extraData = {}) {
       res.on('end', () => {
         try {
           if (res.statusCode >= 200 && res.statusCode < 300) {
+            try { fs.writeFileSync(stampFile, String(now), 'utf8'); } catch (_) {}
             const data = JSON.parse(body);
             if (data && (data.latest_version || data.announcement || data.tier)) {
               const { writeCache, CURRENT_VERSION, isNewer } = require('./updater');

@@ -19,15 +19,16 @@ class GeminiProvider {
     if (!this.apiKey) return null;
 
     const isBearer = this.apiKey.startsWith('ya29.') || this.apiKey.startsWith('AQ.');
-    const url = isBearer
-      ? 'https://generativelanguage.googleapis.com/v1beta/models'
-      : `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`;
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models';
 
     const headers = {
       'User-Agent': 'AIGauge/1.1 (vh2c.com.br)'
     };
     if (isBearer) {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
+    } else {
+      // Send API key strictly in secure HTTP header, never in URL query string
+      headers['x-goog-api-key'] = this.apiKey;
     }
 
     return new Promise((resolve) => {

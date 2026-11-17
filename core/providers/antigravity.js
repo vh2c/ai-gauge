@@ -176,10 +176,8 @@ class AntigravityProvider {
       }
     } catch (_) {}
 
-    const defaults = [53078, 53079, 58014, 58013, 53530, 53527, 53529, 53533, 53534];
-    for (const d of defaults) {
-      if (!ports.includes(d)) ports.push(d);
-    }
+    // Security: Only return ports strictly verified to belong to proc.pid.
+    // Never send CSRF token to unverified arbitrary default ports.
     return ports;
   }
 
