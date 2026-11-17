@@ -296,13 +296,18 @@ function New-DemoData {
             action_label = "Baixar Atualização"
             action_url = "https://github.com/vh2c/gemini-gauge/releases/latest"
         }
+        # Same shape/values the real API sends for the "Super Oferta" ad: image, no action link, no countdown
         promo = @{
             type = "publicidade"
             title = "Super Oferta"
             message = "Somente hoje você compra sua licença PRO por apenas R$ 10.00"
-            action_label = "Quero a oferta"
-            action_url = "https://ai-gauge.vh2c.com.br/donate?mid={machine_id}"
-            duracao_segundos = 5
+            action_label = $null
+            action_url = $null
+            image_url = "https://dashboard.vh2c.com.br/uploads/ads/ad_20261116_144942_2f64117f.jpg"
+            image_fit = "cover"
+            image_position = "center"
+            image_scale = 1.05
+            duracao_segundos = $null
         }
         groups = @(
             @{ name = "Antigravity"; provider = "Antigravity (Live)"; buckets = @(
