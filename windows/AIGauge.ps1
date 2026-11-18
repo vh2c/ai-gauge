@@ -76,8 +76,8 @@ function Initialize-DefaultConfig {
                 cursor = @{ enabled = [bool]$hasCursor }
                 github_copilot = @{ enabled = [bool]$hasCopilot }
                 gemini = @{ enabled = [bool]$hasGemini; api_key = if ($env:GEMINI_API_KEY) { $env:GEMINI_API_KEY } else { "" } }
-                openai = @{ enabled = $false; api_key = "" }
-                anthropic = @{ enabled = $false; api_key = "" }
+                openai = @{ enabled = [bool]$env:OPENAI_API_KEY; api_key = if ($env:OPENAI_API_KEY) { $env:OPENAI_API_KEY } else { "" } }
+                anthropic = @{ enabled = [bool]$env:ANTHROPIC_API_KEY; api_key = if ($env:ANTHROPIC_API_KEY) { $env:ANTHROPIC_API_KEY } else { "" } }
             }
             refresh_interval_seconds = 30
             hidden_hud_gauges = @()

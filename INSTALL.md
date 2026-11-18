@@ -208,6 +208,24 @@ Windows still warns, use Option 1 below and the steps there.
 
 ---
 
+## What AI Gauge detects automatically
+
+AI Gauge reads the logins you **already have** on your computer, so there is usually nothing to paste. If a provider does not appear,
+this table tells you what it looks for. You can always add a key or token by hand in **Settings**.
+
+| Provider | Where it looks |
+| :--- | :--- |
+| **Antigravity** | The running Antigravity IDE (or a background probe when it is closed). All systems. |
+| **Claude** | macOS: the Claude Code login in the Keychain. Windows and Linux: the Claude Code login file `~/.claude/.credentials.json` (`%USERPROFILE%\.claude\.credentials.json` on Windows). Sign in once with Claude Code. |
+| **ChatGPT** | The Codex / ChatGPT login file `~/.codex/auth.json`. |
+| **Cursor** | Cursor's local data folder, when Cursor is installed and signed in. |
+| **GitHub Copilot** | Your GitHub CLI login (`gh auth token`) or the Copilot token files, when VS Code with Copilot is installed. |
+| **Gemini, OpenAI, Anthropic API keys** | Paste the key in **Settings**. On Windows, the keys in the `GEMINI_API_KEY`, `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` environment variables are picked up the first time the app runs. |
+
+Detection happens when the app starts for the first time. If you install a tool or sign in **after** that, open **Settings** and enable it.
+
+---
+
 ## Uninstall
 
 - **macOS:** quit AI Gauge, then drag **AI Gauge.app** from Applications to the Trash. To also remove your settings:

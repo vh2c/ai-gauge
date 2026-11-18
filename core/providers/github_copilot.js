@@ -9,7 +9,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 class GitHubCopilotProvider {
   constructor(token) {
@@ -21,12 +21,17 @@ class GitHubCopilotProvider {
 
     // 1. Try gh CLI auth token
     try {
-      const ghToken = execSync('gh auth token 2>/dev/null', { timeout: 1500, encoding: 'utf8' }).trim();
+      // No shell redirect ("2>/dev/null" does not exist on Windows): run gh directly and ignore its stderr
+      const ghToken = execFileSync('gh', ['auth', 'token'], { timeout: 1500, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim();
       if (ghToken && ghToken.startsWith('gh')) return ghToken;
     } catch (_) {}
 
-    // 2. Check ~/.config/github-copilot/hosts.json
-    const copilotHosts = path.join(home, '.config', 'github-copilot', 'hosts.json');
+    // 2. Check the github-copilot config folder (~/.config on macOS/Linux, %LOCALAPPDATA% on Windows)
+    const copilotDirs = [path.join(home, '.config', 'github-copilot')];
+    if (process.platform === 'win32') {
+      copilotDirs.unshift(path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'github-copilot'));
+    }
+    const copilotHosts = copilotDirs.map(d => path.join(d, 'hosts.json')).find(f => fs.existsSync(f)) || path.join(copilotDirs[0], 'hosts.json');
     if (fs.existsSync(copilotHosts)) {
       try {
         const raw = JSON.parse(fs.readFileSync(copilotHosts, 'utf8'));
@@ -37,7 +42,7 @@ class GitHubCopilotProvider {
     }
 
     // 3. Check ~/.config/github-copilot/apps.json
-    const copilotApps = path.join(home, '.config', 'github-copilot', 'apps.json');
+    const copilotApps = copilotDirs.map(d => path.join(d, 'apps.json')).find(f => fs.existsSync(f)) || path.join(copilotDirs[0], 'apps.json');
     if (fs.existsSync(copilotApps)) {
       try {
         const raw = JSON.parse(fs.readFileSync(copilotApps, 'utf8'));

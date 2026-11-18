@@ -1,5 +1,5 @@
 /**
- * Claude Pro Provider (OAuth / Session via macOS Keychain & CLI)
+ * Claude Pro Provider (OAuth / Session via macOS Keychain, ~/.claude/.credentials.json & CLI)
  */
 const https = require('https');
 const { execFileSync } = require('child_process');
@@ -9,16 +9,21 @@ const os = require('os');
 
 class ClaudeProProvider {
   constructor(token) {
-    this.token = token || this.getTokenFromKeychain();
+    this.token = token || this.getTokenFromKeychain() || this.getTokenFromFile();
     this.dedicatedCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_cache.json');
   }
 
   findClaudeBinary() {
-    const candidates = [
-      path.join(os.homedir(), '.local', 'bin', 'claude'),
-      '/usr/local/bin/claude',
-      '/opt/homebrew/bin/claude'
-    ];
+    const candidates = process.platform === 'win32'
+      ? [
+          path.join(os.homedir(), '.local', 'bin', 'claude.exe'),
+          path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Programs', 'claude', 'claude.exe')
+        ]
+      : [
+          path.join(os.homedir(), '.local', 'bin', 'claude'),
+          '/usr/local/bin/claude',
+          '/opt/homebrew/bin/claude'
+        ];
     for (const c of candidates) {
       if (fs.existsSync(c)) return c;
     }
@@ -34,11 +39,37 @@ class ClaudeProProvider {
           stdio: ['ignore', 'ignore', 'ignore'],
           env: {
             ...process.env,
-            PATH: (process.env.PATH || '') + ':/usr/local/bin:/opt/homebrew/bin:' + path.join(os.homedir(), '.local', 'bin')
+            PATH: (process.env.PATH || '') + path.delimiter + ['/usr/local/bin', '/opt/homebrew/bin', path.join(os.homedir(), '.local', 'bin')].join(path.delimiter)
           }
         });
       }
     } catch (_) {}
+  }
+
+  /**
+   * Claude Code keeps its OAuth login in ~/.claude/.credentials.json on Windows and Linux (and macOS uses the Keychain).
+   * Reading the file lets the app pick up an existing Claude Code login automatically, with nothing to paste.
+   * `homeDir` is only for tests.
+   */
+  getTokenFromFile(homeDir) {
+    const file = path.join(homeDir || os.homedir(), '.claude', '.credentials.json');
+    const read = () => {
+      try {
+        return JSON.parse(fs.readFileSync(file, 'utf8'));
+      } catch (_) {
+        return null;
+      }
+    };
+    let parsed = read();
+    if (!parsed) return null;
+
+    // Access token expired or about to expire: let the Claude CLI refresh it, then read the file again
+    const expiresAt = parsed?.claudeAiOauth?.expiresAt;
+    if (expiresAt && Date.now() >= (expiresAt - 60000) && !homeDir) {
+      this.attemptCliRefresh();
+      parsed = read() || parsed;
+    }
+    return parsed?.claudeAiOauth?.accessToken || null;
   }
 
   getTokenFromKeychain() {
@@ -142,7 +173,7 @@ class ClaudeProProvider {
       }
     } catch (_) {}
 
-    const token = this.token || this.getTokenFromKeychain();
+    const token = this.token || this.getTokenFromKeychain() || this.getTokenFromFile();
 
     // Fallback: if no live token, check cache
     if (!token) {
