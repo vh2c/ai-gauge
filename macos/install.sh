@@ -105,6 +105,7 @@ fi
 if [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; then
     python3 -c "
 import json, os
+true, false = True, False
 p = '$CONFIG_FILE'
 cfg = {
     'providers': {

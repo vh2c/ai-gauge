@@ -210,6 +210,7 @@ fi
 if [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; then
     python3 -c "
 import json, os
+true, false = True, False
 p = '$CONFIG_FILE'
 cfg = {
     'providers': {
@@ -218,14 +219,6 @@ cfg = {
         'chatgpt_subscription': {'enabled': $ENABLE_CHATGPT},
         'cursor': {'enabled': $ENABLE_CURSOR},
         'github_copilot': {'enabled': $ENABLE_COPILOT},
-        'gemini': {'enabled': $ENABLE_GEMINI, 'api_key': os.environ.get('GEMINI_API_KEY', '')},
-        'openai': {'enabled': False, 'api_key': ''},
-        'anthropic': {'enabled': False, 'api_key': ''}
-    },
-    'refresh_interval_seconds': 30,
-    'hidden_hud_gauges': [],
-    'onboarding_completed': True
-}
         'gemini': {'enabled': $ENABLE_GEMINI, 'api_key': os.environ.get('GEMINI_API_KEY', '')},
         'openai': {'enabled': False, 'api_key': ''},
         'anthropic': {'enabled': False, 'api_key': ''}
