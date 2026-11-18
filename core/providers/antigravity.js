@@ -102,21 +102,17 @@ class AntigravityProvider {
           files = fs.readdirSync(d).filter(f => f.startsWith('hub_') && f.endsWith('.json'));
         } catch (_) { continue; }
 
-        // Sort newest first
+        // Sort newest first and take top 10 hub files regardless of age
         files.sort((a, b) => {
           try {
             return fs.statSync(path.join(d, b)).mtimeMs - fs.statSync(path.join(d, a)).mtimeMs;
           } catch (_) { return 0; }
         });
 
-        for (const file of files) {
+        for (const file of files.slice(0, 10)) {
           try {
             const filePath = path.join(d, file);
-            const stat = fs.statSync(filePath);
-            // Skip files older than 48h
-            if (Date.now() - stat.mtimeMs > 48 * 3600 * 1000) continue;
-
-            const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            const content = JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
             if (content.csrfToken && (content.httpPort || content.httpsPort)) {
               hubs.push({
                 pid: content.pid || 0,
@@ -328,33 +324,47 @@ class AntigravityProvider {
           cleanup();
           resolve(null);
         }
-      }, 5000);
+      }, 8000);
 
+      const activeConnections = new Set();
       const tryConnect = async (port, isHttps) => {
-        if (resolved) return;
-        // Small delay for server initialization
-        await new Promise(r => setTimeout(r, 200));
-        const userRes = await this.requestRpc(port, token, RPC_USER_STATUS_PATH, {}, isHttps);
-        const sumRes = await this.requestRpc(port, token, RPC_SUMMARY_PATH, {}, isHttps);
-        if (!resolved && (sumRes.ok || userRes.ok)) {
-          resolved = true;
-          clearTimeout(timer);
-          cleanup();
-          resolve({ summary: sumRes.data || {}, user: userRes.data || {}, mode: 'headless' });
+        const key = `${port}:${isHttps}`;
+        if (resolved || activeConnections.has(key)) return;
+        activeConnections.add(key);
+
+        for (let attempt = 0; attempt < 8 && !resolved; attempt++) {
+          await new Promise(r => setTimeout(r, 350));
+          if (resolved) return;
+
+          let userRes = await this.requestRpc(port, token, RPC_USER_STATUS_PATH, {}, isHttps);
+          const sumRes = await this.requestRpc(port, token, RPC_SUMMARY_PATH, {}, isHttps);
+          if (!resolved && (sumRes.ok || userRes.ok)) {
+            if (sumRes.ok && !userRes.ok) {
+              const retryUser = await this.requestRpc(port, token, RPC_USER_STATUS_PATH, {}, isHttps);
+              if (retryUser.ok) userRes = retryUser;
+            }
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timer);
+              cleanup();
+              resolve({ summary: sumRes.data || {}, user: userRes.data || {}, mode: 'headless' });
+              return;
+            }
+          }
         }
       };
 
       const handleChunk = (chunk) => {
         const text = chunk.toString();
-        // Check for HTTP port
-        const mHttp = text.match(/listening on random port at (\d+) for HTTP/i) ||
+        // Check for HTTP port (\b prevents matching "for HTTPS")
+        const mHttp = text.match(/listening on random port at (\d+) for HTTP\b/i) ||
                       text.match(/hub_(\d+)\.json/i);
         if (mHttp) {
           const port = parseInt(mHttp[1], 10);
           tryConnect(port, false);
         }
         // Check for HTTPS port
-        const mHttps = text.match(/listening on random port at (\d+) for HTTPS/i);
+        const mHttps = text.match(/listening on random port at (\d+) for HTTPS\b/i);
         if (mHttps) {
           const port = parseInt(mHttps[1], 10);
           tryConnect(port, true);

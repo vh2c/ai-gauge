@@ -69,28 +69,36 @@ if ($DemoMode) { $ConfigDir = Join-Path $env:TEMP "AIGaugeDemo" }
 if (-not (Test-Path $ConfigDir)) {
     New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
 }
+function Write-Utf8NoBom ($path, $content) {
+    [System.IO.File]::WriteAllText($path, $content, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 $ConfigFile = Join-Path $ConfigDir "config.json"
 if ($DemoMode -and -not (Test-Path $ConfigFile)) {
-    [IO.File]::WriteAllText($ConfigFile, '{"providers":{},"hidden_hud_gauges":[],"onboarding_completed":true}', [Text.Encoding]::UTF8)
+    Write-Utf8NoBom $ConfigFile '{"providers":{},"hidden_hud_gauges":[],"onboarding_completed":true}'
 }
 $DeviceIdFile = Join-Path $ConfigDir "device_id"
 
-# First run without config (e.g. installed via Setup.exe): detect installed AI tools and write a starter config.
+# First run without config (e.g. installed via Setup.exe): write a starter config with local auto-discovery enabled.
 function Initialize-DefaultConfig {
     $up = $env:USERPROFILE
+    $localApp = $env:LOCALAPPDATA
+    $appData = $env:APPDATA
+    $progFiles = $env:ProgramFiles
     $hasClaude = (Test-Path (Join-Path $up ".claude")) -or [bool](Get-Command "claude.cmd" -ErrorAction SilentlyContinue) -or [bool](Get-Command "claude.exe" -ErrorAction SilentlyContinue)
-    $hasChatGPT = (Test-Path (Join-Path $up ".codex\auth.json")) -or (Test-Path (Join-Path $env:APPDATA "ChatGPT"))
-    $hasCursor = (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Cursor")) -or (Test-Path (Join-Path $env:LOCALAPPDATA "cursor")) -or (Test-Path (Join-Path $env:ProgramFiles "Cursor")) -or (Test-Path (Join-Path $env:APPDATA "Cursor")) -or [bool](Get-Process "Cursor" -ErrorAction SilentlyContinue)
-    $hasCopilot = (Test-Path (Join-Path $env:APPDATA "Code\User\globalStorage\github.copilot-chat")) -or [bool](Get-Command "gh.exe" -ErrorAction SilentlyContinue)
+    $hasChatGPT = (Test-Path (Join-Path $up ".codex\auth.json")) -or ($appData -and (Test-Path (Join-Path $appData "ChatGPT")))
+    $hasCursor = ($localApp -and (Test-Path (Join-Path $localApp "Programs\cursor"))) -or ($localApp -and (Test-Path (Join-Path $localApp "Programs\Cursor"))) -or ($localApp -and (Test-Path (Join-Path $localApp "cursor"))) -or ($progFiles -and (Test-Path (Join-Path $progFiles "Cursor"))) -or ($appData -and (Test-Path (Join-Path $appData "Cursor"))) -or [bool](Get-Process "Cursor" -ErrorAction SilentlyContinue)
+    $hasCopilot = ($appData -and (Test-Path (Join-Path $appData "Code\User\globalStorage\github.copilot-chat"))) -or [bool](Get-Command "gh.exe" -ErrorAction SilentlyContinue)
     $hasGemini = [bool]$env:GEMINI_API_KEY
-    $hasAnti = [bool](Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or [bool](Get-Process "language_server*" -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $up ".gemini\antigravity")) -or (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Antigravity")) -or (Test-Path (Join-Path $env:ProgramFiles "Antigravity"))
+    $hasAnti = [bool](Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or [bool](Get-Process "language_server*" -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $up ".gemini\antigravity")) -or ($localApp -and (Test-Path (Join-Path $localApp "Programs\Antigravity"))) -or ($progFiles -and (Test-Path (Join-Path $progFiles "Antigravity")))
 
     if (Test-Path $ConfigFile) {
         try {
-            $existing = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+            $raw = (Get-Content $ConfigFile -Raw -Encoding UTF8).TrimStart([char]0xFEFF)
+            $existing = $raw | ConvertFrom-Json
             if ($existing -and $existing.providers) {
                 $dirty = $false
-                if ($existing.providers.antigravity -eq $null -or $existing.providers.antigravity.enabled -ne $true) {
+                if ($hasAnti -and ($null -eq $existing.providers.antigravity -or $existing.providers.antigravity.enabled -ne $true)) {
                     if (-not $existing.providers.antigravity) {
                         $existing.providers | Add-Member -MemberType NoteProperty -Name "antigravity" -Value (@{ enabled = $true }) -Force
                     } else {
@@ -98,7 +106,7 @@ function Initialize-DefaultConfig {
                     }
                     $dirty = $true
                 }
-                if ($hasCursor -and ($existing.providers.cursor -eq $null -or $existing.providers.cursor.enabled -ne $true)) {
+                if ($hasCursor -and ($null -eq $existing.providers.cursor -or $existing.providers.cursor.enabled -ne $true)) {
                     if (-not $existing.providers.cursor) {
                         $existing.providers | Add-Member -MemberType NoteProperty -Name "cursor" -Value (@{ enabled = $true }) -Force
                     } else {
@@ -107,14 +115,14 @@ function Initialize-DefaultConfig {
                     $dirty = $true
                 }
                 if ($dirty) {
-                    $existing | ConvertTo-Json -Depth 5 | Set-Content -Path $ConfigFile -Encoding UTF8
+                    Write-Utf8NoBom $ConfigFile ($existing | ConvertTo-Json -Depth 5)
                 }
             }
         } catch {}
         return
     }
     try {
-        # Names shown in the one-time welcome message (first run only)
+        # Names shown if any tool is found on startup
         $global:FirstRunDetected = @()
         if ($hasAnti) { $global:FirstRunDetected += "Antigravity" }
         if ($hasClaude) { $global:FirstRunDetected += "Claude" }
@@ -125,19 +133,19 @@ function Initialize-DefaultConfig {
         $cfg = @{
             providers = @{
                 antigravity = @{ enabled = $true }
-                claude_pro = @{ enabled = [bool]$hasClaude }
-                chatgpt_subscription = @{ enabled = [bool]$hasChatGPT }
-                cursor = @{ enabled = [bool]$hasCursor }
-                github_copilot = @{ enabled = [bool]$hasCopilot }
+                claude_pro = @{ enabled = $true }
+                chatgpt_subscription = @{ enabled = $true }
+                cursor = @{ enabled = $true }
+                github_copilot = @{ enabled = $true }
                 gemini = @{ enabled = [bool]$hasGemini; api_key = if ($env:GEMINI_API_KEY) { $env:GEMINI_API_KEY } else { "" } }
                 openai = @{ enabled = [bool]$env:OPENAI_API_KEY; api_key = if ($env:OPENAI_API_KEY) { $env:OPENAI_API_KEY } else { "" } }
                 anthropic = @{ enabled = [bool]$env:ANTHROPIC_API_KEY; api_key = if ($env:ANTHROPIC_API_KEY) { $env:ANTHROPIC_API_KEY } else { "" } }
             }
             refresh_interval_seconds = 30
             hidden_hud_gauges = @()
-            onboarding_completed = $true
+            onboarding_completed = $false
         }
-        [IO.File]::WriteAllText($ConfigFile, ($cfg | ConvertTo-Json -Depth 5), [Text.Encoding]::UTF8)
+        Write-Utf8NoBom $ConfigFile ($cfg | ConvertTo-Json -Depth 5)
         try {
             $acl = Get-Acl -Path $ConfigFile
             $acl.SetAccessRuleProtection($true, $false)
@@ -190,7 +198,10 @@ function Convert-HexToBrush ($hexStr) {
 
 function Load-CurrentConfig {
     if (Test-Path $ConfigFile) {
-        try { return (Get-Content $ConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json) } catch {}
+        try {
+            $raw = (Get-Content $ConfigFile -Raw -Encoding UTF8).TrimStart([char]0xFEFF)
+            return ($raw | ConvertFrom-Json)
+        } catch {}
     }
     return $null
 }
@@ -381,7 +392,10 @@ function New-DemoData {
     }
 }
 
-function Start-QuotaFetch ($force = $false) {
+$global:lastFetchWasScan = $false
+$global:scanEmptyNotice = $false
+
+function Start-QuotaFetch ($force = $false, $scan = $false) {
     if ($global:quotaFetch) { return }
     if ($DemoMode) {
         Complete-QuotaFetch (New-DemoData)
@@ -392,12 +406,14 @@ function Start-QuotaFetch ($force = $false) {
         return
     }
     try {
+        if ($scan) { $global:lastFetchWasScan = $true }
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $NodeExe
         # --startup: the app was just opened, so the engine contacts the AI Gauge API once (version/announcements).
-        # Later refreshes only read the local cache (the engine re-checks after 24h).
+        # --scan: discovers all active local AI subscriptions & auto-enables them in config.json.
         $psi.Arguments = "`"$EngineScript`""
         if ($force) { $psi.Arguments += " --force" }
+        if ($scan) { $psi.Arguments += " --scan" }
         if (-not $global:StartupSent) { $psi.Arguments += " --startup" }
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
@@ -413,9 +429,23 @@ function Start-QuotaFetch ($force = $false) {
         }
         $global:quotaPoll.Start()
     } catch {
+        $global:lastFetchWasScan = $false
         Write-AppError $_.Exception
         Complete-QuotaFetch $null
     }
+}
+
+function Start-SubscriptionScan {
+    if ($global:quotaFetch) { return }
+    $global:scanEmptyNotice = $false
+    if ($txtAcc) {
+        $txtAcc.Text = "Scanning local AI subscriptions (Antigravity, Claude, ChatGPT, Codex, Cursor, Copilot)..."
+    }
+    if ($btnRefresh) {
+        $btnRefresh.Content = "Scanning..."
+        $btnRefresh.IsEnabled = $false
+    }
+    Start-QuotaFetch $true $true
 }
 
 $global:StartupSent = $false
@@ -665,7 +695,7 @@ function Set-HudGaugeHidden ($key, $hide) {
     $list = @(Get-HiddenGauges | Where-Object { $_ -ne $key })
     if ($hide) { $list += $key }
     $cfg | Add-Member -NotePropertyName "hidden_hud_gauges" -NotePropertyValue @($list) -Force
-    Set-Content -Path $ConfigFile -Value ($cfg | ConvertTo-Json -Depth 6) -Encoding UTF8
+    Write-Utf8NoBom $ConfigFile ($cfg | ConvertTo-Json -Depth 6)
     if ($global:isHudMode) {
         $window.Height = Get-HudHeight $global:currentData
         Render-HUD $global:currentData
@@ -1226,21 +1256,18 @@ function Render-UI ($data) {
             return
         }
 
+        if ($global:scanEmptyNotice) {
+            $txtAcc.Text = "Scan complete: no active local subscriptions found."
+        }
+
         # 1. Welcome Title & Installed Version Badge
         $tRow = New-Object System.Windows.Controls.StackPanel
         $tRow.Orientation = [System.Windows.Controls.Orientation]::Horizontal
         $tRow.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 4))
         
-        $tIcon = New-Object System.Windows.Controls.TextBlock
-        $tIcon.Text = "⚡"
-        $tIcon.FontSize = 16
-        $tIcon.Margin = (New-Object System.Windows.Thickness(0, 0, 8, 0))
-        $tIcon.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
-        $tRow.Children.Add($tIcon) | Out-Null
-        
         $tTitle = New-Object System.Windows.Controls.TextBlock
         $tTitle.Text = "Welcome to AI Gauge"
-        $tTitle.FontSize = 14
+        $tTitle.FontSize = 15
         $tTitle.FontWeight = [System.Windows.FontWeights]::Bold
         $tTitle.Foreground = [System.Windows.Media.Brushes]::White
         $tTitle.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
@@ -1253,92 +1280,98 @@ function Render-UI ($data) {
         $tVerBadge.FontSize = 11
         $tVerBadge.FontWeight = [System.Windows.FontWeights]::SemiBold
         $tVerBadge.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
-        $tVerBadge.Margin = (New-Object System.Windows.Thickness(24, 0, 0, 10))
+        $tVerBadge.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
         $emptyStack.Children.Add($tVerBadge) | Out-Null
         
-        # 2. Explanation
+        # 2. Scan AI Subscriptions Explanation & Primary CTA
         $tDesc = New-Object System.Windows.Controls.TextBlock
-        $tDesc.Text = "We did not find any local accounts or active sessions (Antigravity, Claude, ChatGPT, Cursor or Copilot) on this machine."
+        if ($global:scanEmptyNotice) {
+            $tDesc.Text = "Scan complete: no active local subscriptions found. Sign in to one of your AI apps and scan again, or use the links below to connect an API Key or Token."
+        } else {
+            $tDesc.Text = "Click below to automatically search this computer for Antigravity, Claude, ChatGPT, Codex, Cursor, and GitHub Copilot and prepare AI Gauge."
+        }
         $tDesc.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $tDesc.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xBB, 0xBB, 0xC4)))
         $tDesc.FontSize = 11
-        $tDesc.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 12))
+        $tDesc.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 10))
         $emptyStack.Children.Add($tDesc) | Out-Null
+
+        $btnScan = New-Object System.Windows.Controls.Button
+        $btnScan.Content = "Scan AI Subscriptions"
+        $btnScan.Height = 34
+        $btnScan.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 14))
+        $btnScan.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
+        $btnScan.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x14)))
+        $btnScan.FontWeight = [System.Windows.FontWeights]::Bold
+        $btnScan.FontSize = 12
+        $btnScan.Cursor = [System.Windows.Input.Cursors]::Hand
+        $btnScan.Add_Click({ Start-SubscriptionScan })
+        $emptyStack.Children.Add($btnScan) | Out-Null
         
-        # 3. Guidance Box (How to connect via APIs or Tokens)
+        # 3. Direct API Key / Token Links Card
         $guideBox = New-Object System.Windows.Controls.Border
         $guideBox.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x14, 0x14, 0x18)))
         $guideBox.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x25, 0x25, 0x30)))
         $guideBox.BorderThickness = (New-Object System.Windows.Thickness(1))
         $guideBox.CornerRadius = (New-Object System.Windows.CornerRadius(6))
         $guideBox.Padding = (New-Object System.Windows.Thickness(12, 10, 12, 10))
-        $guideBox.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 14))
+        $guideBox.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 12))
         
         $guideStack = New-Object System.Windows.Controls.StackPanel
         
         $gHead = New-Object System.Windows.Controls.TextBlock
-        $gHead.Text = "How to route and monitor your quotas:"
+        $gHead.Text = "No Subscriptions Found? Get API Keys & Tokens"
         $gHead.FontWeight = [System.Windows.FontWeights]::Bold
-        $gHead.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
-        $gHead.FontSize = 10.5
-        $gHead.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 6))
+        $gHead.Foreground = [System.Windows.Media.Brushes]::White
+        $gHead.FontSize = 11
+        $gHead.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 8))
         $guideStack.Children.Add($gHead) | Out-Null
-        
-        $item1 = New-Object System.Windows.Controls.TextBlock
-        $item1.Text = "• Google Gemini (Recommended): Create a free key at Google AI Studio (takes 30 seconds and needs no IDE installed)."
-        $item1.TextWrapping = [System.Windows.TextWrapping]::Wrap
-        $item1.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
-        $item1.FontSize = 10
-        $item1.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 4))
-        $guideStack.Children.Add($item1) | Out-Null
-        
-        $item2 = New-Object System.Windows.Controls.TextBlock
-        $item2.Text = "• OpenAI & Anthropic: Add your sk-... API keys to monitor quotas and request limits."
-        $item2.TextWrapping = [System.Windows.TextWrapping]::Wrap
-        $item2.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
-        $item2.FontSize = 10
-        $item2.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 4))
-        $guideStack.Children.Add($item2) | Out-Null
-        
-        $item3 = New-Object System.Windows.Controls.TextBlock
-        $item3.Text = "• Session Tokens: Enter your Claude Pro, ChatGPT or Cursor subscription token if you subscribe to those services."
-        $item3.TextWrapping = [System.Windows.TextWrapping]::Wrap
-        $item3.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
-        $item3.FontSize = 10
-        $guideStack.Children.Add($item3) | Out-Null
+
+        $apiLinks = @(
+            @{ Label = "Google Gemini API Key (Google AI Studio) ->"; Url = "https://aistudio.google.com/app/apikey" },
+            @{ Label = "OpenAI API Key (ChatGPT / Codex Platform) ->"; Url = "https://platform.openai.com/api-keys" },
+            @{ Label = "Anthropic API Key (Claude Console) ->"; Url = "https://console.anthropic.com/settings/keys" },
+            @{ Label = "Cursor Account & Session Token ->"; Url = "https://www.cursor.com/settings" },
+            @{ Label = "GitHub Copilot Personal Token ->"; Url = "https://github.com/settings/tokens" }
+        )
+        foreach ($lnkItem in $apiLinks) {
+            $bLnk = New-Object System.Windows.Controls.Button
+            $bLnk.Content = $lnkItem.Label
+            $bLnk.Tag = $lnkItem.Url
+            $bLnk.Height = 26
+            $bLnk.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 5))
+            $bLnk.HorizontalContentAlignment = [System.Windows.HorizontalAlignment]::Left
+            $bLnk.Padding = (New-Object System.Windows.Thickness(10, 0, 10, 0))
+            $bLnk.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x1E, 0x1E, 0x26)))
+            $bLnk.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCB, 0xD5, 0xE1)))
+            $bLnk.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2E, 0x2E, 0x3A)))
+            $bLnk.BorderThickness = (New-Object System.Windows.Thickness(1))
+            $bLnk.FontSize = 10.5
+            $bLnk.FontWeight = [System.Windows.FontWeights]::SemiBold
+            $bLnk.Cursor = [System.Windows.Input.Cursors]::Hand
+            $bLnk.Add_Click({
+                param($s, $e)
+                if ($s.Tag) { try { [System.Diagnostics.Process]::Start("$($s.Tag)") } catch { Write-AppError $_.Exception } }
+            })
+            $guideStack.Children.Add($bLnk) | Out-Null
+        }
         
         $guideBox.Child = $guideStack
         $emptyStack.Children.Add($guideBox) | Out-Null
         
-        # 4. Action Buttons
-        $btnStack = New-Object System.Windows.Controls.StackPanel
-        
+        # 4. Settings Button (paste API key or session token)
         $btnConfig = New-Object System.Windows.Controls.Button
-        $btnConfig.Content = "⚙ Configure Providers and API Keys"
-        $btnConfig.Height = 32
-        $btnConfig.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
-        $btnConfig.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x14)))
-        $btnConfig.FontWeight = [System.Windows.FontWeights]::Bold
+        $btnConfig.Content = "Configure API Keys & Tokens"
+        $btnConfig.Height = 30
+        $btnConfig.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x28, 0x28, 0x32)))
+        $btnConfig.Foreground = [System.Windows.Media.Brushes]::White
+        $btnConfig.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x3A, 0x3A, 0x48)))
+        $btnConfig.BorderThickness = (New-Object System.Windows.Thickness(1))
+        $btnConfig.FontWeight = [System.Windows.FontWeights]::SemiBold
         $btnConfig.FontSize = 11.5
         $btnConfig.Cursor = [System.Windows.Input.Cursors]::Hand
         $btnConfig.Add_Click({ Show-SettingsDialog })
-        $btnStack.Children.Add($btnConfig) | Out-Null
-        
-        $btnStudio = New-Object System.Windows.Controls.Button
-        $btnStudio.Content = "🔗 Get a Free Key at Google AI Studio (aistudio.google.com) ->"
-        $btnStudio.Height = 28
-        $btnStudio.Margin = (New-Object System.Windows.Thickness(0, 6, 0, 0))
-        $btnStudio.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x22, 0x22, 0x2B)))
-        $btnStudio.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x38, 0xBD, 0xF8)))
-        $btnStudio.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x32, 0x32, 0x40)))
-        $btnStudio.BorderThickness = (New-Object System.Windows.Thickness(1))
-        $btnStudio.FontSize = 10
-        $btnStudio.FontWeight = [System.Windows.FontWeights]::SemiBold
-        $btnStudio.Cursor = [System.Windows.Input.Cursors]::Hand
-        $btnStudio.Add_Click({ [System.Diagnostics.Process]::Start("https://aistudio.google.com/app/apikey") })
-        $btnStack.Children.Add($btnStudio) | Out-Null
-        
-        $emptyStack.Children.Add($btnStack) | Out-Null
+        $emptyStack.Children.Add($btnConfig) | Out-Null
         $emptyBorder.Child = $emptyStack
         $cardsPanel.Children.Add($emptyBorder) | Out-Null
         return
@@ -1786,11 +1819,179 @@ function Render-HUD ($data) {
     }
 }
 
+function Show-HudGaugeSelectionDialog ($data) {
+    if (-not $data -or -not $data.groups -or $data.groups.Count -eq 0) { return }
+
+    [xml]$hudSelXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Subscriptions Detected - Select HUD Bar Gauges" Height="560" Width="460"
+        WindowStartupLocation="CenterOwner" Background="#18181A" ResizeMode="NoResize">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Subscriptions Detected - Select HUD Bar Gauges" Foreground="#FFFFFF" FontSize="14" FontWeight="Bold"/>
+            <TextBlock Name="TxtSelSub" Text="Choose which gauges you want displayed on the floating HUD Bar:" Foreground="#94A3B8" FontSize="10.5" TextWrapping="Wrap" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Name="HudSelStack" Margin="0,0,6,0"/>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Name="BtnSelectAllHud" Content="Select All" Width="82" Height="28" Background="#282830" Foreground="#E5E7EB" BorderBrush="#3A3A46" BorderThickness="1" Margin="0,0,6,0"/>
+                <Button Name="BtnClearAllHud" Content="Clear All" Width="78" Height="28" Background="#282830" Foreground="#E5E7EB" BorderBrush="#3A3A46" BorderThickness="1"/>
+            </StackPanel>
+            <Button Name="BtnSaveHudSel" Content="Save &amp; Ready to Use" Width="156" Height="28" HorizontalAlignment="Right" Background="#00E699" Foreground="#121214" FontWeight="Bold"/>
+        </Grid>
+    </Grid>
+</Window>
+"@
+
+    $selReader = (New-Object System.Xml.XmlNodeReader $hudSelXaml)
+    $selWin = [System.Windows.Markup.XamlReader]::Load($selReader)
+    $ownerSet = $false
+    try {
+        if ($window -and $window.IsVisible) { $selWin.Owner = $window; $ownerSet = $true }
+    } catch {}
+    if (-not $ownerSet) {
+        $selWin.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterScreen
+    }
+
+    $txtSelSub = $selWin.FindName("TxtSelSub")
+    $hudSelStack = $selWin.FindName("HudSelStack")
+    $btnSelectAllHud = $selWin.FindName("BtnSelectAllHud")
+    $btnClearAllHud = $selWin.FindName("BtnClearAllHud")
+    $btnSaveHudSel = $selWin.FindName("BtnSaveHudSel")
+
+    $hiddenKeys = Get-HiddenGauges
+    $checkBoxes = New-Object System.Collections.ArrayList
+
+    $provNames = @()
+    foreach ($g in $data.groups) {
+        if ($g.name -and ($provNames -notcontains "$($g.name)")) { $provNames += "$($g.name)" }
+    }
+    if ($txtSelSub -and $provNames.Count -gt 0) {
+        $txtSelSub.Text = "Detected: $($provNames -join ', '). Choose which gauges you want displayed on the floating HUD Bar:"
+    }
+
+    foreach ($g in $data.groups) {
+        if (-not $g.buckets) { continue }
+        foreach ($b in $g.buckets) {
+            $key = Get-GaugeKey $b
+            $pct = [int]$b.remaining_pct
+            $rowBorder = New-Object System.Windows.Controls.Border
+            $rowBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x1F, 0x1F, 0x24)))
+            $rowBorder.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2E, 0x2E, 0x38)))
+            $rowBorder.BorderThickness = (New-Object System.Windows.Thickness(1))
+            $rowBorder.CornerRadius = (New-Object System.Windows.CornerRadius(6))
+            $rowBorder.Padding = (New-Object System.Windows.Thickness(10, 8, 12, 8))
+            $rowBorder.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 6))
+
+            $rowGrid = New-Object System.Windows.Controls.Grid
+            $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
+            $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Auto)
+            $rowGrid.ColumnDefinitions.Add($c1)
+            $rowGrid.ColumnDefinitions.Add($c2)
+
+            $cb = New-Object System.Windows.Controls.CheckBox
+            $cb.Content = "$($g.name)  •  $($b.name)"
+            $cb.Foreground = [System.Windows.Media.Brushes]::White
+            $cb.FontSize = 11.5
+            $cb.FontWeight = [System.Windows.FontWeights]::SemiBold
+            $cb.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+            $cb.Tag = $key
+            $cb.IsChecked = ($hiddenKeys -notcontains $key)
+            [System.Windows.Controls.Grid]::SetColumn($cb, 0)
+            $rowGrid.Children.Add($cb) | Out-Null
+
+            $lblPct = New-Object System.Windows.Controls.TextBlock
+            $lblPct.Text = if ($b.reset_in -eq "Outdated") { "--%" } else { "$pct%" }
+            $lblPct.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
+            $lblPct.FontSize = 11.5
+            $lblPct.FontWeight = [System.Windows.FontWeights]::Bold
+            $lblPct.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+            $lblPct.Margin = (New-Object System.Windows.Thickness(8, 0, 0, 0))
+            [System.Windows.Controls.Grid]::SetColumn($lblPct, 1)
+            $rowGrid.Children.Add($lblPct) | Out-Null
+
+            $rowBorder.Child = $rowGrid
+            $hudSelStack.Children.Add($rowBorder) | Out-Null
+            $checkBoxes.Add($cb) | Out-Null
+        }
+    }
+
+    $btnSelectAllHud.Tag = $checkBoxes
+    $btnSelectAllHud.Add_Click({
+        param($s, $e)
+        foreach ($c in $s.Tag) { $c.IsChecked = $true }
+    })
+
+    $btnClearAllHud.Tag = $checkBoxes
+    $btnClearAllHud.Add_Click({
+        param($s, $e)
+        foreach ($c in $s.Tag) { $c.IsChecked = $false }
+    })
+
+    $btnSaveHudSel.Tag = $checkBoxes
+    $btnSaveHudSel.Add_Click({
+        param($s, $e)
+        $newHidden = @()
+        foreach ($c in $s.Tag) {
+            if (-not [bool]$c.IsChecked) {
+                $newHidden += "$($c.Tag)"
+            }
+        }
+        $cfg = Load-CurrentConfig
+        if (-not $cfg) {
+            $cfg = New-Object PSObject
+            $cfg | Add-Member -NotePropertyName "providers" -NotePropertyValue (@{ antigravity = @{ enabled = $true } }) -Force
+        }
+        $cfg | Add-Member -NotePropertyName "hidden_hud_gauges" -NotePropertyValue @($newHidden) -Force
+        $cfg | Add-Member -NotePropertyName "onboarding_completed" -NotePropertyValue $true -Force
+        Write-Utf8NoBom $ConfigFile ($cfg | ConvertTo-Json -Depth 6)
+        $selWin.Close()
+        try {
+            Render-UI $global:currentData
+            if ($global:isHudMode) {
+                $window.Height = Get-HudHeight $global:currentData
+                Render-HUD $global:currentData
+            }
+        } catch { Write-AppError $_.Exception }
+    })
+
+    $selWin.ShowDialog() | Out-Null
+}
+
 # 7. Settings Dialog with 6 Pastel Palette Swatches
 function Show-SettingsDialog {
     [xml]$cfgXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        Title="Settings - AI Gauge" Height="620" Width="460"
+        Title="Settings - AI Gauge" Height="660" Width="480"
         WindowStartupLocation="CenterOwner" Background="#18181A" ResizeMode="NoResize">
     <Window.Resources>
         <Style TargetType="Button">
@@ -1843,7 +2044,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelClaude" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <PasswordBox Name="TxtClaudeProToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="OAuth Session Token (auto-detected if logged in)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Name="LinkClaudeToken" Text="OAuth Session Token (auto-detected) • Console -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
                 
@@ -1867,7 +2068,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelCursor" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <PasswordBox Name="TxtCursorToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="Cursor Session Token (optional if logged in Cursor)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Name="LinkCursorToken" Text="Get Cursor Session / Account Settings (cursor.com) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
                 
@@ -1879,7 +2080,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelCopilot" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <PasswordBox Name="TxtCopilotToken" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="GitHub Personal Access Token (optional)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Name="LinkCopilotToken" Text="Get GitHub Personal Access Token (github.com/settings/tokens) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
                 
@@ -1891,7 +2092,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelGemini" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <PasswordBox Name="TxtGeminiKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Name="LinkAiStudio" Text="Get free API key at Google AI Studio (aistudio.google.com) ->" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
+                        <TextBlock Name="LinkAiStudio" Text="Get API Key at Google AI Studio (aistudio.google.com) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
                 
@@ -1903,7 +2104,7 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelOpenAI" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <PasswordBox Name="TxtOpenAIKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="OpenAI API Key (sk-...)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Name="LinkOpenAIKeys" Text="Get OpenAI API Key (platform.openai.com/api-keys) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
                 
@@ -1915,15 +2116,19 @@ function Show-SettingsDialog {
                             <StackPanel Name="ColorPanelAnthropic" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>
                         <PasswordBox Name="TxtClaudeKey" Height="24" Background="#141416" Foreground="#FFFFFF" BorderBrush="#333338" Margin="0,6,0,4"/>
-                        <TextBlock Text="Anthropic API Key (sk-ant-...)" Foreground="#777777" FontSize="9.5"/>
+                        <TextBlock Name="LinkAnthropicKeys" Text="Get Anthropic API Key (console.anthropic.com) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
         </ScrollViewer>
         
         <Grid Grid.Row="2" Margin="0,12,0,0">
-            <Button Name="BtnSave" Content="Save &amp; Refresh" Width="130" Height="28" HorizontalAlignment="Left" Background="#00E699" Foreground="#121214" FontWeight="Bold" Cursor="Hand"/>
-            <Button Name="BtnCancel" Content="Cancel" Width="80" Height="28" HorizontalAlignment="Right" Background="#282830" Foreground="#E5E7EB" BorderBrush="#3A3A46" BorderThickness="1" Cursor="Hand"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Name="BtnSave" Content="Save &amp; Refresh" Width="114" Height="28" Background="#00E699" Foreground="#121214" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
+                <Button Name="BtnCfgScan" Content="Scan Subscriptions" Width="122" Height="28" Background="#282830" Foreground="#E5E7EB" BorderBrush="#3A3A46" BorderThickness="1" Margin="0,0,6,0" Cursor="Hand"/>
+                <Button Name="BtnCfgHud" Content="HUD Gauges" Width="88" Height="28" Background="#282830" Foreground="#E5E7EB" BorderBrush="#3A3A46" BorderThickness="1" Cursor="Hand"/>
+            </StackPanel>
+            <Button Name="BtnCancel" Content="Cancel" Width="74" Height="28" HorizontalAlignment="Right" Background="#282830" Foreground="#E5E7EB" BorderBrush="#3A3A46" BorderThickness="1" Cursor="Hand"/>
         </Grid>
     </Grid>
 </Window>
@@ -1943,19 +2148,24 @@ function Show-SettingsDialog {
     $chkAnti = $cfgWin.FindName("ChkAnti")
     $chkClaudePro = $cfgWin.FindName("ChkClaudePro")
     $txtClaudeProToken = $cfgWin.FindName("TxtClaudeProToken")
+    $linkClaudeToken = $cfgWin.FindName("LinkClaudeToken")
     $chkChatGPT = $cfgWin.FindName("ChkChatGPT")
     $txtChatGPTToken = $cfgWin.FindName("TxtChatGPTToken")
     $chkCursor = $cfgWin.FindName("ChkCursor")
     $txtCursorToken = $cfgWin.FindName("TxtCursorToken")
+    $linkCursorToken = $cfgWin.FindName("LinkCursorToken")
     $chkCopilot = $cfgWin.FindName("ChkCopilot")
     $txtCopilotToken = $cfgWin.FindName("TxtCopilotToken")
+    $linkCopilotToken = $cfgWin.FindName("LinkCopilotToken")
     $chkGemini = $cfgWin.FindName("ChkGemini")
     $txtGeminiKey = $cfgWin.FindName("TxtGeminiKey")
     $linkAiStudio = $cfgWin.FindName("LinkAiStudio")
     $chkOpenAI = $cfgWin.FindName("ChkOpenAI")
     $txtOpenAIKey = $cfgWin.FindName("TxtOpenAIKey")
+    $linkOpenAIKeys = $cfgWin.FindName("LinkOpenAIKeys")
     $chkClaude = $cfgWin.FindName("ChkClaude")
     $txtClaudeKey = $cfgWin.FindName("TxtClaudeKey")
+    $linkAnthropicKeys = $cfgWin.FindName("LinkAnthropicKeys")
     
     $pAnti = $cfgWin.FindName("ColorPanelAnti")
     $pClaude = $cfgWin.FindName("ColorPanelClaude")
@@ -1967,6 +2177,8 @@ function Show-SettingsDialog {
     $pAnthropic = $cfgWin.FindName("ColorPanelAnthropic")
     
     $btnSave = $cfgWin.FindName("BtnSave")
+    $btnCfgScan = $cfgWin.FindName("BtnCfgScan")
+    $btnCfgHud = $cfgWin.FindName("BtnCfgHud")
     $btnCancel = $cfgWin.FindName("BtnCancel")
 
     $currentCfg = Load-CurrentConfig
@@ -2088,9 +2300,40 @@ function Show-SettingsDialog {
         $chkClaude.IsChecked = $false
     }
 
-    $linkAiStudio.Add_MouseDown({
-        [System.Diagnostics.Process]::Start("https://aistudio.google.com/app/apikey")
-    })
+    $linkMap = @(
+        @{ Ctrl = $linkAiStudio;      Url = "https://aistudio.google.com/app/apikey" },
+        @{ Ctrl = $linkClaudeToken;   Url = "https://console.anthropic.com/settings/keys" },
+        @{ Ctrl = $linkCursorToken;   Url = "https://www.cursor.com/settings" },
+        @{ Ctrl = $linkCopilotToken;  Url = "https://github.com/settings/tokens" },
+        @{ Ctrl = $linkOpenAIKeys;    Url = "https://platform.openai.com/api-keys" },
+        @{ Ctrl = $linkAnthropicKeys; Url = "https://console.anthropic.com/settings/keys" }
+    )
+    foreach ($lm in $linkMap) {
+        if ($lm.Ctrl) {
+            $lm.Ctrl.Tag = $lm.Url
+            $lm.Ctrl.Add_MouseLeftButtonUp({
+                param($s, $e)
+                if ($s.Tag) { try { [System.Diagnostics.Process]::Start("$($s.Tag)") } catch { Write-AppError $_.Exception } }
+            })
+        }
+    }
+
+    if ($btnCfgScan) {
+        $btnCfgScan.Add_Click({
+            $cfgWin.Close()
+            Start-SubscriptionScan
+        })
+    }
+
+    if ($btnCfgHud) {
+        $btnCfgHud.Add_Click({
+            if ($global:currentData -and $global:currentData.groups -and $global:currentData.groups.Count -gt 0) {
+                Show-HudGaugeSelectionDialog $global:currentData
+            } else {
+                [System.Windows.MessageBox]::Show("Run 'Scan Subscriptions' or connect an API key first so AI Gauge detects active gauges.", "HUD Gauges", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information) | Out-Null
+            }
+        })
+    }
 
     $btnSave.Add_Click({
         $colorsOut = @{}
@@ -2116,7 +2359,7 @@ function Show-SettingsDialog {
         }
         
         $jsonStr = $newCfg | ConvertTo-Json -Depth 5
-        Set-Content -Path $ConfigFile -Value $jsonStr -Encoding UTF8
+        Write-Utf8NoBom $ConfigFile $jsonStr
         try {
             $acl = Get-Acl -Path $ConfigFile
             $acl.SetAccessRuleProtection($true, $false)
@@ -2154,6 +2397,18 @@ function Redraw-All {
 }
 
 function Complete-QuotaFetch ($newData) {
+    $wasScan = $global:lastFetchWasScan
+    $global:lastFetchWasScan = $false
+
+    $hasGroups = ($newData -and $newData.groups -and $newData.groups.Count -gt 0)
+    $nodeMissing = ($newData -and $newData.node_missing)
+
+    if ($wasScan) {
+        $global:scanEmptyNotice = (-not $hasGroups -and -not $nodeMissing)
+    } elseif ($hasGroups) {
+        $global:scanEmptyNotice = $false
+    }
+
     Render-UI $newData
     if ($global:isHudMode) {
         $window.Width = $global:HudWidth
@@ -2163,18 +2418,22 @@ function Complete-QuotaFetch ($newData) {
     $btnRefresh.Content = "↻ Refresh"
     $btnRefresh.IsEnabled = $true
 
-    # First run: open the settings dialog only after the main window is on screen.
+    if ($wasScan) {
+        $global:initialLoad = $false
+        if ($hasGroups -and -not $nodeMissing) {
+            Show-HudGaugeSelectionDialog $newData
+        }
+        return
+    }
+
+    # First run: ask which gauges to keep in the HUD Bar as soon as subscriptions are detected.
     if ($global:initialLoad) {
         $global:initialLoad = $false
-        $nodeMissing = ($newData -and $newData.node_missing)
-        # No Settings window by itself: when the app finds something on its own, say so in one short message.
-        # An empty screen already explains what to do and has a button.
-        if (-not $nodeMissing -and $global:FirstRunDetected -and $global:FirstRunDetected.Count -gt 0) {
-            $list = if ($global:FirstRunDetected.Count -gt 1) {
-                ($global:FirstRunDetected[0..($global:FirstRunDetected.Count - 2)] -join ", ") + " and " + $global:FirstRunDetected[-1]
-            } else { "$($global:FirstRunDetected[0])" }
-            $ask = [System.Windows.MessageBox]::Show("We found $list on this computer and started monitoring right away.`n`nWould you like to choose what to monitor now? You can do it at any time with the Settings button.", "Welcome to AI Gauge", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Information)
-            if ($ask -eq [System.Windows.MessageBoxResult]::Yes) { Show-SettingsDialog }
+        if (-not $nodeMissing -and $hasGroups) {
+            $cfg = Load-CurrentConfig
+            if (-not $cfg -or $cfg.onboarding_completed -ne $true) {
+                Show-HudGaugeSelectionDialog $newData
+            }
         }
     }
 }

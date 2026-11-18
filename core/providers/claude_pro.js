@@ -58,7 +58,7 @@ class ClaudeProProvider {
     const file = path.join(homeDir || os.homedir(), '.claude', '.credentials.json');
     const read = () => {
       try {
-        return JSON.parse(fs.readFileSync(file, 'utf8'));
+        return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
       } catch (_) {
         return null;
       }
@@ -197,7 +197,7 @@ class ClaudeProProvider {
     if (!fs.existsSync(file)) return null;
 
     try {
-      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
       const samples = raw.samples;
       if (!Array.isArray(samples) || samples.length === 0) return null;
       const latest = samples[samples.length - 1];
@@ -285,7 +285,7 @@ class ClaudeProProvider {
     // Check if we have a very fresh cache (< 45s) to avoid triggering Anthropic 429 rate limit
     try {
       if (fs.existsSync(this.dedicatedCachePath)) {
-        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
+        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8').replace(/^\uFEFF/, ''));
         if (cached?.timestamp && (Date.now() - cached.timestamp < 45000) && cached.data) {
           return this.buildPayload(cached.data, false);
         }
@@ -368,7 +368,7 @@ class ClaudeProProvider {
     // 1. Dedicated live cache
     try {
       if (fs.existsSync(this.dedicatedCachePath)) {
-        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
+        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8').replace(/^\uFEFF/, ''));
         if (cached?.data) {
           const age = cached.timestamp
             ? (Date.now() - cached.timestamp)
@@ -391,7 +391,7 @@ class ClaudeProProvider {
     try {
       const cachePath = path.join(os.homedir(), '.claude', 'vscode-claude-status-cache.json');
       if (fs.existsSync(cachePath)) {
-        const raw = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(cachePath, 'utf8').replace(/^\uFEFF/, ''));
         const u = raw.usageData;
         if (u) {
           const util5h = Number(u.utilization5h || 0);

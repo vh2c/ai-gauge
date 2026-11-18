@@ -23,15 +23,30 @@ class ChatGPTSubscriptionProvider {
       return { token: this.token, accountId: null };
     }
 
-    // 1. Check native ChatGPT Mac desktop app storage (~/.codex/auth.json)
+    // 1. Check Codex / ChatGPT local storage (~/.codex/auth.json and Windows ChatGPT data dirs)
     try {
-      const codexAuthPath = path.join(os.homedir(), '.codex', 'auth.json');
-      if (fs.existsSync(codexAuthPath)) {
-        const parsed = JSON.parse(fs.readFileSync(codexAuthPath, 'utf8'));
-        const token = parsed?.tokens?.access_token;
-        const accountId = parsed?.tokens?.account_id;
-        if (token) {
-          return { token, accountId };
+      const home = os.homedir();
+      const userProfile = process.env.USERPROFILE || home;
+      const appData = process.env.APPDATA || path.join(userProfile, 'AppData', 'Roaming');
+      const localApp = process.env.LOCALAPPDATA || path.join(userProfile, 'AppData', 'Local');
+      const authCandidates = [
+        path.join(home, '.codex', 'auth.json'),
+        path.join(userProfile, '.codex', 'auth.json'),
+        path.join(appData, 'ChatGPT', 'auth.json'),
+        path.join(appData, 'ChatGPT', 'session.json'),
+        path.join(localApp, 'ChatGPT', 'auth.json'),
+        path.join(localApp, 'ChatGPT', 'session.json')
+      ];
+      for (const codexAuthPath of authCandidates) {
+        if (codexAuthPath && fs.existsSync(codexAuthPath)) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(codexAuthPath, 'utf8').replace(/^\uFEFF/, ''));
+            const token = parsed?.tokens?.access_token || parsed?.accessToken || parsed?.access_token;
+            const accountId = parsed?.tokens?.account_id || parsed?.accountId || null;
+            if (token) {
+              return { token, accountId };
+            }
+          } catch (_) {}
         }
       }
     } catch (_) {}
@@ -181,7 +196,7 @@ class ChatGPTSubscriptionProvider {
     // Check if we have a fresh cache (< 45s) to reduce polling overhead
     try {
       if (fs.existsSync(this.dedicatedCachePath)) {
-        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
+        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8').replace(/^\uFEFF/, ''));
         if (cached?.timestamp && (Date.now() - cached.timestamp < 45000) && cached.data) {
           return this.buildPayload(cached.data, false);
         }
@@ -251,7 +266,7 @@ class ChatGPTSubscriptionProvider {
     // 1. Check dedicated cache first
     try {
       if (fs.existsSync(this.dedicatedCachePath)) {
-        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
+        const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8').replace(/^\uFEFF/, ''));
         if (cached?.data) {
           const age = cached.timestamp ? Date.now() - cached.timestamp : Date.now() - fs.statSync(this.dedicatedCachePath).mtimeMs;
           return markOutdated(this.buildPayload(cached.data, true), age, CHATGPT_SIGNIN_HINT);
@@ -261,14 +276,18 @@ class ChatGPTSubscriptionProvider {
 
     // 2. Check fallback candidates
     try {
+      const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+      const localApp = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
       const candidates = [
         path.join(os.homedir(), '.chatgpt', 'status-cache.json'),
-        path.join(os.homedir(), '.codex', 'session.json')
+        path.join(os.homedir(), '.codex', 'session.json'),
+        path.join(appData, 'ChatGPT', 'status-cache.json'),
+        path.join(localApp, 'ChatGPT', 'status-cache.json')
       ];
 
       for (const cachePath of candidates) {
         if (fs.existsSync(cachePath)) {
-          const raw = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+          const raw = JSON.parse(fs.readFileSync(cachePath, 'utf8').replace(/^\uFEFF/, ''));
           const rem4o = raw.rem_4o ?? raw.remaining_pct_4o ?? 100;
           const remO1 = raw.rem_o1 ?? raw.remaining_pct_o1 ?? 100;
           const reset4o = raw.reset_4o || '3h';

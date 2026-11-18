@@ -23,6 +23,10 @@ function Safe-TestPath ($base, $child) {
     return (Test-Path (Join-Path $base $child) -ErrorAction SilentlyContinue)
 }
 
+function Write-Utf8NoBom ($path, $content) {
+    [System.IO.File]::WriteAllText($path, $content, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host " ⚡ AI Gauge - Windows Installer (VH2C)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Green
@@ -192,7 +196,7 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
         onboarding_completed = $true
     }
     $CfgJson = $CfgObj | ConvertTo-Json -Depth 5
-    [IO.File]::WriteAllText($ConfigFile, $CfgJson, [Text.Encoding]::UTF8)
+    Write-Utf8NoBom $ConfigFile $CfgJson
     try {
         $acl = Get-Acl -Path $ConfigFile
         $acl.SetAccessRuleProtection($true, $false)
@@ -204,7 +208,8 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
     Write-Host "✅ Initial configuration saved to ~/.config/UniversalAIQuota/config.json!" -ForegroundColor Green
 } else {
     try {
-        $existingJson = Get-Content -Path $ConfigFile -Raw | ConvertFrom-Json
+        $rawCfg = (Get-Content -Path $ConfigFile -Raw -Encoding UTF8).TrimStart([char]0xFEFF)
+        $existingJson = $rawCfg | ConvertFrom-Json
         $dirty = $false
         if ($HasAnti -and (-not $existingJson.providers.antigravity.enabled)) {
             $existingJson.providers.antigravity.enabled = $true
@@ -215,7 +220,7 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
             $dirty = $true
         }
         if ($dirty) {
-            $existingJson | ConvertTo-Json -Depth 5 | Set-Content -Path $ConfigFile -Encoding UTF8
+            Write-Utf8NoBom $ConfigFile ($existingJson | ConvertTo-Json -Depth 5)
             Write-Host "   ✓ Newly detected apps enabled in existing config.json" -ForegroundColor Green
         }
     } catch {}

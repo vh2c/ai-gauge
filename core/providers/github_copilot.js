@@ -34,7 +34,7 @@ class GitHubCopilotProvider {
     const copilotHosts = copilotDirs.map(d => path.join(d, 'hosts.json')).find(f => fs.existsSync(f)) || path.join(copilotDirs[0], 'hosts.json');
     if (fs.existsSync(copilotHosts)) {
       try {
-        const raw = JSON.parse(fs.readFileSync(copilotHosts, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(copilotHosts, 'utf8').replace(/^\uFEFF/, ''));
         for (const k of Object.keys(raw)) {
           if (raw[k]?.oauth_token) return raw[k].oauth_token;
         }
@@ -45,7 +45,7 @@ class GitHubCopilotProvider {
     const copilotApps = copilotDirs.map(d => path.join(d, 'apps.json')).find(f => fs.existsSync(f)) || path.join(copilotDirs[0], 'apps.json');
     if (fs.existsSync(copilotApps)) {
       try {
-        const raw = JSON.parse(fs.readFileSync(copilotApps, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(copilotApps, 'utf8').replace(/^\uFEFF/, ''));
         for (const k of Object.keys(raw)) {
           if (raw[k]?.oauth_token) return raw[k].oauth_token;
         }
