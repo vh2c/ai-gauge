@@ -208,6 +208,7 @@ Windows still warns, use Option 1 below and the steps there.
 | **Windows: the installer or app does nothing** | Look for the log file at `%TEMP%\ai_gauge_error.log` (paste that path into the Explorer address bar) and include it in an issue. |
 | **Windows: antivirus blocks the file** | Check the checksum first. If it matches, restore the file from quarantine or add an exception for the AI Gauge folder (`%LOCALAPPDATA%\AIGauge`). |
 | **Linux: no window appears** | Run `gemini-gauge` in a terminal to see the error. The most common cause is a missing `python3-tk` (`sudo apt install python3-tk` on Debian/Ubuntu). |
+| **A provider shows "Outdated"** (amber text instead of the reset time) | AI Gauge could not reach that service and is showing numbers from an old local cache. The usual cause is an expired login. **Claude:** in a terminal run `claude auth status`; if it says `"loggedIn": false`, run `claude` and sign in with `/login`. **ChatGPT:** sign in again in the ChatGPT / Codex app. The numbers update within a minute of signing in. |
 | **No data for a provider** | AI Gauge detects the apps you already use (Claude, ChatGPT, Cursor, Copilot, Antigravity) automatically. For Gemini, OpenAI or Anthropic API keys, open **Settings** and paste the key. |
 
 ---

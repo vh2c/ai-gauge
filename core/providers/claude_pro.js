@@ -6,6 +6,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { markOutdated } = require('../staleness');
+
+const CLAUDE_SIGNIN_HINT = 'Outdated: sign in to Claude Code again (run claude, then /login)';
 
 class ClaudeProProvider {
   constructor(token) {
@@ -231,7 +234,8 @@ class ClaudeProProvider {
       if (fs.existsSync(this.dedicatedCachePath)) {
         const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
         if (cached?.data) {
-          return this.buildPayload(cached.data, true);
+          const age = cached.timestamp ? Date.now() - cached.timestamp : fs.statSync(this.dedicatedCachePath).mtimeMs ? Date.now() - fs.statSync(this.dedicatedCachePath).mtimeMs : 0;
+          return markOutdated(this.buildPayload(cached.data, true), age, CLAUDE_SIGNIN_HINT);
         }
       }
     } catch (_) {}
@@ -254,7 +258,8 @@ class ClaudeProProvider {
           const reset5h = u.reset5hAt ? this.formatResetRemaining(new Date(u.reset5hAt * 1000).toISOString()) : '5h';
           const reset7d = u.reset7dAt ? this.formatResetRemaining(new Date(u.reset7dAt * 1000).toISOString()) : '7d';
 
-          return {
+          const vscAge = Date.now() - fs.statSync(cachePath).mtimeMs;
+          return markOutdated({
             provider: 'claude_pro',
             account: 'Claude Pro (Cache)',
             plan: 'Claude Pro Plan',
@@ -282,7 +287,7 @@ class ClaudeProProvider {
                 ]
               }
             ]
-          };
+          }, vscAge, CLAUDE_SIGNIN_HINT);
         }
       }
     } catch (_) {}

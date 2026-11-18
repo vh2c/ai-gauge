@@ -8,6 +8,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { markOutdated } = require('../staleness');
+
+const CHATGPT_SIGNIN_HINT = 'Outdated: sign in to ChatGPT / Codex again';
 
 class ChatGPTSubscriptionProvider {
   constructor(token) {
@@ -250,7 +253,8 @@ class ChatGPTSubscriptionProvider {
       if (fs.existsSync(this.dedicatedCachePath)) {
         const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
         if (cached?.data) {
-          return this.buildPayload(cached.data, true);
+          const age = cached.timestamp ? Date.now() - cached.timestamp : Date.now() - fs.statSync(this.dedicatedCachePath).mtimeMs;
+          return markOutdated(this.buildPayload(cached.data, true), age, CHATGPT_SIGNIN_HINT);
         }
       }
     } catch (_) {}

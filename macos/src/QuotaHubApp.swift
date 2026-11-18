@@ -625,8 +625,16 @@ class QuotaManager {
         task.standardError = Pipe()
         do {
             try task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             task.waitUntilExit()
-            return task.terminationStatus == 0
+            guard task.terminationStatus == 0 else { return false }
+            // The item can exist with an empty token after Claude Code signs out: that is NOT an active session
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let oauth = json["claudeAiOauth"] as? [String: Any],
+               let token = oauth["accessToken"] as? String {
+                return !token.isEmpty
+            }
+            return false
         } catch {
             return false
         }
@@ -2689,9 +2697,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     cardView.addSubview(bTitle)
                     
                     if let reset = b.reset_in, !reset.isEmpty {
-                        let resetLabel = NSTextField(labelWithString: reset == "Now" ? "Renews now" : (reset == "Active" ? "Active" : "Renews in \(reset)"))
+                        let resetLabel = NSTextField(labelWithString: reset == "Now" ? "Renews now" : (reset == "Active" ? "Active" : (reset == "Outdated" ? "Outdated · sign in again" : "Renews in \(reset)")))
                         resetLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
-                        resetLabel.textColor = NSColor(white: 0.50, alpha: 1.0)
+                        resetLabel.textColor = (reset == "Outdated")
+                            ? NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)   // amber: the numbers are old
+                            : NSColor(white: 0.50, alpha: 1.0)
                         resetLabel.alignment = .right
                         resetLabel.frame = NSRect(x: cardView.frame.width - 210, y: cardY + 2, width: 140, height: 13)
                         cardView.addSubview(resetLabel)
@@ -3103,8 +3113,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let hasKeychain = QuotaManager.hasClaudeProKeychainSession()
         let statusMsg = hasKeychain
-            ? "✓ Active session detected in macOS Keychain (Claude Code / Antigravity)"
-            : "ℹ️ Session not found in Keychain. Sign in to Antigravity or paste a token:"
+            ? "✓ Active Claude Code session detected in the macOS Keychain"
+            : "ℹ️ No active Claude Code session. Run claude and sign in with /login, or paste a token:"
         let claudeStatus = NSTextField(labelWithString: statusMsg)
         claudeStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         claudeStatus.textColor = hasKeychain ? claudeColor : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
@@ -3114,7 +3124,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let claudeToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
-            placeholder: hasKeychain ? "Token OAuth gerenciado automaticamente pelo Keychain" : "Token OAuth Claude (sk-ant-oat01-...)",
+            placeholder: hasKeychain ? "OAuth token managed automatically via the Keychain" : "Claude OAuth Token (sk-ant-oat01-...)",
             value: claudeCfg?.token ?? ""
         )
         claudeCard.addSubview(claudeToken)

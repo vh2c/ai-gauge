@@ -20,7 +20,7 @@ The GitHub Release only serves as an archive of the packages.
 
 ## Notes
 
-- **Tests:** run `node tests/updater.test.js`, `node tests/last_good.test.js` and `node tests/claude_file.test.js` before releasing. It checks, with a fake API and a throw-away HOME, that the app contacts
+- **Tests:** run `node tests/updater.test.js`, `node tests/last_good.test.js` and `node tests/claude_file.test.js` and `node tests/outdated.test.js` before releasing. It checks, with a fake API and a throw-away HOME, that the app contacts
   the server only at startup (and once per 24h if left open), that PRO sends only `machine_id` + version, and that opt-out sends nothing.
 - **"Update now" button:** `macos/get-ai-gauge.sh` and `windows/get-ai-gauge.ps1` are bundled INSIDE the apps (`Contents/Resources` and the
   install folder). Changing them changes the in-app updater. To test on macOS without publishing anything, copy the built app
