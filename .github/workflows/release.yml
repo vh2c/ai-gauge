@@ -37,6 +37,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Validate PowerShell scripts syntax
+        shell: pwsh
+        run: |
+          $files = @("windows\AIGauge.ps1", "windows\install.ps1", "windows\uninstall.ps1", "windows\get-ai-gauge.ps1")
+          foreach ($f in $files) {
+            $tokens = $null
+            $errors = $null
+            $full = (Resolve-Path $f).Path
+            [void][System.Management.Automation.Language.Parser]::ParseFile($full, [ref]$tokens, [ref]$errors)
+            if ($errors -and $errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$f : $_" }
+              throw "PowerShell syntax error in $f"
+            }
+            Write-Host "Syntax OK: $f"
+          }
+
       - name: Resolve version
         id: ver
         shell: pwsh
