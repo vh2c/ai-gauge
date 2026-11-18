@@ -7,8 +7,8 @@
 
 **Developed by [VH2C](https://vh2c.com.br)**
 
-[![Total Downloads](https://img.shields.io/github/downloads/vh2c/gemini-gauge/total.svg?style=flat-square&logo=github&color=00E699)](https://github.com/vh2c/gemini-gauge/releases)
-[![Latest Release](https://img.shields.io/github/v/release/vh2c/gemini-gauge?style=flat-square&color=38BDF8)](https://github.com/vh2c/gemini-gauge/releases)
+[![Total Downloads](https://img.shields.io/github/downloads/vh2c/ai-gauge/total.svg?style=flat-square&logo=github&color=00E699)](https://github.com/vh2c/ai-gauge/releases)
+[![Latest Release](https://img.shields.io/github/v/release/vh2c/ai-gauge?style=flat-square&color=38BDF8)](https://github.com/vh2c/ai-gauge/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg?style=flat-square)](#)
 [![Powered by VH2C](https://img.shields.io/badge/Developed%20by-vh2c.com.br-00C9FF?style=flat-square)](https://vh2c.com.br)
@@ -145,8 +145,8 @@ All the analog dials in AI GAUGE work like a **battery or fuel gauge**:
 
 *Or build directly from source:*
 ```bash
-git clone https://github.com/vh2c/gemini-gauge.git
-cd gemini-gauge/ai_gauge_app/macos
+git clone https://github.com/vh2c/ai-gauge.git
+cd ai-gauge/ai_gauge_app/macos
 ./install.sh
 ```
 
@@ -164,7 +164,7 @@ cd AI-Gauge-Linux
 ---
 
 ### 🪟 Windows (Windows 10 / 11)
-**Recommended option (1 click):** download **`AI-Gauge-Setup.exe`** from the [Releases](https://github.com/vh2c/gemini-gauge/releases/latest) page and run it. It already includes Node.js, does not ask for administrator rights, creates the shortcuts and replaces previous versions.
+**Recommended option (1 click):** download **`AI-Gauge-Setup.exe`** from the [Releases](https://github.com/vh2c/ai-gauge/releases/latest) page and run it. It already includes Node.js, does not ask for administrator rights, creates the shortcuts and replaces previous versions.
 
 **Alternative option (ZIP):**
 1. Download the package: [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true)

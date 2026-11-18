@@ -108,7 +108,7 @@ function sendHeartbeat(force = false) {
                 current_version: CURRENT_VERSION,
                 latest_version: data.latest_version || CURRENT_VERSION,
                 update_available: isNewer(data.latest_version, CURRENT_VERSION),
-                download_url: data.download_url || 'https://github.com/vh2c/gemini-gauge/releases/latest',
+                download_url: data.download_url || 'https://github.com/vh2c/ai-gauge/releases/latest',
                 tier: data.tier || 'free',
                 announcement: data.announcement || null,
                 promo: data.promo || ((data.announcement && data.announcement.type === 'publicidade') ? data.announcement : null),

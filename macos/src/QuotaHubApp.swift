@@ -2069,7 +2069,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let effectiveAnnUrl = (annUrl != nil && !annUrl!.isEmpty) ? annUrl : nil
             let updateUrl = quota.update?.download_url?.trimmingCharacters(in: .whitespacesAndNewlines)
             let effectiveUpdateUrl = (updateUrl != nil && !updateUrl!.isEmpty) ? updateUrl : nil
-            let versionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            let versionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/ai-gauge/releases/latest"
             let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
             
             if hasVersionNotice {
@@ -2186,7 +2186,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let effectiveAnnUrl = (annUrl != nil && !annUrl!.isEmpty) ? annUrl : nil
             let updateUrl = quota.update?.download_url?.trimmingCharacters(in: .whitespacesAndNewlines)
             let effectiveUpdateUrl = (updateUrl != nil && !updateUrl!.isEmpty) ? updateUrl : nil
-            let versionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            let versionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/ai-gauge/releases/latest"
             let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
             
             if hasVersionNotice {
@@ -2417,7 +2417,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     .font: NSFont.systemFont(ofSize: 11.5, weight: .bold)
                 ]
             )
-            upBtn.targetUrl = update.download_url ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            upBtn.targetUrl = update.download_url ?? "https://github.com/vh2c/ai-gauge/releases/latest"
             upBtn.target = self
             upBtn.action = #selector(openExternalUrl(_:))
             banner.addSubview(upBtn)
@@ -2461,7 +2461,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let effectiveAnnUrl = (annUrl != nil && !annUrl!.isEmpty) ? annUrl : nil
             let updateUrl = quota.update?.download_url?.trimmingCharacters(in: .whitespacesAndNewlines)
             let effectiveUpdateUrl = (updateUrl != nil && !updateUrl!.isEmpty) ? updateUrl : nil
-            let defaultVersionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/gemini-gauge/releases/latest"
+            let defaultVersionUrl = effectiveAnnUrl ?? effectiveUpdateUrl ?? "https://github.com/vh2c/ai-gauge/releases/latest"
             
             let hasAction = isVersao || (ann.action_label != nil && !ann.action_label!.isEmpty) || (effectiveAnnUrl != nil)
             // Version notice = compact strip (action button on the right, vertically centered)
@@ -3638,7 +3638,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let urlStr = target?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let s = urlStr, !s.isEmpty, let url = URL(string: s) {
             NSWorkspace.shared.open(url)
-        } else if let fallback = URL(string: "https://github.com/vh2c/gemini-gauge/releases/latest") {
+        } else if let fallback = URL(string: "https://github.com/vh2c/ai-gauge/releases/latest") {
             NSWorkspace.shared.open(fallback)
         }
     }

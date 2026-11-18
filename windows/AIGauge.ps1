@@ -294,7 +294,7 @@ function New-DemoData {
             title = "Version 2.1 Available"
             message = "Download the latest version now."
             action_label = "Download Update"
-            action_url = "https://github.com/vh2c/gemini-gauge/releases/latest"
+            action_url = "https://github.com/vh2c/ai-gauge/releases/latest"
         }
         # Same shape/values the real API sends for the "Super Offer" ad: image, no action link, no countdown
         promo = @{
@@ -806,7 +806,7 @@ function New-NoticeBanner ($ann, $data) {
 
         $updUrl = if ($data -and $data.update) { "$($data.update.download_url)".Trim() } else { "" }
         $target = if ($isVersao) {
-            if ($annUrl) { $annUrl } elseif ($updUrl) { $updUrl } else { "https://github.com/vh2c/gemini-gauge/releases/latest" }
+            if ($annUrl) { $annUrl } elseif ($updUrl) { $updUrl } else { "https://github.com/vh2c/ai-gauge/releases/latest" }
         } else {
             if ($annUrl) { $annUrl } else { "https://ai-gauge.vh2c.com.br/donate" }
         }

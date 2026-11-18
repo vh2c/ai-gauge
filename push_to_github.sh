@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
-echo "🚀 Enviando código para o GitHub (vh2c/gemini-gauge)..."
+echo "🚀 Enviando código para o GitHub (vh2c/ai-gauge)..."
 git push -u origin main
 
 echo "🏷️ Criando tag v1.0.0..."
