@@ -20,6 +20,10 @@ The GitHub Release only serves as an archive of the packages.
 
 ## Notes
 
+- **Install docs:** `INSTALL.md` is the single install guide (security warnings, Node.js on macOS, checksums, troubleshooting,
+  AI-assistant prompt). Keep it in sync with the installers; the README links to it. Download links use
+  `releases/latest/download/<file>`, so they always match the published release and its `SHA256SUMS.txt`.
+
 - **Packages in the repo:** `releases/v1.1/` holds the ZIPs linked from the README. Refresh them when the
   README links should follow a new version. macOS: `macos/build.sh`, then
   `ditto -c -k --keepParent --norsrc --noextattr "AI Gauge.app" AI-Gauge-macOS-vh2c.zip` (avoids `._*` files).

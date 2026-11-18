@@ -8,5 +8,5 @@ End If
 If Fso.FileExists(PsFile) Then
     WshShell.Run "powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File """ & PsFile & """", 0, False
 Else
-    MsgBox "Arquivo de inicializacao nao encontrado:" & vbCrLf & PsFile, 16, "AI Gauge"
+    MsgBox "Startup file not found:" & vbCrLf & PsFile, 16, "AI Gauge"
 End If

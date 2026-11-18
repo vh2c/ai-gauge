@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo " ⚡ AI Gauge - Monitor Inteligente de Quotas (Linux)"
+echo " ⚡ AI Gauge - Smart AI Quota Monitor (Linux)"
 echo " Developed by VH2C • https://vh2c.com.br"
 echo "=========================================================="
 echo ""
@@ -184,7 +184,7 @@ ENABLE_GEMINI=$HAS_GEMINI
 
 if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
     echo "📋 Which quotas do you want to monitor in AI Gauge?"
-    echo "   Pressione ENTER para monitorar todos os detectados [Recomendado],"
+    echo "   Press ENTER to monitor everything detected [Recommended],"
     echo "   or type the numbers you want, separated by commas (e.g. 1,2,3):"
     read -r -p "   Your choice [Default: Detected]: " USER_CHOICE
     
@@ -314,10 +314,10 @@ echo "=========================================================="
 echo " 🎉 Installation completed successfully!"
 echo "=========================================================="
 echo "👉 To open the graphical interface:"
-echo "   - Digite no terminal: gemini-gauge (ou quota-hub)"
-echo "   - Or click the 'Gemini Gauge' icon in your Linux applications menu"
+echo "   - Type in a terminal: gemini-gauge (or quota-hub)"
+echo "   - Or click the 'AI Gauge' icon in your Linux applications menu"
 echo ""
-echo "👉 Para ver as cotas direto no terminal (modo texto / SSH):"
+echo "👉 To see the quotas directly in the terminal (text mode / SSH):"
 echo "   gemini-gauge --cli"
 echo "=========================================================="
 echo ""

@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ==========================================================
-echo   AI Gauge - Instalador Windows (VH2C)
+echo   AI Gauge - Windows Installer (VH2C)
 echo ==========================================================
 echo.
 
@@ -13,8 +13,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0windows\install.ps
 goto :END
 
 :NOT_FOUND
-echo [ERRO] Nao foi possivel localizar o arquivo windows\install.ps1.
-echo Certifique-se de que a pasta foi totalmente extraida do arquivo zip.
+echo [ERROR] Could not find windows\install.ps1.
+echo Make sure the folder was fully extracted from the zip file.
 echo.
 
 :END

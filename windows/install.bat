@@ -13,7 +13,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
 goto :END
 
 :NOT_FOUND
-echo [ERRO] Nao foi possivel localizar o arquivo install.ps1.
+echo [ERROR] Could not find install.ps1.
 echo.
 
 :END

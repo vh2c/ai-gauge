@@ -41,15 +41,17 @@ Ever hit the **Claude usage limit**, the **ChatGPT message cap** or ran out of *
 
 ---
 
-## 📦 Ready-to-Use Downloads (v1.1)
+## 📦 Downloads
 
-For testers and non-technical users: **no need to compile any code**. Just download the package for your operating system:
+No need to compile any code: download the package for your operating system from the **[latest release](https://github.com/vh2c/ai-gauge/releases/latest)**.
 
-| Platform | Package (.zip) | Size | How to Install |
-| :--- | :--- | :---: | :--- |
-| 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](releases/v1.1/AI-Gauge-macOS-vh2c.zip?raw=true) | `2.8 MB` | Extract and drag **AI Gauge.app** to the `/Applications` folder, or run `./install.sh`. |
-| 🪟 **Windows** | [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true) | `0.2 MB` | Extract the ZIP and double-click **`install.bat`**. Portable Node.js is downloaded automatically. |
-| 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.zip**](releases/v1.1/AI-Gauge-Linux-vh2c.zip?raw=true) | `0.6 MB` | Extract the ZIP and run **`./linux/install.sh`** in a terminal. |
+| Platform | Download | How to Install |
+| :--- | :--- | :--- |
+| 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-macOS-vh2c.zip) | Drag **AI Gauge.app** to `/Applications`, then run the one-time [first-launch command](INSTALL.md#3-first-launch-needed-because-the-app-is-not-notarized). Needs **Node.js 18+**. |
+| 🪟 **Windows** | [**AI-Gauge-Setup.exe**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Setup.exe) (recommended) · [ZIP](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Windows-vh2c.zip) | Run the installer. If SmartScreen appears: **More info → Run anyway**. Node.js is included. |
+| 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Linux-vh2c.zip) | Extract the ZIP and run **`./linux/install.sh`** in a terminal. |
+
+> ⚠️ **About the security warnings.** AI Gauge is open source, but its installers are **not code-signed yet** and the macOS app is **not notarized**, so macOS and Windows may warn you the first time. The step-by-step fix is in the **[Installation Guide (INSTALL.md)](INSTALL.md)**, which also covers verifying checksums, troubleshooting, uninstalling, and **how to have an AI assistant install it for you**.
 
 ---
 
@@ -145,9 +147,11 @@ All the analog dials in AI GAUGE work like a **battery or fuel gauge**:
 
 ## 🚀 Quick Install
 
+> 📘 Full details, checksums, troubleshooting and uninstall steps: **[INSTALL.md](INSTALL.md)**.
+
 ### 🍏 macOS (Apple Silicon with macOS 11+ · Intel with macOS 13+)
-1. Download the package: [**AI-Gauge-macOS-vh2c.zip**](releases/v1.1/AI-Gauge-macOS-vh2c.zip?raw=true)
-2. Extract the ZIP and move **`AI Gauge.app`** to the `/Applications` folder (or run `./install.sh`).
+1. **Install Node.js 18+** if you do not have it (check with `node -v`): download the LTS installer from [nodejs.org](https://nodejs.org) or run `brew install node`. Without it, the app cannot collect any quota data.
+2. Download [**AI-Gauge-macOS-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-macOS-vh2c.zip), extract it and drag **`AI Gauge.app`** to the `/Applications` folder.
 3. **First launch:** the app is not notarized by Apple, so macOS blocks the first launch. Run this once in Terminal:
    ```bash
    xattr -cr "/Applications/AI Gauge.app" && open "/Applications/AI Gauge.app"
@@ -155,7 +159,7 @@ All the analog dials in AI GAUGE work like a **battery or fuel gauge**:
    Alternative: try to open the app, then go to **System Settings → Privacy & Security → Open Anyway**. (On recent macOS versions, "right-click → Open" is not enough.)
 4. From then on, open it from Spotlight or Launchpad.
 
-*Or build directly from source:*
+*Developers can build from source instead (needs the Xcode Command Line Tools):*
 ```bash
 git clone https://github.com/vh2c/ai-gauge.git
 cd ai-gauge/ai_gauge_app/macos
@@ -165,25 +169,31 @@ cd ai-gauge/ai_gauge_app/macos
 ---
 
 ### 🐧 Linux (Ubuntu, Debian, Fedora, Arch, Mint)
-1. Download the package: [**AI-Gauge-Linux-vh2c.zip**](releases/v1.1/AI-Gauge-Linux-vh2c.zip?raw=true)
-2. Extract the archive and run the self-contained script:
+1. Download [**AI-Gauge-Linux-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Linux-vh2c.zip).
+2. Extract the archive and run the self-contained script (it downloads a portable Node.js for you):
 ```bash
 unzip AI-Gauge-Linux-vh2c.zip -d AI-Gauge-Linux
 cd AI-Gauge-Linux
 ./linux/install.sh
 ```
+3. Start it from your applications menu (**AI Gauge**) or run `gemini-gauge` in a terminal.
 
 ---
 
 ### 🪟 Windows (Windows 10 / 11)
-**Recommended option (1 click):** download **`AI-Gauge-Setup.exe`** from the [Releases](https://github.com/vh2c/ai-gauge/releases/latest) page and run it. It already includes Node.js, does not ask for administrator rights, creates the shortcuts and replaces previous versions.
+**Recommended option (1 click):** download [**AI-Gauge-Setup.exe**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Setup.exe) and run it. If Windows shows **"Windows protected your PC"**, click **More info → Run anyway** (the installer is not code-signed yet). It already includes Node.js, does not ask for administrator rights, creates the shortcuts and replaces previous versions.
 
 **Alternative option (ZIP):**
-1. Download the package: [**AI-Gauge-Windows-vh2c.zip**](releases/v1.1/AI-Gauge-Windows-vh2c.zip?raw=true)
+1. Download [**AI-Gauge-Windows-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Windows-vh2c.zip).
 2. Extract the ZIP (do not run it from inside the ZIP).
 3. Double-click **`install.bat`**. No administrator rights or pre-installed Node.js needed: if it is missing, the installer downloads a portable Node.js (~30 MB, one time only, SHA-256 verified).
 4. Shortcuts are created on the Desktop and in the Start Menu. A previous version is removed automatically and your settings are kept.
 5. To uninstall: **Settings → Apps** (or Start Menu → *Uninstall AI Gauge*).
+
+---
+
+### 🤖 Prefer to have an AI assistant install it?
+[INSTALL.md](INSTALL.md#install-with-an-ai-assistant) includes a ready-to-paste prompt with safety rules, for assistants that can run commands on your computer (or to be guided step by step).
 
 ---
 

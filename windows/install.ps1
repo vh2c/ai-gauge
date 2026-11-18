@@ -125,7 +125,7 @@ $EnableGemini = $HasGemini
 $IsInteractive = [Environment]::UserInteractive
 if ($IsInteractive -and ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup"))) {
     Write-Host "📋 Which quotas do you want to monitor in AI Gauge?" -ForegroundColor Yellow
-    Write-Host "   Pressione ENTER para monitorar todos os detectados [Recomendado]," -ForegroundColor Gray
+    Write-Host "   Press ENTER to monitor everything detected [Recommended]," -ForegroundColor Gray
     Write-Host "   or type the numbers you want, separated by commas (e.g. 1,2,3):" -ForegroundColor Gray
     $UserChoice = Read-Host "   Your choice [Default: Detected]"
     
