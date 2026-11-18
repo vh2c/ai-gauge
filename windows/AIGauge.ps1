@@ -137,10 +137,6 @@ function Initialize-DefaultConfig {
             hidden_hud_gauges = @()
             onboarding_completed = $true
         }
-            refresh_interval_seconds = 30
-            hidden_hud_gauges = @()
-            onboarding_completed = $true
-        }
         [IO.File]::WriteAllText($ConfigFile, ($cfg | ConvertTo-Json -Depth 5), [Text.Encoding]::UTF8)
         try {
             $acl = Get-Acl -Path $ConfigFile
