@@ -17,7 +17,6 @@ const { CursorProvider } = require('./providers/cursor');
 const { GitHubCopilotProvider } = require('./providers/github_copilot');
 const { OpenAIProvider } = require('./providers/openai');
 const { AnthropicProvider } = require('./providers/anthropic');
-const { sendHeartbeat } = require('./telemetry');
 const { checkForUpdates, CURRENT_VERSION } = require('./updater');
 
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'UniversalAIQuota');
@@ -59,11 +58,10 @@ class UniversalQuotaEngine {
     this.config = loadConfig();
   }
 
-  async fetchAll() {
-    // Send anonymous telemetry update check (strictly throttled to max once per 6h, no provider tracking)
-    try {
-      sendHeartbeat();
-    } catch (_) {}
+  async fetchAll(opts = {}) {
+    // Version / announcement check: talks to the network only when the app was just opened (opts.startup)
+    // or when 24h have passed since the last check. Otherwise it just reads the local cache.
+    const updatePromise = checkForUpdates({ startup: opts.startup === true }).catch(() => null);
 
     const providers = [];
     const pCfg = this.config.providers || {};
@@ -97,10 +95,7 @@ class UniversalQuotaEngine {
     const results = await Promise.allSettled(providers);
     const valid = results.filter(r => r.status === 'fulfilled' && r.value !== null).map(r => r.value);
 
-    let updateData = null;
-    try {
-      updateData = await checkForUpdates();
-    } catch (_) {}
+    const updateData = await updatePromise;
 
     if (valid.length === 0) {
       return {
@@ -162,7 +157,8 @@ if (require.main === module) {
     });
   } else {
     const engine = new UniversalQuotaEngine();
-    engine.fetchAll().then(res => {
+    // `--startup` is passed by the apps on their first run after being opened
+    engine.fetchAll({ startup: args.includes('--startup') }).then(res => {
       console.log(JSON.stringify(res, null, 2));
     }).catch(err => {
       console.error(JSON.stringify({ error: err.message }));

@@ -767,15 +767,20 @@ class QuotaManager {
         return try? JSONDecoder().decode(QuotaData.self, from: data)
     }
     
+    private static var startupSent = false
+
     static func fetchLive() -> QuotaData? {
         let nodeBin = findNodeBinary()
         let task = Process()
+        // `--startup` tells the engine the app was just opened: it then contacts the AI Gauge API once
+        // (version/announcements). Later refreshes only read the local cache (the engine re-checks after 24h).
+        let startupArgs = startupSent ? [] : ["--startup"]
         if nodeBin.hasPrefix("/") {
             task.executableURL = URL(fileURLWithPath: nodeBin)
-            task.arguments = [engineScript]
+            task.arguments = [engineScript] + startupArgs
         } else {
             task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            task.arguments = ["node", engineScript]
+            task.arguments = ["node", engineScript] + startupArgs
         }
         
         var env = ProcessInfo.processInfo.environment
@@ -811,6 +816,7 @@ class QuotaManager {
             task.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if task.terminationStatus == 0, let quota = try? JSONDecoder().decode(QuotaData.self, from: data) {
+                startupSent = true
                 if let ad = quota.adPromo {
                     PromoDockManager.shared.presentIfNeeded(ad)
                 }
@@ -1654,26 +1660,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return fallback
     }
     
-    func sendTelemetryHeartbeat() {
-        guard let url = URL(string: "https://ai-gauge.vh2c.com.br/v1/geminigauje") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("AIGauge/1.1 (macOS; VH2C)", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 2.5
-        
-        let payload: [String: Any] = [
-            "app": "ai-gauge",
-            "version": "1.1.1",
-            "os": "macOS",
-            "arch": "arm64",
-            "machine_id": getMachineId(),
-            "timestamp": Int(Date().timeIntervalSince1970)
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
-        
-        URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
-    }
+
     
     @objc func statusItemClicked() {
         guard let event = NSApp.currentEvent else {

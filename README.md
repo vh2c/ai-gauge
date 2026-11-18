@@ -47,8 +47,8 @@ No need to compile any code: download the package for your operating system from
 
 | Platform | Download | How to Install |
 | :--- | :--- | :--- |
-| 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-macOS-vh2c.zip) | Drag **AI Gauge.app** to `/Applications`, then run the one-time [first-launch command](INSTALL.md#3-first-launch-needed-because-the-app-is-not-notarized). Needs **Node.js 18+**. |
-| 🪟 **Windows** | [**AI-Gauge-Setup.exe**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Setup.exe) (recommended) · [ZIP](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Windows-vh2c.zip) | Run the installer. If SmartScreen appears: **More info → Run anyway**. Node.js is included. |
+| 🍏 **macOS** | [**AI-Gauge-macOS-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-macOS-vh2c.zip) | Easiest: the [one-command installer](#-macos-apple-silicon-with-macos-11--intel-with-macos-13) (no warning). From the browser: drag **AI Gauge.app** to `/Applications` and run the one-time [first-launch command](INSTALL.md#downloaded-it-in-the-browser). Needs **Node.js 18+**. |
+| 🪟 **Windows** | [**AI-Gauge-Setup.exe**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Setup.exe) (recommended) · [ZIP](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Windows-vh2c.zip) | Run the installer, or use the [one-command installer](#-windows-windows-10--11) in PowerShell. If SmartScreen appears: **More info → Run anyway**. Node.js is included. |
 | 🐧 **Linux** | [**AI-Gauge-Linux-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Linux-vh2c.zip) | Extract the ZIP and run **`./linux/install.sh`** in a terminal. |
 
 > ⚠️ **About the security warnings.** AI Gauge is open source, but its installers are **not code-signed yet** and the macOS app is **not notarized**, so macOS and Windows may warn you the first time. The step-by-step fix is in the **[Installation Guide (INSTALL.md)](INSTALL.md)**, which also covers verifying checksums, troubleshooting, uninstalling, and **how to have an AI assistant install it for you**.
@@ -150,6 +150,13 @@ All the analog dials in AI GAUGE work like a **battery or fuel gauge**:
 > 📘 Full details, checksums, troubleshooting and uninstall steps: **[INSTALL.md](INSTALL.md)**.
 
 ### 🍏 macOS (Apple Silicon with macOS 11+ · Intel with macOS 13+)
+**One command, no security warning** (checks the SHA-256 checksum, installs and opens the app; run it again to update):
+```bash
+curl -fsSL https://raw.githubusercontent.com/vh2c/ai-gauge/main/macos/get-ai-gauge.sh | bash
+```
+Needs **Node.js 18+** (`node -v`); the script tells you if it is missing.
+
+*Or install manually:*
 1. **Install Node.js 18+** if you do not have it (check with `node -v`): download the LTS installer from [nodejs.org](https://nodejs.org) or run `brew install node`. Without it, the app cannot collect any quota data.
 2. Download [**AI-Gauge-macOS-vh2c.zip**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-macOS-vh2c.zip), extract it and drag **`AI Gauge.app`** to the `/Applications` folder.
 3. **First launch:** the app is not notarized by Apple, so macOS blocks the first launch. Run this once in Terminal:
@@ -162,7 +169,7 @@ All the analog dials in AI GAUGE work like a **battery or fuel gauge**:
 *Developers can build from source instead (needs the Xcode Command Line Tools):*
 ```bash
 git clone https://github.com/vh2c/ai-gauge.git
-cd ai-gauge/ai_gauge_app/macos
+cd ai-gauge/macos
 ./install.sh
 ```
 
@@ -181,6 +188,12 @@ cd AI-Gauge-Linux
 ---
 
 ### 🪟 Windows (Windows 10 / 11)
+**One command in PowerShell** (verifies the checksum, then starts the installer):
+```powershell
+irm https://raw.githubusercontent.com/vh2c/ai-gauge/main/windows/get-ai-gauge.ps1 | iex
+```
+
+*Or install manually:*
 **Recommended option (1 click):** download [**AI-Gauge-Setup.exe**](https://github.com/vh2c/ai-gauge/releases/latest/download/AI-Gauge-Setup.exe) and run it. If Windows shows **"Windows protected your PC"**, click **More info → Run anyway** (the installer is not code-signed yet). It already includes Node.js, does not ask for administrator rights, creates the shortcuts and replaces previous versions.
 
 **Alternative option (ZIP):**
@@ -199,11 +212,39 @@ cd AI-Gauge-Linux
 
 ## 📊 Telemetry & Privacy
 
-AI Gauge only sends anonymous pings to check for new versions and notices, and to count users globally:
-- **When**: a launch ping (at most every 6 hours) and, at most once per hour, a notice/version check that does not count as a new launch.
-- **What is sent**: An anonymous machine hash (`machine_id`), operating system (`macOS`/`Linux`/`Windows`), architecture and app version.
-- **How to turn it off**: set `"telemetry": false` in `config.json` (without telemetry, notices are no longer received either).
-- **What is NEVER sent**: No API key, prompt, token, code, project or personal data.
+AI Gauge talks to its own server for **one reason**: to tell the **FREE** and **PRO** editions apart, check for a **new version**, and show optional notices. Your quota data is read **locally** from your own AI tools and never leaves your computer.
+
+### When does it connect?
+- **Once, when the app opens** (restarting it within 10 minutes does not connect again).
+- **Once more every 24 hours**, only if the app stays open. It is a plain check and does not count as a new launch.
+- There are no timers or background polling in between. Between those moments the app only reads a small local cache.
+
+### What is sent?
+
+| | FREE | PRO |
+| :--- | :--- | :--- |
+| Random anonymous ID (`machine_id`, created on your machine, no hardware fingerprint) | ✅ | ✅ (so your license is recognised) |
+| App version | ✅ | ✅ |
+| Operating system and CPU architecture | ✅ | ❌ |
+| Server-side: approximate location (country / state / city) and a daily-rotating one-way hash of your IP | ✅ | ❌ |
+| Launch counter and last-seen time | ✅ | ❌ |
+| What the server answers | Latest version, notices and the optional promo | Latest version |
+
+For **PRO**, the server stores only the app version, and only when it changes.
+
+**Never sent, in any edition:** API keys, tokens, prompts, code, projects, which AI tools or providers you use, quota values, or any personal data such as your name or e-mail.
+
+A note on IP addresses: like any web server, ours sees your IP address while handling the request, but the **IP address itself is not stored**. For FREE users the server derives an approximate location (country, state, city) from it and stores that location together with a one-way hash of the IP that changes every day, so it cannot be linked across days. If the hosting proxy does not provide a location, the server may fall back to a public IP-geolocation lookup (ip-api.com). PRO users are not located and their IP is not hashed.
+
+### Promotional messages (FREE only)
+If an active promo exists, it appears as a small window **at most once every 6 hours**, starting one minute after the app opens. It is chosen from the data received at the last check, so showing it **needs no extra network request and sends no extra data**. It never opens twice at the same time, even if the computer stays on for days or the app restarts. If there is no active promo, nothing is shown. PRO users never see promos, and FREE users also see a fixed "Help AI GAUGE developers team" banner.
+
+### How to turn it off
+Set `"telemetry": false` in `config.json` (`~/.config/UniversalAIQuota/config.json`; on Windows, `%USERPROFILE%\.config\UniversalAIQuota\config.json`).
+- The app then **never contacts our server** (only a public GitHub lookup of the latest release version, at the same moments as above).
+- You will not receive notices or promos, and a PRO license cannot be recognised, so the app behaves as FREE.
+
+The exact data the app sends is built in [`core/updater.js`](core/updater.js), which is open source. The server code is not public.
 
 ---
 

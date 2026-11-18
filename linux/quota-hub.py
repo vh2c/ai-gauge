@@ -65,32 +65,7 @@ def get_machine_id():
         pass
     return fallback
 
-def send_telemetry_heartbeat():
-    def _do_send():
-        try:
-            url = "https://api.vh2c.com.br/v1/geminigauje"
-            payload = json.dumps({
-                "app": "gemini-gauge",
-                "version": "1.1.1",
-                "os": "Linux",
-                "arch": platform.machine(),
-                "machine_id": get_machine_id(),
-                "timestamp": int(time.time())
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": "AIGauge/1.1 (Linux; VH2C)"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=2.5) as resp:
-                _ = resp.read()
-        except Exception:
-            pass
-    threading.Thread(target=_do_send, daemon=True).start()
+_STARTUP_SENT = False  # set once the engine ran successfully after the app was opened
 
 def load_config():
     if CONFIG_FILE.exists():
@@ -172,8 +147,13 @@ def load_quota(force=False):
     env["PATH"] = ":".join(extra_paths) + ":" + env.get("PATH", "")
 
     try:
-        res = subprocess.run([node_bin, str(ENGINE_SCRIPT)], capture_output=True, text=True, env=env, timeout=7)
+        # --startup: the app was just opened, so the engine contacts the AI Gauge API once (version/announcements).
+        # Later refreshes only read the local cache (the engine re-checks after 24h).
+        global _STARTUP_SENT
+        cmd = [node_bin, str(ENGINE_SCRIPT)] + ([] if _STARTUP_SENT else ["--startup"])
+        res = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=7)
         if res.returncode == 0 and res.stdout.strip():
+            _STARTUP_SENT = True
             parsed = json.loads(res.stdout.strip())
             parsed["timestamp"] = time.time()
             parsed["from_cache"] = False
@@ -273,7 +253,6 @@ def status_color(pct, custom_accent=None):
         return "#FF4D4F"
 
 def print_cli(quota):
-    send_telemetry_heartbeat()
     if not quota or quota.get("needs_setup"):
         print("\n" + "="*58)
         print(" ⚡ Universal AI Quota Monitor - Setup Required")
@@ -332,9 +311,6 @@ class QuotaHubAppLinux:
                     break
                 except Exception:
                     pass
-
-        # Send Telemetry Heartbeat to VH2C API
-        send_telemetry_heartbeat()
 
         self.prefs = {}
         if PREFS_FILE.exists():

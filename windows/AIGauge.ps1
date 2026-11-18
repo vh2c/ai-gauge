@@ -340,7 +340,11 @@ function Start-QuotaFetch ($force = $false) {
     try {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $NodeExe
-        $psi.Arguments = if ($force) { "`"$EngineScript`" --force" } else { "`"$EngineScript`"" }
+        # --startup: the app was just opened, so the engine contacts the AI Gauge API once (version/announcements).
+        # Later refreshes only read the local cache (the engine re-checks after 24h).
+        $psi.Arguments = "`"$EngineScript`""
+        if ($force) { $psi.Arguments += " --force" }
+        if (-not $global:StartupSent) { $psi.Arguments += " --startup" }
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
         $psi.RedirectStandardOutput = $true
@@ -360,6 +364,7 @@ function Start-QuotaFetch ($force = $false) {
     }
 }
 
+$global:StartupSent = $false
 $global:quotaPoll = New-Object System.Windows.Threading.DispatcherTimer
 $global:quotaPoll.Interval = [TimeSpan]::FromMilliseconds(150)
 $global:quotaPoll.Add_Tick({
@@ -377,7 +382,7 @@ $global:quotaPoll.Add_Tick({
             $f.Proc.WaitForExit()
             if ($f.Proc.ExitCode -eq 0) {
                 $json = $f.Out.Result
-                if ($json) { $result = $json | ConvertFrom-Json }
+                if ($json) { $result = $json | ConvertFrom-Json; $global:StartupSent = $true }
             }
         }
     } catch { Write-AppError $_.Exception }

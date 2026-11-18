@@ -20,6 +20,13 @@ The GitHub Release only serves as an archive of the packages.
 
 ## Notes
 
+- **Tests:** run `node tests/updater.test.js` before releasing. It checks, with a fake API and a throw-away HOME, that the app contacts
+  the server only at startup (and once per 24h if left open), that PRO sends only `machine_id` + version, and that opt-out sends nothing.
+- **API contact rules** live in `core/updater.js`; the apps just pass `--startup` to the engine on their first run. If you change what is
+  sent, update the "Telemetry & Privacy" section of the README in the same commit.
+- **Deploy order for telemetry changes:** deploy the API (`TelemetryController.php`) **before** releasing apps that send the minimal PRO payload,
+  otherwise an older API would store `os = Unknown` for PRO devices.
+
 - **Install docs:** `INSTALL.md` is the single install guide (security warnings, Node.js on macOS, checksums, troubleshooting,
   AI-assistant prompt). Keep it in sync with the installers; the README links to it. Download links use
   `releases/latest/download/<file>`, so they always match the published release and its `SHA256SUMS.txt`.
