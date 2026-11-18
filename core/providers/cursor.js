@@ -26,7 +26,10 @@ class CursorProvider {
       candidates.push(path.join(home, 'Library/Application Support/Cursor/User/globalStorage/state.vscdb'));
     } else if (process.platform === 'win32') {
       const appdata = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+      const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
       candidates.push(path.join(appdata, 'Cursor/User/globalStorage/state.vscdb'));
+      candidates.push(path.join(home, 'AppData/Roaming/Cursor/User/globalStorage/state.vscdb'));
+      candidates.push(path.join(local, 'Cursor/User/globalStorage/state.vscdb'));
     } else {
       candidates.push(path.join(home, '.config/Cursor/User/globalStorage/state.vscdb'));
     }
@@ -41,11 +44,18 @@ class CursorProvider {
         }
       } catch (_) {}
 
-      // Fallback: read file and search for Workos token pattern or cursor token
+      // Buffer search across all platforms (works on Windows, Linux, macOS without sqlite3 CLI)
       try {
         const buf = fs.readFileSync(dbPath);
-        const match = buf.toString('latin1').match(/sess_[a-zA-Z0-9_\-]{20,}|user_[a-zA-Z0-9_\-]{20,}/);
-        if (match) return match[0];
+        const str = buf.toString('latin1');
+        
+        // 1. Direct Cursor JWT or session token after cursorAuth/accessToken or cursorAuth/token
+        const mToken = str.match(/(?:cursorAuth\/(?:accessToken|token)|WorkosCursorSessionToken|workos_access_token)[\x00-\x1f]*([a-zA-Z0-9_\-\.]{20,})/);
+        if (mToken && mToken[1]) return mToken[1];
+
+        // 2. Generic session token pattern (JWT ey... or sess_... or user_...)
+        const mJwt = str.match(/(?:ey[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]+|sess_[a-zA-Z0-9_\-]{20,}|user_[a-zA-Z0-9_\-]{20,})/);
+        if (mJwt) return mJwt[0];
       } catch (_) {}
     }
 
@@ -58,7 +68,16 @@ class CursorProvider {
       return fs.existsSync('/Applications/Cursor.app') || fs.existsSync(path.join(home, 'Library/Application Support/Cursor'));
     } else if (process.platform === 'win32') {
       const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
-      return fs.existsSync(path.join(local, 'Programs', 'cursor')) || fs.existsSync(path.join(home, 'AppData', 'Roaming', 'Cursor'));
+      const progFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+      const progFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+      return fs.existsSync(path.join(local, 'Programs', 'cursor')) ||
+             fs.existsSync(path.join(local, 'Programs', 'Cursor')) ||
+             fs.existsSync(path.join(local, 'cursor')) ||
+             fs.existsSync(path.join(local, 'Cursor')) ||
+             fs.existsSync(path.join(progFiles, 'Cursor')) ||
+             fs.existsSync(path.join(progFilesX86, 'Cursor')) ||
+             fs.existsSync(path.join(home, 'AppData', 'Roaming', 'Cursor')) ||
+             fs.existsSync(path.join(home, '.cursor'));
     } else {
       return fs.existsSync(path.join(home, '.config', 'Cursor')) || fs.existsSync('/opt/Cursor');
     }

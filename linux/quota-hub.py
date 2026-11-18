@@ -22,6 +22,7 @@ import urllib.request
 import uuid
 import platform
 import threading
+import re
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
@@ -64,6 +65,23 @@ def get_machine_id():
     except Exception:
         pass
     return fallback
+
+def get_app_version(quota=None):
+    if quota and quota.get("version"):
+        return quota.get("version")
+    if quota and quota.get("update", {}).get("current_version"):
+        return quota.get("update", {}).get("current_version")
+    try:
+        updater_path = ENGINE_SCRIPT.parent / "updater.js"
+        if updater_path.exists():
+            with open(updater_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            m = re.search(r"CURRENT_VERSION\s*=\s*['\"]([^'\"]+)['\"]", content)
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    return "1.1.5"
 
 _STARTUP_SENT = False  # set once the engine ran successfully after the app was opened
 
@@ -253,9 +271,10 @@ def status_color(pct, custom_accent=None):
         return "#FF4D4F"
 
 def print_cli(quota):
+    app_ver = get_app_version(quota)
     if not quota or quota.get("needs_setup"):
         print("\n" + "="*58)
-        print(" ⚡ Universal AI Quota Monitor - Setup Required")
+        print(f" ⚡ AI Gauge v{app_ver} - Setup Required")
         print("="*58)
         print(" No active or configured AI provider.")
         print(f" Configure your keys in: {CONFIG_FILE}")
@@ -264,7 +283,7 @@ def print_cli(quota):
         return
 
     print("\n" + "="*58)
-    print(f" ⚡ Universal AI Quota Monitor - vh2c.com.br")
+    print(f" ⚡ AI Gauge v{app_ver} - vh2c.com.br")
     print(f" Account: {quota.get('account', 'Multi-Provider')} • Plan {quota.get('plan', 'Universal')}")
     print(f" Updated at {quota.get('updated_at', 'now')} " + ("(Live)" if not quota.get("from_cache") else "(Cache)"))
     print("="*58)
@@ -671,13 +690,15 @@ class QuotaHubAppLinux:
 
         quota = self.quota or {}
         groups = quota.get("groups", [])
+        app_ver = get_app_version(quota)
+        self.root.title(f"AI Gauge v{app_ver} - Universal AI Quota Cockpit")
 
         w = 500
         total_cards_h = sum(36 + len(g.get("buckets", [])) * 48 for g in groups)
         if total_cards_h == 0:
-            h = 420
+            h = 450
         else:
-            h = max(380, min(100 + total_cards_h + 80, 720))
+            h = max(390, min(120 + total_cards_h + 80, 720))
         self.root.geometry(f"{w}x{h}")
 
         # Footer packed first with side="bottom" to guarantee it never gets cut off
@@ -710,14 +731,19 @@ class QuotaHubAppLinux:
         main_frame = tk.Frame(self.root, bg="#181818", padx=20, pady=16)
         main_frame.pack(fill="both", expand=True)
 
+        title_row = tk.Frame(main_frame, bg="#181818")
+        title_row.pack(fill="x")
+        tk.Label(title_row, text="⚡ AI Gauge", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818").pack(side="left")
+        tk.Label(title_row, text=f"v{app_ver}", font=("Sans", 9), fg="#888888", bg="#181818").pack(side="left", padx=6, pady=(1, 0))
+
         acc_text = f"{quota.get('account', 'Multi-Provider')} • Plan {quota.get('plan', 'Universal')}"
-        lbl_acc = tk.Label(main_frame, text=acc_text, font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818", anchor="w")
-        lbl_acc.pack(fill="x")
+        lbl_acc = tk.Label(main_frame, text=acc_text, font=("Sans", 10), fg="#CCCCCC", bg="#181818", anchor="w")
+        lbl_acc.pack(fill="x", pady=(2, 0))
 
         time_status = "(Live)" if not quota.get("from_cache") else f"(Cache {quota.get('cache_age_seconds', 0)}s)"
         time_text = f"Updated at {quota.get('updated_at', 'now')} {time_status}"
-        lbl_time = tk.Label(main_frame, text=time_text, font=("Sans", 9), fg="#A0A0A0", bg="#181818", anchor="w")
-        lbl_time.pack(fill="x", pady=(2, 8))
+        lbl_time = tk.Label(main_frame, text=time_text, font=("Sans", 8), fg="#777777", bg="#181818", anchor="w")
+        lbl_time.pack(fill="x", pady=(1, 8))
 
         # Update Available Banner
         update_info = quota.get("update", {})
@@ -765,11 +791,12 @@ class QuotaHubAppLinux:
                 btn_act.pack(anchor="center", pady=(2, 4))
 
         if not groups:
-            empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=20, highlightbackground="#2A2A2A", highlightthickness=1)
-            empty_frame.pack(fill="both", expand=True, pady=10)
-            tk.Label(empty_frame, text="🤖 No AI Records Found", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(8, 4))
-            tk.Label(empty_frame, text="No active local sessions were found (Antigravity, Claude, ChatGPT, Cursor, Copilot).\nConfigure an API key (Gemini, OpenAI, Anthropic) or session token:", font=("Sans", 8.5), fg="#AAAAAA", bg="#1F1F1F", justify="center").pack(pady=(0, 12))
-            tk.Button(empty_frame, text="⚙️ Configure Providers and Keys", font=("Sans", 9.5, "bold"), fg="#121212", bg="#00E699",
+            empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=18, highlightbackground="#2A2A2A", highlightthickness=1)
+            empty_frame.pack(fill="both", expand=True, pady=6)
+            tk.Label(empty_frame, text="⚡ Welcome to AI Gauge", font=("Sans", 12, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(4, 2))
+            tk.Label(empty_frame, text=f"Installed Version: v{app_ver}", font=("Sans", 9, "bold"), fg="#00E699", bg="#1F1F1F").pack(pady=(0, 8))
+            tk.Label(empty_frame, text="No active local sessions were found (Antigravity, Claude, ChatGPT, Cursor, Copilot).\nConfigure an API key (Gemini, OpenAI, Anthropic) or session token:", font=("Sans", 9), fg="#AAAAAA", bg="#1F1F1F", justify="center").pack(pady=(0, 12))
+            tk.Button(empty_frame, text="⚙️ Configure Providers and Keys", font=("Sans", 10, "bold"), fg="#121212", bg="#00E699",
                       activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=16, pady=6, cursor="hand2", command=self.open_settings).pack(pady=(0, 6))
             tk.Button(empty_frame, text="🔗 Get a Free Key at Google AI Studio (aistudio.google.com) →", font=("Sans", 8), fg="#38BDF8", bg="#18181C",
                       activebackground="#252530", activeforeground="#38BDF8", relief="flat", padx=10, pady=4, cursor="hand2", command=lambda: webbrowser.open("https://aistudio.google.com/app/apikey")).pack()
@@ -825,11 +852,10 @@ class QuotaHubAppLinux:
                 bar_w = 500 - 40 - 28
                 fill_w = max(4, int(bar_w * (pct / 100.0)))
                 bar_canvas.create_rectangle(0, 0, fill_w, 6, fill=val_col, outline="")
-        close_btn.pack(side="right")
 
         mid = get_machine_id()
         donate_url = f"https://ai-gauge.vh2c.com.br/donate?mid={mid}" if mid else "https://ai-gauge.vh2c.com.br/donate"
-        brand_lbl = tk.Label(footer, text="⚡ AI Gauge  •  Developed by vh2c.com.br", font=("Sans", 8),
+        brand_lbl = tk.Label(footer, text=f"⚡ AI Gauge v{app_ver}  •  Developed by vh2c.com.br", font=("Sans", 8),
                              fg="#9CA3AF", bg="#181818", cursor="hand2")
         brand_lbl.pack(pady=(8, 2))
         brand_lbl.bind("<Button-1>", lambda e: webbrowser.open(donate_url))

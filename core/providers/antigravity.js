@@ -47,7 +47,7 @@ function formatTimeRemaining(resetTimeString, remainingFraction = 1.0) {
 
 function extractCsrfToken(commandLine) {
   if (!commandLine || typeof commandLine !== 'string') return null;
-  const match = commandLine.match(/--csrf_token(?:=|\s+)["']?([a-z0-9_-]{8,})["']?/i);
+  const match = commandLine.match(/--csrf[_-]token(?:=|\s+)["']?([a-z0-9_-]{8,})["']?/i);
   return match ? match[1] : null;
 }
 
@@ -77,7 +77,7 @@ class AntigravityProvider {
 
   findFromDaemonHubs() {
     try {
-      const daemonDir = path.join(os.homedir(), '.gemini/antigravity/daemon');
+      const daemonDir = path.join(os.homedir(), '.gemini', 'antigravity', 'daemon');
       if (!fs.existsSync(daemonDir)) return null;
       const files = fs.readdirSync(daemonDir).filter(f => f.startsWith('hub_') && f.endsWith('.json'));
       // Sort newest first
@@ -89,18 +89,31 @@ class AntigravityProvider {
 
       for (const file of files) {
         try {
-          const content = JSON.parse(fs.readFileSync(path.join(daemonDir, file), 'utf8'));
-          if (content.pid && content.csrfToken) {
-            try {
-              process.kill(content.pid, 0); // Check if alive
+          const filePath = path.join(daemonDir, file);
+          const stat = fs.statSync(filePath);
+          // Skip stale files older than 24h
+          if (Date.now() - stat.mtimeMs > 24 * 3600 * 1000) continue;
+
+          const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          if (content.csrfToken && (content.httpPort || content.httpsPort || content.pid)) {
+            let isAlive = true;
+            if (content.pid) {
+              try {
+                process.kill(content.pid, 0);
+              } catch (err) {
+                // ESRCH means process definitely does not exist. EPERM means process exists but no permission.
+                if (err.code === 'ESRCH') isAlive = false;
+              }
+            }
+            if (isAlive) {
               return {
-                pid: content.pid,
+                pid: content.pid || 0,
                 csrfToken: content.csrfToken,
                 httpPort: content.httpPort,
                 httpsPort: content.httpsPort,
                 commandLine: ''
               };
-            } catch (_) {}
+            }
           }
         } catch (_) {}
       }
@@ -116,7 +129,7 @@ class AntigravityProvider {
     // 2. Fallback to process table scan
     try {
       if (this.platform === 'win32') {
-        const cmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -match \'language_server|agy\' } | Select-Object ProcessId, CommandLine | ConvertTo-Json"';
+        const cmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -match \'language_server|agy|Antigravity\' } | Select-Object ProcessId, CommandLine | ConvertTo-Json"';
         const { stdout } = await execAsync(cmd, { timeout: 4000 });
         let items = JSON.parse(stdout || '[]');
         if (!Array.isArray(items)) items = [items];
@@ -127,7 +140,7 @@ class AntigravityProvider {
           }
         }
       } else {
-        const cmd = 'ps -eo pid,command | grep -E "language_server|agy" | grep -v grep';
+        const cmd = 'ps -eo pid,command | grep -E "language_server|agy|Antigravity" | grep -v grep';
         const { stdout } = await execAsync(cmd, { timeout: 3000 });
         for (const line of stdout.split('\n')) {
           const match = line.trim().match(/^(\d+)\s+(.+)$/);
@@ -155,6 +168,7 @@ class AntigravityProvider {
       if (this.platform === 'win32') {
         const { stdout } = await execAsync(`netstat -ano | findstr "${pid}"`, { timeout: 3000 });
         for (const line of stdout.split('\n')) {
+          if (!line.includes('LISTENING')) continue;
           const parts = line.trim().split(/\s+/);
           if (parts[1] && parts[parts.length - 1] === String(pid)) {
             const m = parts[1].match(/:(\d+)$/);
@@ -223,11 +237,29 @@ class AntigravityProvider {
   }
 
   findLanguageServerBinary() {
+    const home = os.homedir();
+    const localApp = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    const progFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+    const progFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+
     const candidates = [
+      '/Applications/Antigravity.app/Contents/Resources/bin/language_server_macos_arm64',
+      '/Applications/Antigravity.app/Contents/Resources/bin/language_server_macos_x64',
       '/Applications/Antigravity.app/Contents/Resources/bin/language_server',
-      path.join(os.homedir(), '.local/share/antigravity/bin/language_server'),
-      path.join(os.homedir(), 'AppData/Local/Programs/Antigravity/resources/bin/language_server.exe'),
-      path.join(os.homedir(), '.gemini/antigravity/bin/language_server')
+      path.join(home, '.local/share/antigravity/bin/language_server'),
+      path.join(home, '.gemini/antigravity/bin/language_server'),
+      // Windows candidates:
+      path.join(localApp, 'Programs', 'Antigravity', 'resources', 'bin', 'language_server_windows_x64.exe'),
+      path.join(localApp, 'Programs', 'Antigravity', 'resources', 'bin', 'language_server.exe'),
+      path.join(localApp, 'Programs', 'Antigravity', 'bin', 'language_server_windows_x64.exe'),
+      path.join(localApp, 'Programs', 'Antigravity', 'bin', 'language_server.exe'),
+      path.join(localApp, 'Antigravity', 'bin', 'language_server_windows_x64.exe'),
+      path.join(progFiles, 'Antigravity', 'resources', 'bin', 'language_server_windows_x64.exe'),
+      path.join(progFiles, 'Antigravity', 'resources', 'bin', 'language_server.exe'),
+      path.join(progFilesX86, 'Antigravity', 'resources', 'bin', 'language_server_windows_x64.exe'),
+      path.join(home, '.gemini', 'antigravity', 'bin', 'language_server_windows_x64.exe'),
+      path.join(home, '.gemini', 'antigravity', 'bin', 'language_server.exe'),
+      path.join(home, '.gemini', 'antigravity', 'bin', 'language_server')
     ];
     for (const c of candidates) {
       if (fs.existsSync(c)) return c;

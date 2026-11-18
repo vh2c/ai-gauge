@@ -77,7 +77,12 @@ $HasCopilot = $false
 $HasGemini = $false
 
 # 1. Antigravity
-if ((Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:USERPROFILE ".gemini\antigravity"))) {
+if ((Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or
+    (Get-Process "language_server" -ErrorAction SilentlyContinue) -or
+    (Get-Process "language_server_windows_x64" -ErrorAction SilentlyContinue) -or
+    (Test-Path (Join-Path $env:USERPROFILE ".gemini\antigravity")) -or
+    (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Antigravity")) -or
+    (Test-Path (Join-Path $env:ProgramFiles "Antigravity"))) {
     $HasAnti = $true
 }
 
@@ -92,7 +97,14 @@ if ((Test-Path (Join-Path $env:USERPROFILE ".codex\auth.json")) -or (Test-Path (
 }
 
 # 4. Cursor
-if ((Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or (Test-Path (Join-Path $env:APPDATA "Cursor")) -or (Get-Process "Cursor" -ErrorAction SilentlyContinue)) {
+if ((Get-Process "Cursor" -ErrorAction SilentlyContinue) -or
+    (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or
+    (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Cursor")) -or
+    (Test-Path (Join-Path $env:LOCALAPPDATA "cursor")) -or
+    (Test-Path (Join-Path $env:ProgramFiles "Cursor")) -or
+    (Test-Path (Join-Path ${env:ProgramFiles(x86)} "Cursor")) -or
+    (Test-Path (Join-Path $env:APPDATA "Cursor")) -or
+    (Test-Path (Join-Path $env:USERPROFILE ".cursor"))) {
     $HasCursor = $true
 }
 
@@ -169,6 +181,23 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
         Set-Acl -Path $ConfigFile -AclObject $acl
     } catch {}
     Write-Host "✅ Initial configuration saved to ~/.config/UniversalAIQuota/config.json!" -ForegroundColor Green
+} else {
+    try {
+        $existingJson = Get-Content -Path $ConfigFile -Raw | ConvertFrom-Json
+        $dirty = $false
+        if ($HasAnti -and (-not $existingJson.providers.antigravity.enabled)) {
+            $existingJson.providers.antigravity.enabled = $true
+            $dirty = $true
+        }
+        if ($HasCursor -and (-not $existingJson.providers.cursor.enabled)) {
+            $existingJson.providers.cursor.enabled = $true
+            $dirty = $true
+        }
+        if ($dirty) {
+            $existingJson | ConvertTo-Json -Depth 5 | Set-Content -Path $ConfigFile -Encoding UTF8
+            Write-Host "   ✓ Newly detected apps enabled in existing config.json" -ForegroundColor Green
+        }
+    } catch {}
 }
 
 # ----------------------------------------------------
@@ -225,10 +254,36 @@ function Install-PortableNode ($DestDir) {
     }
 }
 
-if (Test-Path (Join-Path $TargetDir "bin\node.exe")) {
+function Find-SystemNode {
+    $cmd = Get-Command "node.exe" -ErrorAction SilentlyContinue
+    if (-not $cmd) { $cmd = Get-Command "node" -ErrorAction SilentlyContinue }
+    if ($cmd -and (Test-Path $cmd.Source)) { return $cmd.Source }
+    
+    $common = @(
+        (Join-Path $env:ProgramFiles "nodejs\node.exe"),
+        (Join-Path ${env:ProgramFiles(x86)} "nodejs\node.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\node\node.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\nodejs\node.exe")
+    )
+    foreach ($p in $common) {
+        if ($p -and (Test-Path $p)) { return $p }
+    }
+    return $null
+}
+
+$targetNode = Join-Path $TargetDir "bin\node.exe"
+if (Test-Path $targetNode) {
     Write-Host "✅ Node.js embutido encontrado." -ForegroundColor Green
 } else {
-    Install-PortableNode $TargetDir | Out-Null
+    $sysNode = Find-SystemNode
+    if ($sysNode) {
+        Write-Host "✅ Node.js já instalado no sistema detectado: $sysNode" -ForegroundColor Green
+        New-Item -ItemType Directory -Path (Join-Path $TargetDir "bin") -Force | Out-Null
+        Copy-Item -Path $sysNode -Destination $targetNode -Force
+        Write-Host "   ✓ Copiado para o diretório do AI Gauge (dispensa download adicional)." -ForegroundColor Green
+    } else {
+        Install-PortableNode $TargetDir | Out-Null
+    }
 }
 
 $WshShell = New-Object -ComObject WScript.Shell

@@ -83,13 +83,49 @@ test('Claude: desktop usage from recent session is loaded cleanly', () => {
   assert.strictEqual(r.groups[0].buckets[1].remaining_pct, 65);
 });
 
-test('Claude: old desktop usage (>30m) is marked Outdated', () => {
-  const desktopDir = path.join(TMP_HOME, 'ClaudeDesktopOld');
+test('Claude: desktop usage within rolling window is active and valid (e.g. 40m)', () => {
+  const desktopDir = path.join(TMP_HOME, 'ClaudeDesktopActive');
   fs.mkdirSync(desktopDir, { recursive: true });
   fs.writeFileSync(path.join(desktopDir, 'plan-usage-history.json'), JSON.stringify({
     version: 2,
     samples: [
       { t: Date.now() - 40 * MIN, org: 'test-org', u: { fh: 20, sd: 40 } }
+    ]
+  }));
+  const p = new ClaudeProProvider('t');
+  const r = p.getDesktopUsage(desktopDir);
+  assert.ok(r);
+  assert.strictEqual(r.groups[0].outdated, undefined);
+  assert.strictEqual(r.groups[0].buckets[0].remaining_pct, 80);
+  assert.strictEqual(r.groups[0].buckets[1].remaining_pct, 60);
+  assert.notStrictEqual(r.groups[0].buckets[0].reset_in, 'Outdated');
+});
+
+test('Claude: desktop usage after 5h window naturally renews 5h limit to 100%', () => {
+  const desktopDir = path.join(TMP_HOME, 'ClaudeDesktop5hPassed');
+  fs.mkdirSync(desktopDir, { recursive: true });
+  fs.writeFileSync(path.join(desktopDir, 'plan-usage-history.json'), JSON.stringify({
+    version: 2,
+    samples: [
+      { t: Date.now() - 6 * 60 * MIN, org: 'test-org', u: { fh: 20, sd: 40 } }
+    ]
+  }));
+  const p = new ClaudeProProvider('t');
+  const r = p.getDesktopUsage(desktopDir);
+  assert.ok(r);
+  assert.strictEqual(r.groups[0].outdated, undefined);
+  assert.strictEqual(r.groups[0].buckets[0].remaining_pct, 100);
+  assert.strictEqual(r.groups[0].buckets[0].reset_in, '5h');
+  assert.strictEqual(r.groups[0].buckets[1].remaining_pct, 60);
+});
+
+test('Claude: old desktop usage (>24h) is marked Outdated', () => {
+  const desktopDir = path.join(TMP_HOME, 'ClaudeDesktopOld');
+  fs.mkdirSync(desktopDir, { recursive: true });
+  fs.writeFileSync(path.join(desktopDir, 'plan-usage-history.json'), JSON.stringify({
+    version: 2,
+    samples: [
+      { t: Date.now() - 25 * 60 * MIN, org: 'test-org', u: { fh: 20, sd: 40 } }
     ]
   }));
   const p = new ClaudeProProvider('t');

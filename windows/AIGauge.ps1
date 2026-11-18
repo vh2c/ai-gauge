@@ -44,6 +44,23 @@ if (-not (Test-Path $EngineScript)) {
     $EngineScript = Join-Path $RepoDir "core\engine.js"
 }
 
+$global:AppVersion = "1.1.5"
+$updaterCandidates = @(
+    (Join-Path $ScriptDir "core\updater.js"),
+    (Join-Path $RepoDir "core\updater.js")
+)
+foreach ($u in $updaterCandidates) {
+    if (Test-Path $u) {
+        try {
+            $uContent = Get-Content $u -Raw
+            if ($uContent -match "CURRENT_VERSION\s*=\s*['""]([^'""]+)['""]") {
+                $global:AppVersion = $matches[1]
+                break
+            }
+        } catch {}
+    }
+}
+
 # Demo mode (--demo): fictitious accounts, isolated config, no Node, no telemetry.
 $DemoMode = ($args -contains "--demo")
 
@@ -962,8 +979,8 @@ function Show-PromoToastNow ($ann) {
         [xml]$toastXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AI Gauge" Width="404" SizeToContent="Height"
-        WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True"
+        Title="AI Gauge" Width="380" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" ShowActivated="False" Focusable="False"
         Background="Transparent" ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize">
     <Window.Resources>
         <Style TargetType="Button">
@@ -984,22 +1001,25 @@ function Show-PromoToastNow ($ann) {
             </Setter>
         </Style>
     </Window.Resources>
-    <Border Margin="14" Background="#16171F" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="24" Padding="18,14,18,18">
-        <Border.Effect><DropShadowEffect BlurRadius="30" ShadowDepth="8" Opacity="0.6"/></Border.Effect>
+    <Border Margin="14" Background="#16171F" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="20" Padding="16,14,16,16">
+        <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.5"/></Border.Effect>
         <StackPanel>
-            <StackPanel Orientation="Horizontal" Height="20">
-                <Image Name="PromoIcon" Width="16" Height="16"/>
-                <TextBlock Text="AI GAUGE - ADVERTISING" Foreground="#94A3B8" FontSize="11.5" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/>
-            </StackPanel>
-            <Border Name="MediaBox" Height="185" CornerRadius="16" ClipToBounds="True" Background="#0E1015" Margin="0,12,0,0" Visibility="Collapsed">
+            <Grid Height="20">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Image Name="PromoIcon" Width="16" Height="16"/>
+                    <TextBlock Text="AI GAUGE - PROMOTION" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Name="BtnPromoClose" Content="✕" Width="20" Height="20" HorizontalAlignment="Right" Background="Transparent" Foreground="#64748B" BorderThickness="0" FontSize="11" FontWeight="Bold" Cursor="Hand"/>
+            </Grid>
+            <Border Name="MediaBox" Height="150" CornerRadius="12" ClipToBounds="True" Background="#0E1015" Margin="0,10,0,0" Visibility="Collapsed">
                 <Image Name="PromoImage" Stretch="UniformToFill"/>
             </Border>
-            <TextBlock Name="PromoTitle" FontSize="19" FontWeight="Bold" Foreground="White" TextWrapping="Wrap" Margin="0,14,0,6"/>
-            <TextBlock Name="PromoText" FontSize="13.5" Foreground="#94A3B8" TextWrapping="Wrap" MaxHeight="62" TextTrimming="CharacterEllipsis" Margin="0,0,0,16"/>
+            <TextBlock Name="PromoTitle" FontSize="17" FontWeight="Bold" Foreground="White" TextWrapping="Wrap" Margin="0,12,0,4"/>
+            <TextBlock Name="PromoText" FontSize="12.5" Foreground="#94A3B8" TextWrapping="Wrap" MaxHeight="60" TextTrimming="CharacterEllipsis" Margin="0,0,0,14"/>
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                <Button Name="BtnLater" Grid.Column="0" Height="44" Margin="0,0,5,0" Content="Not now" Background="#14FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" Foreground="#E2E8F0" FontSize="14" FontWeight="SemiBold"/>
-                <Button Name="BtnPromo" Grid.Column="1" Height="44" Margin="5,0,0,0" Content="View Details" BorderThickness="0" Foreground="White" FontSize="14" FontWeight="SemiBold">
+                <Button Name="BtnLater" Grid.Column="0" Height="38" Margin="0,0,4,0" Content="Not now" Background="#14FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" Foreground="#E2E8F0" FontSize="13" FontWeight="SemiBold"/>
+                <Button Name="BtnPromo" Grid.Column="1" Height="38" Margin="4,0,0,0" Content="View Details" BorderThickness="0" Foreground="White" FontSize="13" FontWeight="SemiBold" Focusable="False">
                     <Button.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#6366F1" Offset="0"/><GradientStop Color="#4F46E5" Offset="1"/>
@@ -1048,6 +1068,9 @@ function Show-PromoToastNow ($ann) {
         # Action button (only when the ad has a link)
         $btnPromo = $tw.FindName("BtnPromo")
         $btnLater = $tw.FindName("BtnLater")
+        $btnPromoClose = $tw.FindName("BtnPromoClose")
+        if ($btnPromoClose) { $btnPromoClose.Add_Click({ Close-PromoToast }) }
+
         $actUrl = "$($ann.action_url)".Trim()
         if ($actUrl) {
             if ($actUrl -match '\{machine_id\}') {
@@ -1059,7 +1082,9 @@ function Show-PromoToastNow ($ann) {
             $btnPromo.Tag = $actUrl
             $btnPromo.Add_Click({
                 param($s, $e)
-                try { [System.Diagnostics.Process]::Start("$($s.Tag)") } catch { Write-AppError $_.Exception }
+                if ($s.Tag) {
+                    try { [System.Diagnostics.Process]::Start("$($s.Tag)") } catch { Write-AppError $_.Exception }
+                }
                 Close-PromoToast
             })
         } else {
@@ -1068,27 +1093,16 @@ function Show-PromoToastNow ($ann) {
             [System.Windows.Controls.Grid]::SetColumnSpan($btnLater, 2)
         }
 
-        # "Not now" is locked for duracao_segundos (countdown), like on macOS
-        $global:promoRemaining = if ($ann.duracao_segundos) { [int]$ann.duracao_segundos } else { 0 }
-        $btnLater.Add_Click({ param($s, $e) if ($global:promoRemaining -le 0) { Close-PromoToast } })
-        if ($global:promoRemaining -gt 0) {
-            $btnLater.IsEnabled = $false
-            $btnLater.Content = "Not now ($($global:promoRemaining)s)"
-            $global:promoTimer = New-Object System.Windows.Threading.DispatcherTimer
-            $global:promoTimer.Interval = [TimeSpan]::FromSeconds(1)
-            $global:promoTimer.Add_Tick({
-                $global:promoRemaining--
-                $lb = $global:promoWindow.FindName("BtnLater")
-                if ($global:promoRemaining -le 0) {
-                    $global:promoTimer.Stop()
-                    $lb.IsEnabled = $true
-                    $lb.Content = "Not now"
-                } else {
-                    $lb.Content = "Not now ($($global:promoRemaining)s)"
-                }
-            })
-            $global:promoTimer.Start()
-        }
+        # "Not now" closes the toast immediately without navigating
+        $btnLater.IsEnabled = $true
+        $btnLater.Add_Click({ param($s, $e) Close-PromoToast })
+
+        # Position at bottom-right of working area (non-intrusive toast notification)
+        try {
+            $workArea = [System.Windows.SystemParameters]::WorkArea
+            $tw.Left = $workArea.Right - 396
+            $tw.Top = $workArea.Bottom - 320
+        } catch {}
 
         $tw.Add_MouseLeftButtonDown({ param($s, $e) try { $s.DragMove() } catch {} })
         $tw.Add_Closed({ $global:promoWindow = $null })
@@ -1105,6 +1119,24 @@ function Render-UI ($data) {
     $cardsPanel.Children.Clear()
     $txtUpdated.Text = ""
     
+    $appVer = if ($data -and $data.version) { "$($data.version)" } else { $global:AppVersion }
+    if ($txtAppName) {
+        $txtAppName.Inlines.Clear()
+        $runTitle = New-Object System.Windows.Documents.Run("AI Gauge")
+        $runVer = New-Object System.Windows.Documents.Run("  v$appVer")
+        $runVer.FontSize = 12
+        $runVer.FontWeight = [System.Windows.FontWeights]::Normal
+        $runVer.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x88, 0x88, 0x94))
+        $txtAppName.Inlines.Add($runTitle)
+        $txtAppName.Inlines.Add($runVer)
+    }
+    if ($window) {
+        $window.Title = "AI Gauge v$appVer - Universal AI Quota Cockpit"
+    }
+    if ($txtBrand) {
+        $txtBrand.Text = "⚡ AI Gauge v$appVer  •  Developed by vh2c.com.br"
+    }
+
     $hasGroups = ($data -and $data.groups -and $data.groups.Count -gt 0)
     
     # ----------------- EMPTY STATE (ONBOARDING) -----------------
@@ -1166,26 +1198,35 @@ function Render-UI ($data) {
             return
         }
 
-        # 1. Title Row
+        # 1. Welcome Title & Installed Version Badge
         $tRow = New-Object System.Windows.Controls.StackPanel
         $tRow.Orientation = [System.Windows.Controls.Orientation]::Horizontal
-        $tRow.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 6))
+        $tRow.Margin = (New-Object System.Windows.Thickness(0, 0, 0, 4))
         
         $tIcon = New-Object System.Windows.Controls.TextBlock
-        $tIcon.Text = "🤖"
-        $tIcon.FontSize = 18
+        $tIcon.Text = "⚡"
+        $tIcon.FontSize = 16
         $tIcon.Margin = (New-Object System.Windows.Thickness(0, 0, 8, 0))
         $tIcon.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
         $tRow.Children.Add($tIcon) | Out-Null
         
         $tTitle = New-Object System.Windows.Controls.TextBlock
-        $tTitle.Text = "No AI Records Found"
+        $tTitle.Text = "Welcome to AI Gauge"
         $tTitle.FontSize = 14
         $tTitle.FontWeight = [System.Windows.FontWeights]::Bold
         $tTitle.Foreground = [System.Windows.Media.Brushes]::White
         $tTitle.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
         $tRow.Children.Add($tTitle) | Out-Null
+        
         $emptyStack.Children.Add($tRow) | Out-Null
+
+        $tVerBadge = New-Object System.Windows.Controls.TextBlock
+        $tVerBadge.Text = "Installed Version: v$appVer"
+        $tVerBadge.FontSize = 11
+        $tVerBadge.FontWeight = [System.Windows.FontWeights]::SemiBold
+        $tVerBadge.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
+        $tVerBadge.Margin = (New-Object System.Windows.Thickness(24, 0, 0, 10))
+        $emptyStack.Children.Add($tVerBadge) | Out-Null
         
         # 2. Explanation
         $tDesc = New-Object System.Windows.Controls.TextBlock
@@ -2116,26 +2157,30 @@ $btnSettings.Add_Click({ Show-SettingsDialog })
 
 $txtHudBrand = $window.FindName("TxtHudBrand")
 if ($txtHudBrand) {
-    $txtHudBrand.Add_MouseDown({
-        $mid = ""
-        if (Test-Path $DeviceIdFile) {
-            $mid = (Get-Content $DeviceIdFile -Raw).Trim()
+    $txtHudBrand.Add_MouseLeftButtonUp({
+        param($s, $e)
+        if ($e.ChangedButton -eq [System.Windows.Input.MouseButton]::Left) {
+            $mid = ""
+            if (Test-Path $DeviceIdFile) { $mid = (Get-Content $DeviceIdFile -Raw).Trim() }
+            $dUrl = if ($mid) { "https://ai-gauge.vh2c.com.br/donate?mid=$mid" } else { "https://ai-gauge.vh2c.com.br/donate" }
+            [System.Diagnostics.Process]::Start($dUrl)
         }
-        $dUrl = if ($mid) { "https://ai-gauge.vh2c.com.br/donate?mid=$mid" } else { "https://ai-gauge.vh2c.com.br/donate" }
-        [System.Diagnostics.Process]::Start($dUrl)
     })
     $txtHudBrand.Add_MouseEnter({ $txtHudBrand.Foreground = [System.Windows.Media.Brushes]::White })
     $txtHudBrand.Add_MouseLeave({ $txtHudBrand.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x88, 0x88, 0x94))) })
 }
 
-$txtBrand.Add_MouseDown({
-    $mid = ""
-    if (Test-Path $DeviceIdFile) {
-        $mid = (Get-Content $DeviceIdFile -Raw).Trim()
-    }
-    $dUrl = if ($mid) { "https://ai-gauge.vh2c.com.br/donate?mid=$mid" } else { "https://ai-gauge.vh2c.com.br/donate" }
-    [System.Diagnostics.Process]::Start($dUrl)
-})
+if ($txtBrand) {
+    $txtBrand.Add_MouseLeftButtonUp({
+        param($s, $e)
+        if ($e.ChangedButton -eq [System.Windows.Input.MouseButton]::Left) {
+            $mid = ""
+            if (Test-Path $DeviceIdFile) { $mid = (Get-Content $DeviceIdFile -Raw).Trim() }
+            $dUrl = if ($mid) { "https://ai-gauge.vh2c.com.br/donate?mid=$mid" } else { "https://ai-gauge.vh2c.com.br/donate" }
+            [System.Diagnostics.Process]::Start($dUrl)
+        }
+    })
+}
 
 # Initial Load: runs after the window is rendered (never before, so dialogs can use it as Owner)
 $txtAcc.Text = "Loading quotas..."

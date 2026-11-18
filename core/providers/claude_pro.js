@@ -123,6 +123,19 @@ class ClaudeProProvider {
     return `${mins}m`;
   }
 
+  getWeeklyResetIso() {
+    const d = new Date();
+    const target = new Date(d);
+    const day = d.getUTCDay();
+    let daysUntilFriday = (5 - day + 7) % 7;
+    target.setUTCDate(target.getUTCDate() + daysUntilFriday);
+    target.setUTCHours(8, 0, 0, 0);
+    if (target.getTime() <= d.getTime()) {
+      target.setUTCDate(target.getUTCDate() + 7);
+    }
+    return target.toISOString();
+  }
+
   buildPayload(data, isCache = false) {
     const fiveHourUtil = Number(data.five_hour?.utilization ?? 0.0);
     const sevenDayUtil = Number(data.seven_day?.utilization ?? 0.0);
@@ -132,7 +145,15 @@ class ClaudeProProvider {
     const rem7d = Math.round(Math.max(0, Math.min(100, 100.0 - sevenDayUtil)));
 
     const reset5h = this.formatResetRemaining(data.five_hour?.resets_at) || (rem5h < 100 ? '5h' : '5h');
-    const reset7d = this.formatResetRemaining(data.seven_day?.resets_at) || '7d';
+    const reset7dIso = data.seven_day?.resets_at || this.getWeeklyResetIso();
+    const reset7d = this.formatResetRemaining(reset7dIso) || '7d';
+
+    const time5hStr = data.five_hour?.resets_at
+      ? ` · Renews at ${new Date(data.five_hour.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      : '';
+    const time7dStr = reset7dIso
+      ? ` · Renews ${new Date(reset7dIso).toLocaleDateString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`
+      : '';
 
     return {
       provider: 'claude_pro',
@@ -150,14 +171,14 @@ class ClaudeProProvider {
               name: '5 Hours Limit',
               remaining_pct: rem5h,
               reset_in: reset5h,
-              detail: `5h window (${rem5h}% available)`
+              detail: `5h window (${rem5h}% available)${time5hStr}`
             },
             {
               id: 'claude-pro-7d',
               name: 'Weekly Limit',
               remaining_pct: rem7d,
               reset_in: reset7d,
-              detail: `Weekly quota (${rem7d}% available)`
+              detail: `Weekly quota (${rem7d}% available)${time7dStr}`
             }
           ]
         }
@@ -182,24 +203,41 @@ class ClaudeProProvider {
       const latest = samples[samples.length - 1];
       if (!latest || typeof latest.t !== 'number' || !latest.u) return null;
 
-      const util5h = Number(latest.u.fh ?? 0.0);
-      const util7d = Number(latest.u.sd ?? 0.0);
-      const rem5h = Math.round(Math.max(0, Math.min(100, 100.0 - util5h)));
-      const rem7d = Math.round(Math.max(0, Math.min(100, 100.0 - util7d)));
+      const now = Date.now();
+      const age = now - latest.t;
 
       let windowStart = latest.t;
       for (let i = samples.length - 1; i >= 0; i--) {
         const s = samples[i];
-        if (latest.t - s.t > 5 * 3600 * 1000) break;
-        if (Number(s.u?.fh || 0) > 0) {
+        if (i === 0 || (s.t - samples[i - 1].t > 5 * 3600 * 1000)) {
           windowStart = s.t;
+          break;
         }
+        if (now - s.t > 5 * 3600 * 1000) {
+          break;
+        }
+        windowStart = s.t;
       }
       const reset5hTarget = windowStart + (5 * 3600 * 1000);
-      const reset5h = this.formatResetRemaining(new Date(reset5hTarget).toISOString()) || '5h';
-      const reset7d = '7d';
+      const is5hExpired = now >= reset5hTarget;
 
-      const age = Date.now() - latest.t;
+      const util5h = Number(latest.u.fh ?? 0.0);
+      const util7d = Number(latest.u.sd ?? 0.0);
+
+      // If the 5-hour rolling window has fully elapsed, the 5-hour quota has naturally renewed to 100%
+      const rem5h = is5hExpired ? 100 : Math.round(Math.max(0, Math.min(100, 100.0 - util5h)));
+      const rem7d = Math.round(Math.max(0, Math.min(100, 100.0 - util7d)));
+
+      const reset5h = is5hExpired
+        ? '5h'
+        : (this.formatResetRemaining(new Date(reset5hTarget).toISOString()) || '5h');
+      const reset7dIso = this.getWeeklyResetIso();
+      const reset7d = this.formatResetRemaining(reset7dIso) || '7d';
+
+      const time5hStr = is5hExpired
+        ? ''
+        : ` · Renews at ${new Date(reset5hTarget).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+      const time7dStr = ` · Renews ${new Date(reset7dIso).toLocaleDateString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`;
 
       const payload = {
         provider: 'claude_pro',
@@ -217,21 +255,27 @@ class ClaudeProProvider {
                 name: '5 Hours Limit',
                 remaining_pct: rem5h,
                 reset_in: reset5h,
-                detail: `5h window (${rem5h}% available)`
+                detail: `5h window (${rem5h}% available)${time5hStr}`
               },
               {
                 id: 'claude-pro-7d',
                 name: 'Weekly Limit',
                 remaining_pct: rem7d,
                 reset_in: reset7d,
-                detail: `Weekly quota (${rem7d}% available)`
+                detail: `Weekly quota (${rem7d}% available)${time7dStr}`
               }
             ]
           }
         ]
       };
 
-      return markOutdated(payload, age, CLAUDE_SIGNIN_HINT);
+      // Desktop session data is considered active and valid if recorded within the last 24 hours.
+      // (Claude Desktop only appends to plan-usage-history when turns complete, not on an idle timer).
+      const DESKTOP_MAX_AGE_MS = 24 * 3600 * 1000;
+      if (age > DESKTOP_MAX_AGE_MS) {
+        return markOutdated(payload, age, CLAUDE_SIGNIN_HINT);
+      }
+      return payload;
     } catch (_) {
       return null;
     }
@@ -319,21 +363,31 @@ class ClaudeProProvider {
       return desktop;
     }
 
-    // 1. Try dedicated live cache first
+    const candidates = [];
+
+    // 1. Dedicated live cache
     try {
       if (fs.existsSync(this.dedicatedCachePath)) {
         const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8'));
         if (cached?.data) {
-          const age = cached.timestamp ? Date.now() - cached.timestamp : fs.statSync(this.dedicatedCachePath).mtimeMs ? Date.now() - fs.statSync(this.dedicatedCachePath).mtimeMs : 0;
-          return markOutdated(this.buildPayload(cached.data, true), age, CLAUDE_SIGNIN_HINT);
+          const age = cached.timestamp
+            ? (Date.now() - cached.timestamp)
+            : (fs.statSync(this.dedicatedCachePath).mtimeMs ? Date.now() - fs.statSync(this.dedicatedCachePath).mtimeMs : Infinity);
+          candidates.push({
+            age,
+            payload: markOutdated(this.buildPayload(cached.data, true), age, CLAUDE_SIGNIN_HINT)
+          });
         }
       }
     } catch (_) {}
 
-    // 2. Desktop usage if available (even if outdated)
-    if (desktop) return desktop;
+    // 2. Desktop usage
+    if (desktop) {
+      const age = desktop.outdated_seconds ? desktop.outdated_seconds * 1000 : 0;
+      candidates.push({ age, payload: desktop });
+    }
 
-    // 2. Fallback to VS Code status cache
+    // 3. VS Code status cache
     try {
       const cachePath = path.join(os.homedir(), '.claude', 'vscode-claude-status-cache.json');
       if (fs.existsSync(cachePath)) {
@@ -352,7 +406,7 @@ class ClaudeProProvider {
           const reset7d = u.reset7dAt ? this.formatResetRemaining(new Date(u.reset7dAt * 1000).toISOString()) : '7d';
 
           const vscAge = Date.now() - fs.statSync(cachePath).mtimeMs;
-          return markOutdated({
+          const payload = {
             provider: 'claude_pro',
             account: 'Claude Pro (Cache)',
             plan: 'Claude Pro Plan',
@@ -380,11 +434,20 @@ class ClaudeProProvider {
                 ]
               }
             ]
-          }, vscAge, CLAUDE_SIGNIN_HINT);
+          };
+          candidates.push({
+            age: vscAge,
+            payload: markOutdated(payload, vscAge, CLAUDE_SIGNIN_HINT)
+          });
         }
       }
     } catch (_) {}
-    return null;
+
+    if (candidates.length === 0) return null;
+
+    // Freshest candidate (smallest age) wins
+    candidates.sort((a, b) => a.age - b.age);
+    return candidates[0].payload;
   }
 }
 
