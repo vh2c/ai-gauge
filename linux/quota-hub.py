@@ -518,12 +518,12 @@ class QuotaHubAppLinux:
         tk.Label(f_anti, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#888888", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_anti1 = tk.Frame(f_anti, bg="#1F1F1F")
         r_anti1.pack(anchor="w")
-        add_hud_cb(r_anti1, "gemini-weekly", "Gemini Semanal")
+        add_hud_cb(r_anti1, "gemini-weekly", "Gemini Weekly")
         add_hud_cb(r_anti1, "gemini-5h", "Gemini (5h)")
         add_hud_cb(r_anti1, "gemini-argon-wtu-weekly", "Argon")
         r_anti2 = tk.Frame(f_anti, bg="#1F1F1F")
         r_anti2.pack(anchor="w", pady=(2, 0))
-        add_hud_cb(r_anti2, "3p-weekly", "Claude/GPT Semanal")
+        add_hud_cb(r_anti2, "3p-weekly", "Claude/GPT Weekly")
         add_hud_cb(r_anti2, "3p-5h", "Claude/GPT (5h)")
 
         # 2. Claude Pro Card (#D78C68)
@@ -542,7 +542,7 @@ class QuotaHubAppLinux:
         r_cpro = tk.Frame(f_cpro, bg="#1F1F1F")
         r_cpro.pack(anchor="w")
         add_hud_cb(r_cpro, "claude-pro-5h", "Janela de 5h")
-        add_hud_cb(r_cpro, "claude-pro-7d", "Cota Semanal (7d)")
+        add_hud_cb(r_cpro, "claude-pro-7d", "Weekly Quota (7d)")
 
         # 3. ChatGPT Card
         gpt_cfg = pCfg.get("chatgpt_subscription", {})
@@ -560,7 +560,7 @@ class QuotaHubAppLinux:
         r_gpt = tk.Frame(f_gpt, bg="#1F1F1F")
         r_gpt.pack(anchor="w")
         add_hud_cb(r_gpt, "chatgpt-4o-3h", "GPT-4o (3h)")
-        add_hud_cb(r_gpt, "chatgpt-o1-weekly", "o1 Semanal")
+        add_hud_cb(r_gpt, "chatgpt-o1-weekly", "o1 Weekly")
 
         # 4. Cursor Card
         cur_cfg = pCfg.get("cursor", {})
@@ -578,7 +578,7 @@ class QuotaHubAppLinux:
         r_cur = tk.Frame(f_cur, bg="#1F1F1F")
         r_cur.pack(anchor="w")
         add_hud_cb(r_cur, "cursor-fast-requests", "Fast Requests")
-        add_hud_cb(r_cur, "cursor-monthly-cycle", "Ciclo Mensal")
+        add_hud_cb(r_cur, "cursor-monthly-cycle", "Monthly Cycle")
 
         # 5. Copilot Card
         cop_cfg = pCfg.get("github_copilot", {})

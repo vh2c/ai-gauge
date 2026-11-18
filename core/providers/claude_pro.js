@@ -79,7 +79,7 @@ class ClaudeProProvider {
     const target = new Date(isoString).getTime();
     const now = Date.now();
     const diffMs = target - now;
-    if (diffMs <= 0) return 'Agora';
+    if (diffMs <= 0) return 'Now';
     const diffMins = Math.floor(diffMs / 60000);
     const days = Math.floor(diffMins / (24 * 60));
     const hours = Math.floor((diffMins % (24 * 60)) / 60);

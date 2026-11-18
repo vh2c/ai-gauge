@@ -350,7 +350,7 @@ extension QuotaData {
                     if lowerB.contains("fast") || lowerB.contains("claude") {
                         limitTitle = "Fast Requests"
                     } else {
-                        limitTitle = "Ciclo Mensal"
+                        limitTitle = "Monthly Cycle"
                     }
                     items.append(GaugeItem(
                         id: b.id ?? "",
@@ -2506,7 +2506,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             msgLabel.frame = NSRect(x: 12, y: 28, width: textW, height: 30)
             annBox.addSubview(msgLabel)
             
-            // 3. Action Button (Botão 'Baixar Agora' para Versão; ou 'Ver Detalhes' para Info)
+            // 3. Action Button (Botão 'Download Now' para Versão; ou 'Ver Detalhes' para Info)
             if hasAction {
                 let defaultLabel = isVersao ? "Download Now" : "View Details"
                 let actLabel = (ann.action_label != nil && !ann.action_label!.isEmpty) ? ann.action_label! : defaultLabel
@@ -3215,7 +3215,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let cursorHudY = createHudSectionLabel(y: 92, in: cursorCard)
         addCheckbox(id: "cursor-fast-requests", title: "Fast Requests", frame: NSRect(x: 14, y: cursorHudY, width: colW, height: 18), in: cursorCard)
-        addCheckbox(id: "cursor-monthly-cycle", title: "Ciclo Mensal", frame: NSRect(x: 14 + colW, y: cursorHudY, width: colW, height: 18), in: cursorCard)
+        addCheckbox(id: "cursor-monthly-cycle", title: "Monthly Cycle", frame: NSRect(x: 14 + colW, y: cursorHudY, width: colW, height: 18), in: cursorCard)
         
         cy += cursorCardH + 12
         

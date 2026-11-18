@@ -87,7 +87,7 @@ class ChatGPTSubscriptionProvider {
     }
     const now = Date.now();
     const diffMs = target - now;
-    if (diffMs <= 0) return 'Agora';
+    if (diffMs <= 0) return 'Now';
     const diffMins = Math.floor(diffMs / 60000);
     const days = Math.floor(diffMins / (24 * 60));
     const hours = Math.floor((diffMins % (24 * 60)) / 60);
@@ -163,7 +163,7 @@ class ChatGPTSubscriptionProvider {
             },
             {
               id: 'chatgpt-o1-weekly',
-              name: 'o1 Reasoning (Semanal)',
+              name: 'o1 Reasoning (Weekly)',
               remaining_pct: remO1,
               reset_in: resetO1,
               detail: `Weekly o1 quota (${remO1}% available)`
@@ -290,7 +290,7 @@ class ChatGPTSubscriptionProvider {
                   },
                   {
                     id: 'chatgpt-o1-weekly',
-                    name: 'o1 Reasoning (Semanal)',
+                    name: 'o1 Reasoning (Weekly)',
                     remaining_pct: remO1,
                     reset_in: resetO1,
                     detail: `Weekly o1 quota (${remO1}% available)`
@@ -325,7 +325,7 @@ class ChatGPTSubscriptionProvider {
               },
               {
                 id: 'chatgpt-o1-weekly',
-                name: 'o1 Reasoning (Semanal)',
+                name: 'o1 Reasoning (Weekly)',
                 remaining_pct: 100,
                 reset_in: '7d',
                 detail: 'Weekly o1 quota (100% available)'

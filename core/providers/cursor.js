@@ -109,7 +109,7 @@ class CursorProvider {
             },
             {
               id: 'cursor-monthly-cycle',
-              name: 'Ciclo Mensal de Faturamento',
+              name: 'Monthly Billing Cycle',
               remaining_pct: Math.round(((30 - Math.min(30, daysRemaining)) / 30) * 100),
               reset_in: resetInDays,
               detail: `Quota renews in ${daysRemaining} days`
@@ -172,7 +172,7 @@ class CursorProvider {
                       },
                       {
                         id: 'cursor-monthly-cycle',
-                        name: 'Ciclo Mensal de Faturamento',
+                        name: 'Monthly Billing Cycle',
                         remaining_pct: Math.round(((30 - Math.min(30, daysRemaining)) / 30) * 100),
                         reset_in: `${daysRemaining}d`,
                         detail: `Quota renews in ${daysRemaining} days`
