@@ -1749,7 +1749,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if animated {
             refreshBtn?.isEnabled = false
             refreshBtn?.attributedTitle = NSAttributedString(
-                string: "Atualizando...",
+                string: "Refreshing...",
                 attributes: [
                     .foregroundColor: NSColor(white: 0.50, alpha: 1.0),
                     .font: NSFont.systemFont(ofSize: 12, weight: .semibold)

@@ -18,6 +18,7 @@ const { GitHubCopilotProvider } = require('./providers/github_copilot');
 const { OpenAIProvider } = require('./providers/openai');
 const { AnthropicProvider } = require('./providers/anthropic');
 const { checkForUpdates, CURRENT_VERSION } = require('./updater');
+const { mergeWithLastGood } = require('./last_good');
 
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'UniversalAIQuota');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -63,37 +64,40 @@ class UniversalQuotaEngine {
     // or when 24h have passed since the last check. Otherwise it just reads the local cache.
     const updatePromise = checkForUpdates({ startup: opts.startup === true }).catch(() => null);
 
+    const keys = [];
     const providers = [];
+    const add = (key, promise) => { keys.push(key); providers.push(promise); };
     const pCfg = this.config.providers || {};
 
     // Security: Only probe providers explicitly enabled by user
     if (pCfg.antigravity?.enabled === true) {
-      providers.push(new AntigravityProvider().fetch());
+      add('antigravity', new AntigravityProvider().fetch());
     }
     if (pCfg.claude_pro?.enabled === true) {
-      providers.push(new ClaudeProProvider(pCfg.claude_pro?.token).fetch());
+      add('claude_pro', new ClaudeProProvider(pCfg.claude_pro?.token).fetch());
     }
     if (pCfg.chatgpt_subscription?.enabled === true) {
-      providers.push(new ChatGPTSubscriptionProvider(pCfg.chatgpt_subscription?.token).fetch());
+      add('chatgpt_subscription', new ChatGPTSubscriptionProvider(pCfg.chatgpt_subscription?.token).fetch());
     }
     if (pCfg.cursor?.enabled === true) {
-      providers.push(new CursorProvider(pCfg.cursor?.token).fetch());
+      add('cursor', new CursorProvider(pCfg.cursor?.token).fetch());
     }
     if (pCfg.github_copilot?.enabled === true) {
-      providers.push(new GitHubCopilotProvider(pCfg.github_copilot?.token).fetch());
+      add('github_copilot', new GitHubCopilotProvider(pCfg.github_copilot?.token).fetch());
     }
     if (pCfg.gemini?.enabled === true && pCfg.gemini?.api_key) {
-      providers.push(new GeminiProvider(pCfg.gemini.api_key).fetch());
+      add('gemini', new GeminiProvider(pCfg.gemini.api_key).fetch());
     }
     if (pCfg.openai?.enabled === true && pCfg.openai?.api_key) {
-      providers.push(new OpenAIProvider(pCfg.openai.api_key).fetch());
+      add('openai', new OpenAIProvider(pCfg.openai.api_key).fetch());
     }
     if (pCfg.anthropic?.enabled === true && pCfg.anthropic?.api_key) {
-      providers.push(new AnthropicProvider(pCfg.anthropic.api_key).fetch());
+      add('anthropic', new AnthropicProvider(pCfg.anthropic.api_key).fetch());
     }
 
     const results = await Promise.allSettled(providers);
-    const valid = results.filter(r => r.status === 'fulfilled' && r.value !== null).map(r => r.value);
+    // A provider that fails for one cycle keeps showing its last good result (up to 10 min) instead of vanishing
+    const valid = mergeWithLastGood(keys, results);
 
     const updateData = await updatePromise;
 
@@ -101,7 +105,7 @@ class UniversalQuotaEngine {
       return {
         needs_setup: true,
         account: 'No Provider Configured',
-        plan: 'Configurar',
+        plan: 'Setup required',
         providers_count: 0,
         groups: [],
         version: CURRENT_VERSION,

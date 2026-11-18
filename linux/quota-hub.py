@@ -886,13 +886,13 @@ class QuotaHubAppLinux:
             make_icon(14, 14, "✕", "Close", self.root.destroy)
             make_icon(34, 14, "⇄", "Toggle Orientation", self.toggle_orientation)
             make_icon(54, 14, "⊞", "Modo Completo", self.toggle_mode)
-            make_icon(74, 14, "⚙", "Configurar", self.open_settings)
+            make_icon(74, 14, "⚙", "Settings", self.open_settings)
             make_icon(92, 14, "↻", "Atualizar", lambda: self.refresh(True))
         else:
             make_icon(14, 14, "✕", "Close", self.root.destroy)
             make_icon(14, 34, "⇄", "Toggle Orientation", self.toggle_orientation)
             make_icon(14, 54, "⊞", "Modo Completo", self.toggle_mode)
-            make_icon(14, 74, "⚙", "Configurar", self.open_settings)
+            make_icon(14, 74, "⚙", "Settings", self.open_settings)
             make_icon(14, 94, "↻", "Atualizar", lambda: self.refresh(True))
 
         if is_vert:
