@@ -68,6 +68,15 @@ function Initialize-DefaultConfig {
         $hasCursor = (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or (Test-Path (Join-Path $env:APPDATA "Cursor")) -or [bool](Get-Process "Cursor" -ErrorAction SilentlyContinue)
         $hasCopilot = (Test-Path (Join-Path $env:APPDATA "Code\User\globalStorage\github.copilot-chat")) -or [bool](Get-Command "gh.exe" -ErrorAction SilentlyContinue)
         $hasGemini = [bool]$env:GEMINI_API_KEY
+        $hasAnti = [bool](Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $up ".gemini\antigravity"))
+        # Names shown in the one-time welcome message (first run only)
+        $global:FirstRunDetected = @()
+        if ($hasAnti) { $global:FirstRunDetected += "Antigravity" }
+        if ($hasClaude) { $global:FirstRunDetected += "Claude" }
+        if ($hasChatGPT) { $global:FirstRunDetected += "ChatGPT" }
+        if ($hasCursor) { $global:FirstRunDetected += "Cursor" }
+        if ($hasCopilot) { $global:FirstRunDetected += "GitHub Copilot" }
+        if ($hasGemini) { $global:FirstRunDetected += "Gemini" }
         $cfg = @{
             providers = @{
                 antigravity = @{ enabled = $true }
@@ -535,6 +544,7 @@ $btnMin = $window.FindName("BtnMin")
 $btnTopClose = $window.FindName("BtnTopClose")
 $txtAcc = $window.FindName("TxtAccount")
 $txtUpdated = $window.FindName("TxtUpdated")
+$txtAppName = $window.FindName("TxtAppName")
 $cardsPanel = $window.FindName("CardsPanel")
 $btnRefresh = $window.FindName("BtnRefresh")
 $btnHud = $window.FindName("BtnHud")
@@ -1268,6 +1278,18 @@ function Render-UI ($data) {
     $cacheInfo = if ($data.from_cache) { "Cache" } elseif ($DemoMode) { "Demo" } else { "Live" }
     $txtAcc.Text = "$($data.account)  •  Plan $($data.plan)"
     $txtUpdated.Text = "Updated at $($data.updated_at) ($cacheInfo)"
+
+    # The version that is running, next to the title
+    if ($data.version -and $txtAppName) {
+        $txtAppName.Inlines.Clear()
+        $runTitle = New-Object System.Windows.Documents.Run("AI Gauge")
+        $runVer = New-Object System.Windows.Documents.Run("  v$($data.version)")
+        $runVer.FontSize = 12
+        $runVer.FontWeight = [System.Windows.FontWeights]::Normal
+        $runVer.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x88, 0x88, 0x94))
+        $txtAppName.Inlines.Add($runTitle)
+        $txtAppName.Inlines.Add($runVer)
+    }
     
     # ----------------- BANNERS (top of the window) + independent promo toast -----------------
     $ann = $data.announcement
@@ -2075,10 +2097,14 @@ function Complete-QuotaFetch ($newData) {
     if ($global:initialLoad) {
         $global:initialLoad = $false
         $nodeMissing = ($newData -and $newData.node_missing)
-        if (-not $nodeMissing) {
-            if ((-not $newData) -or $newData.needs_setup -or (-not $newData.groups) -or $newData.groups.Count -eq 0) {
-                Show-SettingsDialog
-            }
+        # No Settings window by itself: when the app finds something on its own, say so in one short message.
+        # An empty screen already explains what to do and has a button.
+        if (-not $nodeMissing -and $global:FirstRunDetected -and $global:FirstRunDetected.Count -gt 0) {
+            $list = if ($global:FirstRunDetected.Count -gt 1) {
+                ($global:FirstRunDetected[0..($global:FirstRunDetected.Count - 2)] -join ", ") + " and " + $global:FirstRunDetected[-1]
+            } else { "$($global:FirstRunDetected[0])" }
+            $ask = [System.Windows.MessageBox]::Show("We found $list on this computer and started monitoring right away.`n`nWould you like to choose what to monitor now? You can do it at any time with the Settings button.", "Welcome to AI Gauge", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Information)
+            if ($ask -eq [System.Windows.MessageBoxResult]::Yes) { Show-SettingsDialog }
         }
     }
 }

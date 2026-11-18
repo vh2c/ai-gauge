@@ -720,6 +720,27 @@ class QuotaManager {
         return NSString(string: "~/universal-ai-quota-monitor/core/engine.js").expandingTildeInPath
     }
     
+    /// True when a Node.js runtime can be found (the engine needs it on macOS)
+    static func nodeAvailable() -> Bool {
+        let bin = findNodeBinary()
+        if bin.hasPrefix("/") { return FileManager.default.isExecutableFile(atPath: bin) }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        task.arguments = ["node", "-v"]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+        task.environment = env
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
     static func findNodeBinary() -> String {
         let fileManager = FileManager.default
         let wellKnownPaths = [
@@ -1614,7 +1635,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let onboardingDone = UserDefaults.standard.bool(forKey: "aigauge_onboarding_completed") || (cfg.onboarding_completed == true)
         
         if !onboardingDone && !configExists {
-            openOnboarding()
+            startFirstRun()
             return
         }
         
@@ -1623,16 +1644,89 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.latestQuota = initialQuota
             renderCurrentMode()
             startAutoRefreshTimer()
-            if CommandLine.arguments.contains("--settings") || initialQuota.needs_setup == true || initialQuota.groups.isEmpty {
+            // Settings never open by themselves: an empty screen already explains what to do (and has a button)
+            if CommandLine.arguments.contains("--settings") {
                 openSettings()
             } else if CommandLine.arguments.contains("--onboarding") {
                 openOnboarding()
             }
+        } else if !QuotaManager.nodeAvailable() {
+            showNodeRequiredAlert()
         } else {
             openSettings()
         }
     }
     
+    /// First launch: detect what the user already has, start monitoring right away, and say so in one small dialog.
+    /// (No wizard and no Settings window: those stay available from the menu and with Cmd+,)
+    func startFirstRun() {
+        var cfg = QuotaManager.loadConfig()
+        if cfg.providers == nil { cfg.providers = [:] }
+
+        let anti = QuotaManager.hasAntigravity()
+        let claude = QuotaManager.hasClaudePro()
+        let chatgpt = QuotaManager.hasChatGPT()
+        let cursor = QuotaManager.hasCursor()
+        let copilot = QuotaManager.hasCopilot()
+        let gemini = QuotaManager.hasGemini()
+
+        cfg.providers?["antigravity"] = ProviderConfig(enabled: anti, api_key: nil, token: nil)
+        cfg.providers?["claude_pro"] = ProviderConfig(enabled: claude, api_key: nil, token: nil)
+        cfg.providers?["chatgpt_subscription"] = ProviderConfig(enabled: chatgpt, api_key: nil, token: nil)
+        cfg.providers?["cursor"] = ProviderConfig(enabled: cursor, api_key: nil, token: nil)
+        cfg.providers?["github_copilot"] = ProviderConfig(enabled: copilot, api_key: nil, token: nil)
+        if cfg.providers?["gemini"] == nil {
+            cfg.providers?["gemini"] = ProviderConfig(enabled: gemini, api_key: "", token: nil)
+        } else {
+            cfg.providers?["gemini"]?.enabled = gemini
+        }
+        cfg.onboarding_completed = true
+        QuotaManager.saveConfig(cfg)
+        UserDefaults.standard.set(true, forKey: "aigauge_onboarding_completed")
+
+        var found: [String] = []
+        if anti { found.append("Antigravity") }
+        if claude { found.append("Claude") }
+        if chatgpt { found.append("ChatGPT") }
+        if cursor { found.append("Cursor") }
+        if copilot { found.append("GitHub Copilot") }
+        if gemini { found.append("Gemini") }
+
+        switchToHudMode()
+        performRefresh(animated: true)
+        startAutoRefreshTimer()
+
+        if !QuotaManager.nodeAvailable() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.showNodeRequiredAlert() }
+        } else if !found.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.showWelcome(found) }
+        }
+    }
+
+    func showWelcome(_ names: [String]) {
+        let list = names.count > 1
+            ? names.dropLast().joined(separator: ", ") + " and " + names[names.count - 1]
+            : names.joined()
+        let a = NSAlert()
+        a.messageText = "Welcome to AI Gauge"
+        a.informativeText = "We found \(list) on this Mac and started monitoring right away.\n\nThe bar on the edge of your screen shows your quotas. Click ⤢ for the full window, or press ⌘, at any time to choose what to monitor."
+        a.addButton(withTitle: "Start")
+        a.addButton(withTitle: "Choose what to monitor…")
+        if a.runModal() == .alertSecondButtonReturn { openSettings() }
+    }
+
+    func showNodeRequiredAlert() {
+        let a = NSAlert()
+        a.alertStyle = .warning
+        a.messageText = "Node.js is required"
+        a.informativeText = "AI Gauge needs Node.js 18 or later to read your quotas. Download the LTS installer from nodejs.org, install it, then open AI Gauge again."
+        a.addButton(withTitle: "Open nodejs.org")
+        a.addButton(withTitle: "Later")
+        if a.runModal() == .alertFirstButtonReturn, let url = URL(string: "https://nodejs.org") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if currentMode == .full {
             switchToFullMode()
@@ -2371,6 +2465,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appTitle.textColor = .white
         appTitle.frame = NSRect(x: 20, y: y, width: 220, height: 20)
         contentView.addSubview(appTitle)
+
+        // The version that is running, next to the title
+        let appVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? quota.version ?? ""
+        if !appVersion.isEmpty {
+            appTitle.sizeToFit()
+            appTitle.frame.size.height = 20
+            let verLabel = NSTextField(labelWithString: "v\(appVersion)")
+            verLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+            verLabel.textColor = NSColor(white: 0.55, alpha: 1.0)
+            verLabel.frame = NSRect(x: appTitle.frame.maxX + 6, y: y + 3, width: 90, height: 15)
+            contentView.addSubview(verLabel)
+        }
         y += 24
         
         let accountText = "\(quota.account)  •  Plan \(quota.plan ?? "Universal")"
@@ -3774,7 +3880,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             badge.layer?.cornerRadius = 11
             badge.layer?.backgroundColor = (detected ? colorGreenBg : colorGrayBg).cgColor
             
-            let badgeLbl = NSTextField(labelWithString: detected ? detectedText : "○ Opcional")
+            let badgeLbl = NSTextField(labelWithString: detected ? detectedText : "○ Optional")
             badgeLbl.font = NSFont.systemFont(ofSize: 9.5, weight: .semibold)
             badgeLbl.textColor = detected ? colorGreen : NSColor(white: 0.6, alpha: 1.0)
             badgeLbl.alignment = .center
@@ -3791,7 +3897,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             title: "Antigravity",
             subtitle: "Google Antigravity IDE (Gemini, Claude, Argon)",
             detected: hasAnti,
-            detectedText: "✓ Detectado no Mac",
+            detectedText: "✓ Detected on this Mac",
             defaultChecked: true
         )
         mainView.addSubview(antiCard)
@@ -3830,7 +3936,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             title: "Cursor",
             subtitle: "Cursor IDE (Claude 3.5 & GPT-4o Fast Requests)",
             detected: hasCursor,
-            detectedText: "✓ Detectado no Mac",
+            detectedText: "✓ Detected on this Mac",
             defaultChecked: hasCursor
         )
         mainView.addSubview(cursorCard)
@@ -3843,7 +3949,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             title: "Copilot",
             subtitle: "Visual Studio Code (Copilot Chat & Completions)",
             detected: hasCopilot,
-            detectedText: "✓ Detectado (VS Code)",
+            detectedText: "✓ Detected (VS Code)",
             defaultChecked: hasCopilot
         )
         mainView.addSubview(copilotCard)

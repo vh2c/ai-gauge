@@ -138,8 +138,10 @@ On recent macOS versions, **right-click → Open** is no longer enough.
 
 **You need to repeat this for every new version you download in a browser.** The one-command method above avoids it.
 
-From then on, open AI Gauge normally from Spotlight or Launchpad. The first time it starts it may offer a short setup
-wizard. A gauge icon appears in the menu bar, and the floating HUD opens on screen.
+From then on, open AI Gauge normally from Spotlight or Launchpad. The first time it starts, AI Gauge detects the tools you already use,
+starts monitoring them right away and shows one short welcome message (with a button to choose what to monitor, if you
+want). A gauge icon appears in the menu bar, and the floating HUD opens on screen. The running version is shown next to
+the title in the full window.
 
 *Developers: to build from source instead, clone the repository, then run `./install.sh` inside the `macos/`
 folder (needs the Xcode Command Line Tools).*
