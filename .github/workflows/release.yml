@@ -110,6 +110,8 @@ jobs:
       - name: Checksums
         working-directory: release
         run: |
+          # The Windows artifact keeps its dist/ folder; flatten it so every file sits in release/
+          if [ -f dist/AI-Gauge-Setup.exe ]; then mv dist/AI-Gauge-Setup.exe .; fi
           ls -la
           sha256sum AI-Gauge-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
