@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CURRENT_VERSION = '1.1.1';
+const CURRENT_VERSION = '1.1.2';
 const GITHUB_REPO = 'vh2c/ai-gauge';
 const RECHECK_MS = 24 * 60 * 60 * 1000;        // re-check while the app stays open
 const RETRY_MS = 60 * 60 * 1000;               // after a failed check, try again in 1 hour (not on every refresh)

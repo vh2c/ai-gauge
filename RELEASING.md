@@ -3,8 +3,8 @@
 The version shown to users and the download link are decided by the **API** (`ai_gauge_api`).
 The GitHub Release only serves as an archive of the packages.
 
-1. **Version in the code** (same number everywhere): `core/updater.js` (`CURRENT_VERSION`), `core/telemetry.js`, `macos/src/QuotaHubApp.swift` and `linux/quota-hub.py` (heartbeat `version`), the fallback in `.github/workflows/release.yml`,
-   `macos/build.sh` (Info.plist) and the default `MyAppVersion` in `windows/installer/AIGauge.iss`.
+1. **Version in the code** (same number everywhere): `core/updater.js` (`CURRENT_VERSION`; the only version the app sends), the fallback in `.github/workflows/release.yml`,
+   `macos/build.sh` (Info.plist, two fields) and the default `MyAppVersion` in `windows/installer/AIGauge.iss` (two places).
 2. **Commit and tag:** `git tag -a v1.2.0 -m "AI Gauge v1.2.0" && git push origin main --tags`.
 3. **CI (`Release Build`):** builds `AI-Gauge-Setup.exe`, the Windows, macOS and Linux ZIPs and `SHA256SUMS.txt`,
    and creates a **draft** Release. To test without a tag: Actions → Release Build → Run workflow
