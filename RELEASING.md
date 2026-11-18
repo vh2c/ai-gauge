@@ -20,7 +20,7 @@ The GitHub Release only serves as an archive of the packages.
 
 ## Notes
 
-- **Tests:** run `node tests/updater.test.js` and `node tests/last_good.test.js` before releasing. It checks, with a fake API and a throw-away HOME, that the app contacts
+- **Tests:** run `node tests/updater.test.js`, `node tests/last_good.test.js` and `node tests/claude_file.test.js` before releasing. It checks, with a fake API and a throw-away HOME, that the app contacts
   the server only at startup (and once per 24h if left open), that PRO sends only `machine_id` + version, and that opt-out sends nothing.
 - **API contact rules** live in `core/updater.js`; the apps just pass `--startup` to the engine on their first run. If you change what is
   sent, update the "Telemetry & Privacy" section of the README in the same commit.
