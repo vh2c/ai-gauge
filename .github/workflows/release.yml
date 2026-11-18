@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           $ref = "${{ github.ref_name }}"
-          $v = if ($ref -match '^v(\d+\.\d+(\.\d+)?)') { $Matches[1] } else { "1.1.0" }
+          $v = if ($ref -match '^v(\d+\.\d+(\.\d+)?)') { $Matches[1] } else { "1.1.1" }
           "version=$v" >> $env:GITHUB_OUTPUT
 
       - name: Fetch Node.js (SHA-256 verified)

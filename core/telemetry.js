@@ -71,7 +71,7 @@ function sendHeartbeat(force = false) {
   // 3. Strictly minimal, privacy-first payload matching README declaration
   const payload = JSON.stringify({
     app: 'ai-gauge',
-    version: '1.1.0',
+    version: '1.1.1',
     os: os.platform(),
     arch: os.arch(),
     machine_id: getMachineId(),

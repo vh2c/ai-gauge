@@ -1664,7 +1664,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let payload: [String: Any] = [
             "app": "ai-gauge",
-            "version": "1.1.0",
+            "version": "1.1.1",
             "os": "macOS",
             "arch": "arm64",
             "machine_id": getMachineId(),

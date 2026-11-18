@@ -71,7 +71,7 @@ def send_telemetry_heartbeat():
             url = "https://api.vh2c.com.br/v1/geminigauje"
             payload = json.dumps({
                 "app": "gemini-gauge",
-                "version": "1.1.0",
+                "version": "1.1.1",
                 "os": "Linux",
                 "arch": platform.machine(),
                 "machine_id": get_machine_id(),

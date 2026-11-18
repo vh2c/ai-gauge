@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CURRENT_VERSION = '1.1.0';
+const CURRENT_VERSION = '1.1.1';
 const GITHUB_REPO = 'vh2c/ai-gauge';
 const CACHE_TTL_MS = 60 * 60 * 1000;        // how often announcements/version are re-checked
 const SLOW_TTL_MS = 6 * 60 * 60 * 1000;       // server without check_only support: do not poll often (each call would count as a launch)
