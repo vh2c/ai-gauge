@@ -29,6 +29,18 @@ Ever hit the **Claude usage limit**, the **ChatGPT message cap** or ran out of *
 
 ---
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="assets/screenshot-hud.png" height="560" alt="AI Gauge floating HUD showing Antigravity, Claude and ChatGPT usage gauges" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/screenshot-window.png" height="560" alt="AI Gauge full window with Gemini, Claude and ChatGPT quota bars and reset times" />
+</p>
+
+<p align="center"><sub>Floating HUD (left) and full window (right).</sub></p>
+
+---
+
 ## 📦 Ready-to-Use Downloads (v1.1)
 
 For testers and non-technical users: **no need to compile any code**. Just download the package for your operating system:

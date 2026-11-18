@@ -97,7 +97,7 @@ class GitHubCopilotProvider {
               name: 'Copilot Chat & Model Limits',
               remaining_pct: 100,
               reset_in: 'Active',
-              detail: 'Modelos Claude 3.5 & GPT-4o habilitados'
+              detail: 'Claude 3.5 & GPT-4o models enabled'
             },
             {
               id: 'copilot-completions-rate',

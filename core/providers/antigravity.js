@@ -363,7 +363,7 @@ class AntigravityProvider {
     const rawGroups = qPayload.groups || [];
     for (const g of rawGroups) {
       const gItem = {
-        name: g.displayName || 'Modelos Antigravity',
+        name: g.displayName || 'Antigravity Models',
         description: g.description || '',
         provider: 'Antigravity (' + (mode === 'headless' ? 'Headless' : 'Live') + ')',
         buckets: []
@@ -373,11 +373,11 @@ class AntigravityProvider {
         const timeStr = formatTimeRemaining(b.resetTime, b.remainingFraction);
         gItem.buckets.push({
           id: b.bucketId || '',
-          name: b.displayName || 'Limite',
+          name: b.displayName || 'Limit',
           remaining_pct: pct,
           reset_in: timeStr,
           reset_time: b.resetTime || null,
-          detail: timeStr ? `Reseta em ${timeStr}` : ''
+          detail: timeStr ? `Resets in ${timeStr}` : ''
         });
       }
       if (gItem.buckets.length > 0) groups.push(gItem);

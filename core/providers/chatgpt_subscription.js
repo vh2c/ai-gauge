@@ -151,7 +151,7 @@ class ChatGPTSubscriptionProvider {
       groups: [
         {
           name: 'ChatGPT',
-          description: isCache ? 'Limites de uso da assinatura ChatGPT (Cache local)' : 'Limites de uso da assinatura ChatGPT',
+          description: isCache ? 'ChatGPT subscription usage limits (local cache)' : 'ChatGPT subscription usage limits',
           provider: 'ChatGPT',
           buckets: [
             {
@@ -278,7 +278,7 @@ class ChatGPTSubscriptionProvider {
             groups: [
               {
                 name: 'ChatGPT',
-                description: 'Limites de uso da assinatura ChatGPT (Cache local)',
+                description: 'ChatGPT subscription usage limits (local cache)',
                 provider: 'ChatGPT',
                 buckets: [
                   {
@@ -313,7 +313,7 @@ class ChatGPTSubscriptionProvider {
         groups: [
           {
             name: 'ChatGPT',
-            description: 'Limites de uso da assinatura ChatGPT',
+            description: 'ChatGPT subscription usage limits',
             provider: 'ChatGPT',
             buckets: [
               {

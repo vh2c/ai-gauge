@@ -1356,7 +1356,7 @@ function Render-UI ($data) {
 
             if ($b.reset_in) {
                 $tbReset = New-Object System.Windows.Controls.TextBlock
-                $tbReset.Text = "Renews in $($b.reset_in)"
+                $tbReset.Text = if ($b.reset_in -eq "Now") { "Renews now" } elseif ($b.reset_in -eq "Active") { "Active" } else { "Renews in $($b.reset_in)" }
                 $tbReset.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8E, 0x8E, 0x9A))
                 $tbReset.FontSize = 11
                 $tbReset.VerticalAlignment = [System.Windows.VerticalAlignment]::Center

@@ -108,7 +108,7 @@ class ClaudeProProvider {
       groups: [
         {
           name: 'Claude',
-          description: isCache ? 'Limites de uso da assinatura Claude (Cache local)' : 'Limites de uso da assinatura Claude',
+          description: isCache ? 'Claude subscription usage limits (local cache)' : 'Claude subscription usage limits',
           provider: 'Claude',
           buckets: [
             {
@@ -231,7 +231,7 @@ class ClaudeProProvider {
             groups: [
               {
                 name: 'Claude',
-                description: 'Limites de uso da assinatura Claude (Cache local)',
+                description: 'Claude subscription usage limits (local cache)',
                 provider: 'Claude',
                 buckets: [
                   {

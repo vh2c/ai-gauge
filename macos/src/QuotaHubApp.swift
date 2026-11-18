@@ -2688,7 +2688,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     cardView.addSubview(bTitle)
                     
                     if let reset = b.reset_in, !reset.isEmpty {
-                        let resetLabel = NSTextField(labelWithString: "Renews in \(reset)")
+                        let resetLabel = NSTextField(labelWithString: reset == "Now" ? "Renews now" : (reset == "Active" ? "Active" : "Renews in \(reset)"))
                         resetLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
                         resetLabel.textColor = NSColor(white: 0.50, alpha: 1.0)
                         resetLabel.alignment = .right

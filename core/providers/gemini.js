@@ -59,21 +59,21 @@ class GeminiProvider {
                         name: 'Gemini Flash Rate Limit',
                         remaining_pct: 100,
                         reset_in: '1m',
-                        detail: '15 RPM (Gratuito) / 1000 RPM (Pay-as-you-go)'
+                        detail: '15 RPM (Free) / 1000 RPM (Pay-as-you-go)'
                       },
                       {
                         id: 'gemini-pro-rpm',
                         name: 'Gemini Pro Rate Limit',
                         remaining_pct: 100,
                         reset_in: '1m',
-                        detail: '2 RPM (Gratuito) / 360 RPM (Pay-as-you-go)'
+                        detail: '2 RPM (Free) / 360 RPM (Pay-as-you-go)'
                       },
                       {
                         id: 'gemini-key-status',
-                        name: 'Acesso & Modelos da Chave',
+                        name: 'Key Access & Models',
                         remaining_pct: 100,
                         reset_in: 'Active',
-                        detail: `${count} modelos liberados na conta`
+                        detail: `${count} models available on your account`
                       }
                     ]
                   }
