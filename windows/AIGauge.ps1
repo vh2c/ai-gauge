@@ -764,6 +764,27 @@ $window.Add_KeyDown({
 $global:FixedFreeTitle = "Help AI GAUGE developers team"
 
 # Builds one top-of-window notice banner (info = amber, versao = green), identical to the macOS one.
+# "Update now": runs the get-ai-gauge.ps1 that ships INSIDE the app (no remote script is executed). It downloads the
+# release installer from GitHub, verifies its SHA-256, runs it silently (it closes this app) and reopens AI Gauge.
+function Invoke-SelfUpdate ($version, $fallbackUrl, $button) {
+    $updater = Join-Path $ScriptDir "get-ai-gauge.ps1"
+    if ($DemoMode -or -not $version -or -not (Test-Path $updater)) {
+        if ($fallbackUrl) { [System.Diagnostics.Process]::Start("$fallbackUrl") | Out-Null }
+        return
+    }
+    $ask = [System.Windows.MessageBox]::Show("AI Gauge will download the new version, verify its checksum, close, install it and open again. This takes a few seconds.", "Update AI Gauge to v$version?", [System.Windows.MessageBoxButton]::OKCancel, [System.Windows.MessageBoxImage]::Question)
+    if ($ask -ne [System.Windows.MessageBoxResult]::OK) { return }
+    # Run a temporary copy: the installer replaces the files of the app folder while the updater is still running
+    $tmpDir = Join-Path $env:TEMP "aigauge-update"
+    New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+    $tmpUpdater = Join-Path $tmpDir "get-ai-gauge.ps1"
+    Copy-Item -Path $updater -Destination $tmpUpdater -Force
+    $env:AIGAUGE_VERSION = "v$version"
+    $env:AIGAUGE_SILENT = "1"
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", ('"' + $tmpUpdater + '"')) -WindowStyle Hidden | Out-Null
+    if ($button) { $button.Content = "Updating..."; $button.IsEnabled = $false }
+}
+
 function New-NoticeBanner ($ann, $data) {
     $isVersao = ("$($ann.type)" -eq "versao")
     $mk = { param($a, $r, $g, $b) New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb($a, $r, $g, $b)) }
@@ -837,7 +858,15 @@ function New-NoticeBanner ($ann, $data) {
         $btnAct.FontSize = 12.5
         $btnAct.Cursor = [System.Windows.Input.Cursors]::Hand
         # URL kept in Tag: this function's locals are gone by the time the click happens
-        $btnAct.Add_Click({ param($sender, $e) try { [System.Diagnostics.Process]::Start("$($sender.Tag)") } catch { Write-AppError $_.Exception } })
+        # The version to install (built-in update notice only) travels in DataContext, the URL in Tag
+        $btnAct.DataContext = "$($ann.update_version)"
+        $btnAct.Add_Click({ param($sender, $e)
+            try {
+                $ver = "$($sender.DataContext)"
+                if ($ver) { Invoke-SelfUpdate $ver "$($sender.Tag)" $sender }
+                else { [System.Diagnostics.Process]::Start("$($sender.Tag)") }
+            } catch { Write-AppError $_.Exception }
+        })
         if ($isVersao) {
             # Compact strip: button on the right, vertically centered
             $btnAct.MinWidth = 160
@@ -1248,7 +1277,7 @@ function Render-UI ($data) {
 
     # 1. New-version notice (from the app's own update check)
     if ($updAvail -and $annType -ne "versao") {
-        $upAnn = @{ type = "versao"; title = "New Version Available"; message = "Version $($data.update.latest_version) is available for download."; action_label = "Download Now"; action_url = $data.update.download_url }
+        $upAnn = @{ type = "versao"; title = "New Version Available"; message = "Version $($data.update.latest_version) is available."; action_label = "Update now"; action_url = $data.update.download_url; update_version = "$($data.update.latest_version)" }
         $cardsPanel.Children.Add((New-NoticeBanner $upAnn $data)) | Out-Null
     }
 

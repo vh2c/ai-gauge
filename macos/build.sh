@@ -23,6 +23,12 @@ if [ -f "${REPO_DIR}/assets/AppIcon.icns" ]; then
     cp "${REPO_DIR}/assets/AppIcon.icns" "${RES_DIR}/AppIcon.icns"
 fi
 
+# "Update now" runs this script from inside the app (it downloads only the release package)
+if [ -f "${SCRIPT_DIR}/get-ai-gauge.sh" ]; then
+    cp "${SCRIPT_DIR}/get-ai-gauge.sh" "${RES_DIR}/get-ai-gauge.sh"
+    chmod +x "${RES_DIR}/get-ai-gauge.sh"
+fi
+
 if [ -f "${REPO_DIR}/assets/icon.png" ]; then
     cp "${REPO_DIR}/assets/icon.png" "${RES_DIR}/icon.png"
 fi

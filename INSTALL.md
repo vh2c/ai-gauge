@@ -87,7 +87,11 @@ does not block them. Files downloaded in a browser are flagged (see [Downloaded 
 **Prefer to read it first?** The script is short: [`macos/get-ai-gauge.sh`](macos/get-ai-gauge.sh). You can download it,
 read it, and run it with `bash get-ai-gauge.sh`.
 
-**To update to a newer version later, run the same command again.**
+**To update to a newer version later:** click **Update now** in the green "New release available" banner inside AI Gauge
+(v1.1.4 and later), or run the same command again. The button asks for confirmation, then downloads the new release,
+verifies its SHA-256 checksum, closes the app, installs it (the old version goes to the Trash) and opens it again. It runs a
+script that is bundled inside the app, so nothing but the release package is downloaded. If it cannot update in place (for
+example, the app is running from the Downloads folder or from a read-only location), it offers the release page instead.
 
 The script also tells you if Node.js is missing. If so, see the next section.
 
@@ -157,7 +161,7 @@ checksum does not match, it runs nothing. Files downloaded with PowerShell are n
 the internet", so Windows usually does not show the **"Windows protected your PC"** screen. If your antivirus or
 Windows still warns, use Option 1 below and the steps there.
 
-**To update later, run the same command again.** You can read the script first: [`windows/get-ai-gauge.ps1`](windows/get-ai-gauge.ps1).
+**To update later:** click **Update now** in the banner inside AI Gauge (v1.1.4 and later; it installs silently and reopens the app), or run the same command again. You can read the script first: [`windows/get-ai-gauge.ps1`](windows/get-ai-gauge.ps1).
 
 ### Option 1: Installer (recommended if you download in the browser)
 

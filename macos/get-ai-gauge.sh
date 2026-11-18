@@ -36,7 +36,16 @@ else
 fi
 
 say()  { printf '%s\n' "$*"; }
-fail() { printf '\n❌ %s\n' "$*" >&2; exit 1; }
+
+# If anything fails after the old app was moved to the Trash, put it back
+TARGET=""
+TRASHED=""
+rollback() {
+  if [ -n "$TRASHED" ] && [ -e "$TRASHED" ] && [ -n "$TARGET" ] && [ ! -e "$TARGET" ]; then
+    mv "$TRASHED" "$TARGET" 2>/dev/null && printf '%s\n' "↩️  Previous version restored"
+  fi
+}
+fail() { rollback; printf '\n❌ %s\n' "$*" >&2; exit 1; }
 
 say "⚡ AI Gauge installer for macOS"
 say ""
@@ -89,7 +98,8 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/aigauge-install.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
 say "⬇️  Downloading ${ZIP_NAME} ..."
-curl -fL --retry 2 --progress-bar -o "$TMP/$ZIP_NAME" "$BASE_URL/$ZIP_NAME" \
+PROGRESS="-sS"; [ -t 2 ] && PROGRESS="--progress-bar"   # a progress bar only makes sense in a terminal
+curl -fL --retry 2 $PROGRESS -o "$TMP/$ZIP_NAME" "$BASE_URL/$ZIP_NAME" \
   || fail "Could not download ${BASE_URL}/${ZIP_NAME}. Check your internet connection."
 curl -fsSL --retry 2 -o "$TMP/SHA256SUMS.txt" "$BASE_URL/SHA256SUMS.txt" \
   || fail "Could not download the checksum file (SHA256SUMS.txt). Nothing was installed."
@@ -112,11 +122,19 @@ mkdir -p "$APP_DIR" 2>/dev/null || true
 
 TARGET="$APP_DIR/$APP_NAME"
 
-# Quit the running copy that lives in the target folder (and only that one)
-if pgrep -f "$TARGET/Contents/MacOS/" >/dev/null 2>&1; then
+# Quit the running copy that lives in the target folder (and only that one).
+# Uses ps, not pgrep: pgrep skips the ancestors of the caller, and when the app updates itself this script is its child.
+RUNNING_PIDS="$(ps -axo pid=,command= | grep -F "$TARGET/Contents/MacOS/" | grep -v grep | awk '{print $1}')"
+if [ -n "$RUNNING_PIDS" ]; then
   say "⏹  Closing the running AI Gauge ..."
-  pkill -f "$TARGET/Contents/MacOS/" >/dev/null 2>&1 || true
-  sleep 1
+  kill $RUNNING_PIDS >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    STILL=""
+    for pid in $RUNNING_PIDS; do kill -0 "$pid" 2>/dev/null && STILL="$STILL $pid"; done
+    [ -z "$STILL" ] && break
+    sleep 0.5
+  done
+  [ -n "${STILL:-}" ] && kill -9 $STILL >/dev/null 2>&1 || true
 fi
 
 # Keep the old version in the Trash (recoverable) instead of deleting it
@@ -124,10 +142,14 @@ if [ -e "$TARGET" ]; then
   STAMP="$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$HOME/.Trash"
   mv "$TARGET" "$HOME/.Trash/AI Gauge ${STAMP}.app" || fail "Could not move the old version to the Trash. Nothing was changed."
+  TRASHED="$HOME/.Trash/AI Gauge ${STAMP}.app"
   say "🗑  Previous version moved to the Trash"
 fi
 
-ditto "$TMP/extracted/$APP_NAME" "$TARGET" || fail "Could not copy the app into ${APP_DIR}."
+if ! ditto "$TMP/extracted/$APP_NAME" "$TARGET"; then
+  rm -rf "$TARGET"          # remove the partial copy so the previous version can be restored
+  fail "Could not copy the app into ${APP_DIR}."
+fi
 xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
 
 if codesign --verify --deep --strict "$TARGET" >/dev/null 2>&1; then

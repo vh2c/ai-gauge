@@ -37,6 +37,7 @@ Name: "desktopicon"; Description: "Create a Desktop shortcut"; GroupDescription:
 [Files]
 Source: "..\AIGauge.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\AIGauge.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\get-ai-gauge.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\node.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\..\core\*"; DestDir: "{app}\core"; Flags: ignoreversion recursesubdirs createallsubdirs

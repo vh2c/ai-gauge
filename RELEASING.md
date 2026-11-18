@@ -22,6 +22,12 @@ The GitHub Release only serves as an archive of the packages.
 
 - **Tests:** run `node tests/updater.test.js`, `node tests/last_good.test.js` and `node tests/claude_file.test.js` before releasing. It checks, with a fake API and a throw-away HOME, that the app contacts
   the server only at startup (and once per 24h if left open), that PRO sends only `machine_id` + version, and that opt-out sends nothing.
+- **"Update now" button:** `macos/get-ai-gauge.sh` and `windows/get-ai-gauge.ps1` are bundled INSIDE the apps (`Contents/Resources` and the
+  install folder). Changing them changes the in-app updater. To test on macOS without publishing anything, copy the built app
+  to a temp folder, set `CURRENT_VERSION` to an older number in its `Contents/Resources/core/updater.js`, re-sign it
+  (`codesign --force --deep -s -`), run it with `AIGAUGE_API_URL` pointing at a fake API that announces the latest release, and
+  click the green banner. On Windows, extract a test zip over the install with an older `CURRENT_VERSION` and click the banner.
+  macOS `pgrep` ignores the caller's ancestors, which is why the script finds the running app with `ps`.
 - **API contact rules** live in `core/updater.js`; the apps just pass `--startup` to the engine on their first run. If you change what is
   sent, update the "Telemetry & Privacy" section of the README in the same commit.
 - **Deploy order for telemetry changes:** deploy the API (`TelemetryController.php`) **before** releasing apps that send the minimal PRO payload,

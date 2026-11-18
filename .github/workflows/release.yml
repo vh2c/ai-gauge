@@ -67,7 +67,7 @@ jobs:
           New-Item -ItemType Directory -Path stage\windows -Force | Out-Null
           Copy-Item install.bat, AIGauge.bat, config.example.json, README.md, LICENSE -Destination stage\
           Copy-Item -Recurse core stage\core
-          Copy-Item windows\AIGauge.ps1, windows\AIGauge.vbs, windows\AIGauge.bat, windows\install.ps1, windows\install.bat, windows\uninstall.ps1, windows\icon.ico -Destination stage\windows\
+          Copy-Item windows\AIGauge.ps1, windows\AIGauge.vbs, windows\AIGauge.bat, windows\get-ai-gauge.ps1, windows\install.ps1, windows\install.bat, windows\uninstall.ps1, windows\icon.ico -Destination stage\windows\
           Compress-Archive -Path stage\* -DestinationPath AI-Gauge-Windows-vh2c.zip
 
       - name: Upload Windows artifacts

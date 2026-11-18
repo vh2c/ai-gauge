@@ -19,6 +19,7 @@ struct Group: Codable {
 
 class UrlButton: NSButton {
     var targetUrl: String?
+    var targetVersion: String?   // set on the "Update now" buttons
     
     override func resetCursorRects() {
         super.resetCursorRects()
@@ -1586,6 +1587,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var obGeminiCheck: NSButton?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        SelfUpdater.shared.onStateChange = { [weak self] in self?.renderCurrentMode() }
         setupStatusItem()
         // Telemetry heartbeat is sent by the Node engine (core/telemetry.js, throttled to 6h) so launches
         // are not counted twice and the API answer (announcements) is cached in one place.
@@ -1940,7 +1942,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             toggleBtn.isBordered = false
             toggleBtn.frame = NSRect(x: 8, y: topBarY, width: 22, height: 20)
             toggleBtn.toolTip = "Switch to Full Window (Cmd+M)"
-            if let sym = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Alternar Modo") {
+            if let sym = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Toggle Mode") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 toggleBtn.image = sym.withSymbolConfiguration(cfg)
                 toggleBtn.contentTintColor = NSColor(white: 0.65, alpha: 1.0)
@@ -2060,13 +2062,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
             
             if hasVersionNotice {
-                let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
+                // A newer release exists: the strip updates the app in place ("Update now"); a dashboard-only
+                // version notice keeps opening its link.
+                let latestVer: String? = (quota.update?.update_available == true) ? quota.update?.latest_version : nil
+                let upBtn = UrlButton(title: "", target: self, action: latestVer != nil ? #selector(updateNowClicked(_:)) : #selector(openExternalUrl(_:)))
                 upBtn.isBordered = false
                 upBtn.targetUrl = versionUrl
+                upBtn.targetVersion = latestVer
+                upBtn.isEnabled = !SelfUpdater.shared.isUpdating
                 upBtn.frame = NSRect(x: 2, y: 3, width: hudW - 4, height: 16)
-                upBtn.toolTip = "New version available. Click to download now."
+                upBtn.toolTip = latestVer != nil ? "New version available. Click to update now." : "New version available. Click to download now."
                 upBtn.attributedTitle = NSAttributedString(
-                    string: "● NOVA VERSÃO",
+                    string: SelfUpdater.shared.isUpdating ? "● UPDATING…" : "● NEW VERSION",
                     attributes: [
                         .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 8.5, weight: .bold)
@@ -2151,7 +2158,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             toggleBtn.isBordered = false
             toggleBtn.frame = NSRect(x: colX, y: (hudH - 20) / 2.0, width: 22, height: 20)
             toggleBtn.toolTip = "Switch to Full Window (Cmd+M)"
-            if let sym = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Alternar Modo") {
+            if let sym = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Toggle Mode") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 toggleBtn.image = sym.withSymbolConfiguration(cfg)
                 toggleBtn.contentTintColor = NSColor(white: 0.65, alpha: 1.0)
@@ -2177,13 +2184,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let hasVersionNotice = (quota.announcement?.type == "versao") || (quota.update?.update_available == true)
             
             if hasVersionNotice {
-                let upBtn = UrlButton(title: "", target: self, action: #selector(openExternalUrl(_:)))
+                // A newer release exists: the strip updates the app in place ("Update now"); a dashboard-only
+                // version notice keeps opening its link.
+                let latestVer: String? = (quota.update?.update_available == true) ? quota.update?.latest_version : nil
+                let upBtn = UrlButton(title: "", target: self, action: latestVer != nil ? #selector(updateNowClicked(_:)) : #selector(openExternalUrl(_:)))
                 upBtn.isBordered = false
                 upBtn.targetUrl = versionUrl
+                upBtn.targetVersion = latestVer
+                upBtn.isEnabled = !SelfUpdater.shared.isUpdating
                 upBtn.frame = NSRect(x: 12, y: 2, width: 100, height: 14)
-                upBtn.toolTip = "New version available. Click to download now."
+                upBtn.toolTip = latestVer != nil ? "New version available. Click to update now." : "New version available. Click to download now."
                 upBtn.attributedTitle = NSAttributedString(
-                    string: "● NOVA VERSÃO",
+                    string: SelfUpdater.shared.isUpdating ? "● UPDATING…" : "● NEW VERSION",
                     attributes: [
                         .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
                         .font: NSFont.systemFont(ofSize: 8.5, weight: .bold)
@@ -2388,7 +2400,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             banner.layer?.cornerRadius = 6
             contentView.addSubview(banner)
             
-            let btnW: CGFloat = 84
+            let btnW: CGFloat = 104
             let btnH: CGFloat = 26
             let btnY: CGFloat = ((bannerH - btnH) / 2.0).rounded()
             let upBtn = UrlButton(frame: NSRect(x: banner.frame.width - btnW - 12, y: btnY, width: btnW, height: btnH))
@@ -2398,15 +2410,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             upBtn.layer?.backgroundColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0).cgColor
             upBtn.layer?.cornerRadius = 4
             upBtn.attributedTitle = NSAttributedString(
-                string: "Download",
+                string: SelfUpdater.shared.isUpdating ? "Updating…" : "Update now",
                 attributes: [
                     .foregroundColor: NSColor(srgbRed: 0x12/255.0, green: 0x12/255.0, blue: 0x12/255.0, alpha: 1.0),
                     .font: NSFont.systemFont(ofSize: 11.5, weight: .bold)
                 ]
             )
             upBtn.targetUrl = update.download_url ?? "https://github.com/vh2c/ai-gauge/releases/latest"
+            upBtn.targetVersion = update.latest_version
+            upBtn.isEnabled = !SelfUpdater.shared.isUpdating
             upBtn.target = self
-            upBtn.action = #selector(openExternalUrl(_:))
+            upBtn.action = (update.latest_version ?? "").isEmpty ? #selector(openExternalUrl(_:)) : #selector(updateNowClicked(_:))
             banner.addSubview(upBtn)
             
             let titleH: CGFloat = 20
@@ -3617,6 +3631,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
+    @objc func updateNowClicked(_ sender: Any?) {
+        guard let btn = sender as? UrlButton, let version = btn.targetVersion, !version.isEmpty else {
+            openExternalUrl(sender)
+            return
+        }
+        SelfUpdater.shared.start(version: version, fallbackUrl: btn.targetUrl)
+    }
+
     @objc func openExternalUrl(_ sender: Any?) {
         var target: String?
         if let btn = sender as? UrlButton {
@@ -3935,6 +3957,109 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 saveOnboardingSelection(all: false)
             }
         }
+    }
+}
+
+// MARK: - Self update ("Update now")
+/// Updates the app in place. It runs the get-ai-gauge.sh that is bundled INSIDE this app (so no remote script is
+/// executed): the script downloads the release package from GitHub, verifies its SHA-256, closes this app, replaces
+/// it (the old copy goes to the Trash) and opens the new one. Only the release package comes from the network.
+final class SelfUpdater {
+    static let shared = SelfUpdater()
+    private(set) var isUpdating = false
+    var onStateChange: (() -> Void)?
+
+    private var logPath: String { NSHomeDirectory() + "/.config/UniversalAIQuota/update.log" }
+
+    func start(version: String, fallbackUrl: String?) {
+        if isUpdating { return }
+        guard let script = Bundle.main.path(forResource: "get-ai-gauge", ofType: "sh") else {
+            openReleasePage(fallbackUrl)
+            return
+        }
+
+        // In place only works from a normal, writable location (not from a quarantined/translocated copy)
+        let appPath = Bundle.main.bundlePath
+        let appDir = (appPath as NSString).deletingLastPathComponent
+        if appPath.contains("/AppTranslocation/") || !FileManager.default.isWritableFile(atPath: appDir) {
+            let a = NSAlert()
+            a.messageText = "AI Gauge cannot update itself from here"
+            a.informativeText = "Move AI Gauge to your Applications folder and open it from there, or download the new version from the release page."
+            a.addButton(withTitle: "Open release page")
+            a.addButton(withTitle: "Cancel")
+            if a.runModal() == .alertFirstButtonReturn { openReleasePage(fallbackUrl) }
+            return
+        }
+
+        let confirm = NSAlert()
+        confirm.messageText = "Update AI Gauge to v\(version)?"
+        confirm.informativeText = "AI Gauge will download the new version, verify its checksum, close, install it and open again. This takes a few seconds."
+        confirm.addButton(withTitle: "Update now")
+        confirm.addButton(withTitle: "Cancel")
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+        isUpdating = true
+        onStateChange?()
+
+        try? FileManager.default.createDirectory(atPath: (logPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: logPath, contents: nil)
+        let logHandle = FileHandle(forWritingAtPath: logPath)
+
+        // Run a temporary copy: the app bundle that contains the original is replaced while the script runs
+        let tmpScript = NSTemporaryDirectory() + "aigauge-update-\(ProcessInfo.processInfo.processIdentifier).sh"
+        try? FileManager.default.removeItem(atPath: tmpScript)
+        do {
+            try FileManager.default.copyItem(atPath: script, toPath: tmpScript)
+        } catch {
+            isUpdating = false
+            onStateChange?()
+            showFailure(fallbackUrl)
+            return
+        }
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/bash")
+        task.arguments = [tmpScript]
+        var env = ProcessInfo.processInfo.environment
+        env["AIGAUGE_APP_DIR"] = appDir
+        env["AIGAUGE_VERSION"] = "v\(version)"      // exactly the version the server announced
+        task.environment = env
+        task.standardOutput = logHandle
+        task.standardError = logHandle
+        task.terminationHandler = { [weak self] proc in
+            // Only reached when the script fails BEFORE it closes this app (on success this app is replaced).
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.isUpdating = false
+                self.onStateChange?()
+                if proc.terminationStatus != 0 { self.showFailure(fallbackUrl) }
+            }
+        }
+        do {
+            try task.run()
+        } catch {
+            isUpdating = false
+            onStateChange?()
+            showFailure(fallbackUrl)
+        }
+    }
+
+    private func showFailure(_ fallbackUrl: String?) {
+        let tail = ((try? String(contentsOfFile: logPath, encoding: .utf8)) ?? "")
+            .split(separator: "\n").suffix(5).joined(separator: "\n")
+        let a = NSAlert()
+        a.alertStyle = .warning
+        a.messageText = "The update could not be completed"
+        a.informativeText = (tail.isEmpty ? "" : tail + "\n\n") + "Your current version was kept. You can download the new version from the release page."
+        a.addButton(withTitle: "Open release page")
+        a.addButton(withTitle: "Close")
+        if a.runModal() == .alertFirstButtonReturn { openReleasePage(fallbackUrl) }
+    }
+
+    private func openReleasePage(_ raw: String?) {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let str = trimmed.isEmpty ? "https://github.com/vh2c/ai-gauge/releases/latest" : trimmed
+        if let url = URL(string: str) { NSWorkspace.shared.open(url) }
     }
 }
 

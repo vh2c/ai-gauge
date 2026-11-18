@@ -14,12 +14,15 @@
 # Optional environment variables:
 #   AIGAUGE_VERSION   a release tag such as v1.1.1 (default: the latest release)
 #   AIGAUGE_BASE_URL  download base URL (for testing)
+#   AIGAUGE_SILENT    set to 1 to install without the wizard and reopen AI Gauge (used by the app's "Update now" button)
 
 $ErrorActionPreference = "Stop"
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
 $ProgressPreference = "SilentlyContinue"   # much faster downloads on Windows PowerShell 5.1
 
 $exeName = "AI-Gauge-Setup.exe"
+$silent = ($env:AIGAUGE_SILENT -eq "1")
+$logFile = Join-Path $env:USERPROFILE ".config\UniversalAIQuota\update.log"
 
 if ($env:AIGAUGE_BASE_URL) {
     $baseUrl = $env:AIGAUGE_BASE_URL.TrimEnd('/')
@@ -62,13 +65,32 @@ try {
     Write-Host "Checksum verified (SHA-256)." -ForegroundColor Green
 
     Write-Host "Starting the installer ..."
-    Start-Process -FilePath $exePath -Wait
+    if ($silent) {
+        # Called from the app: install without the wizard (the installer closes the running AI Gauge), then reopen it
+        $proc = Start-Process -FilePath $exePath -ArgumentList @("/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
+        if ($proc.ExitCode -ne 0) { throw "The installer exited with code $($proc.ExitCode)." }
+        $vbs = Join-Path $env:LOCALAPPDATA "AIGauge\AIGauge.vbs"
+        if (Test-Path $vbs) { Start-Process -FilePath "wscript.exe" -ArgumentList ('"' + $vbs + '"') }
+    } else {
+        Start-Process -FilePath $exePath -Wait
+    }
     Write-Host ""
     Write-Host "Done. To update later, run the same command again." -ForegroundColor Green
 }
 catch {
     Write-Host ""
     Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    if ($silent) {
+        # No console is visible when started from the app: keep a log and tell the user
+        try {
+            New-Item -ItemType Directory -Path (Split-Path $logFile) -Force | Out-Null
+            Add-Content -Path $logFile -Value ("[{0}] {1}" -f (Get-Date -Format "s"), $_.Exception.Message) -Encoding UTF8
+        } catch {}
+        try {
+            Add-Type -AssemblyName PresentationFramework
+            [System.Windows.MessageBox]::Show("The update could not be completed:`n`n$($_.Exception.Message)`n`nYour current version was kept. You can download the new version from https://github.com/vh2c/ai-gauge/releases/latest", "AI Gauge update", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        } catch {}
+    }
 }
 finally {
     Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
