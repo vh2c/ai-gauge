@@ -70,31 +70,51 @@ If the values do not match, **do not install the file**: download it again, and 
 
 ## macOS
 
-### 1. Install Node.js (once)
+### Fastest way: one command (no security warning)
 
-AI Gauge needs Node.js 18 or later on the Mac. **Without it the app cannot collect any quota data.** Check whether you
-already have it:
+Open **Terminal** (⌘ + Space, type *Terminal*, Enter), paste this and press Enter:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vh2c/ai-gauge/main/macos/get-ai-gauge.sh | bash
+```
+
+It checks your Mac, downloads the latest release, **verifies its SHA-256 checksum**, installs **AI Gauge.app** in
+`/Applications` (the old version goes to the Trash) and opens it. It never uses `sudo` and never changes security settings.
+
+**Why there is no warning:** files downloaded with `curl` are not flagged as "downloaded from the internet", so macOS
+does not block them. Files downloaded in a browser are flagged (see [Downloaded it in the browser?](#downloaded-it-in-the-browser)).
+
+**Prefer to read it first?** The script is short: [`macos/get-ai-gauge.sh`](macos/get-ai-gauge.sh). You can download it,
+read it, and run it with `bash get-ai-gauge.sh`.
+
+**To update to a newer version later, run the same command again.**
+
+The script also tells you if Node.js is missing. If so, see the next section.
+
+### Node.js 18 or later (required, install once)
+
+AI Gauge needs Node.js on the Mac. **Without it the app cannot collect any quota data.** Check whether you already
+have it:
 
 ```bash
 node -v
 ```
 
-If this prints a version such as `v20.11.0` or higher, skip to step 2. Otherwise install Node.js with **one** of:
+If this prints a version such as `v20.11.0` or higher, you are done. Otherwise install Node.js with **one** of:
 
 - **Installer (simplest):** download the **LTS** `.pkg` from <https://nodejs.org> and run it.
 - **Homebrew:** `brew install node`
 
-Close and reopen Terminal afterwards and run `node -v` again to confirm.
+Close and reopen Terminal afterwards and run `node -v` again to confirm. Then open AI Gauge again.
 
-### 2. Install the app
+### Downloaded it in the browser?
 
-1. Download `AI-Gauge-macOS-vh2c.zip` and (optionally) [verify it](#download-and-verify).
-2. Double-click the ZIP to extract it. You get **AI Gauge.app**.
-3. Drag **AI Gauge.app** into the **Applications** folder. (Do not run it from Downloads.)
+If you downloaded `AI-Gauge-macOS-vh2c.zip` in a browser, macOS blocks the first launch because the app is **not
+notarized by Apple**. You will see *"Apple could not verify AI Gauge.app is free of malware..."* with only **Done** and
+**Move to Trash**. Do **not** move it to the Trash. Instead:
 
-### 3. First launch (needed because the app is not notarized)
-
-Use **Option A** (recommended). It only affects AI Gauge.
+1. Double-click the ZIP to extract it, and drag **AI Gauge.app** into the **Applications** folder.
+2. Use **Option A** (recommended). It only affects AI Gauge.
 
 **Option A: Terminal (most reliable)**
 
@@ -106,11 +126,13 @@ This removes the "downloaded from the internet" flag from AI Gauge only, and ope
 
 **Option B: System Settings**
 
-1. Double-click **AI Gauge** in Applications. macOS shows a message and does not open it. Click **Done** or **OK**.
+1. Double-click **AI Gauge** in Applications. macOS shows the message above. Click **Done**.
 2. Open **System Settings → Privacy & Security** and scroll down to the **Security** section.
 3. Next to *"AI Gauge" was blocked*, click **Open Anyway**, then confirm with your password or Touch ID.
 
 On recent macOS versions, **right-click → Open** is no longer enough.
+
+**You need to repeat this for every new version you download in a browser.** The one-command method above avoids it.
 
 From then on, open AI Gauge normally from Spotlight or Launchpad. The first time it starts it may offer a short setup
 wizard. A gauge icon appears in the menu bar, and the floating HUD opens on screen.
@@ -122,7 +144,22 @@ folder (needs the Xcode Command Line Tools).*
 
 ## Windows
 
-### Option 1: Installer (recommended)
+### Fastest way: one command (usually no SmartScreen screen)
+
+Open **PowerShell** (Start menu → type *PowerShell* → Enter), paste this and press Enter:
+
+```powershell
+irm https://raw.githubusercontent.com/vh2c/ai-gauge/main/windows/get-ai-gauge.ps1 | iex
+```
+
+It downloads the latest `AI-Gauge-Setup.exe`, **verifies its SHA-256 checksum**, and starts the installer. If the
+checksum does not match, it runs nothing. Files downloaded with PowerShell are normally not flagged as "downloaded from
+the internet", so Windows usually does not show the **"Windows protected your PC"** screen. If your antivirus or
+Windows still warns, use Option 1 below and the steps there.
+
+**To update later, run the same command again.** You can read the script first: [`windows/get-ai-gauge.ps1`](windows/get-ai-gauge.ps1).
+
+### Option 1: Installer (recommended if you download in the browser)
 
 1. Download `AI-Gauge-Setup.exe` and (optionally) [verify it](#download-and-verify).
 2. Double-click it. If you see **"Windows protected your PC"**:
@@ -160,8 +197,8 @@ folder (needs the Xcode Command Line Tools).*
 
 | Problem | What to do |
 | :--- | :--- |
-| **macOS: "AI Gauge cannot be opened"** (only an OK button) | Make sure the app is in **/Applications**, then run the [Option A command](#3-first-launch-needed-because-the-app-is-not-notarized). Also check **Apple menu → About This Mac**: you need macOS 11+ on Apple Silicon or macOS 13+ on Intel. |
-| **macOS: the app shows no quota data** | Node.js is missing or too old. Run `node -v` (must be 18 or later) and follow [step 1](#1-install-nodejs-once). Quit and reopen the app. |
+| **macOS: "AI Gauge cannot be opened"** (only an OK button) | Make sure the app is in **/Applications**, then run the [Option A command](#downloaded-it-in-the-browser). Also check **Apple menu → About This Mac**: you need macOS 11+ on Apple Silicon or macOS 13+ on Intel. |
+| **macOS: the app shows no quota data** | Node.js is missing or too old. Run `node -v` (must be 18 or later) and follow [step 1](#nodejs-18-or-later-required-install-once). Quit and reopen the app. |
 | **macOS: still blocked after Option A** | In Terminal run `open -a "/Applications/AI Gauge.app" 2>&1`, then `"/Applications/AI Gauge.app/Contents/MacOS/AIGauge" 2>&1 \| head -20`, and include the output when you [open an issue](https://github.com/vh2c/ai-gauge/issues). |
 | **Windows: no "Run anyway" button** | Click **More info** first. The button appears only after that. |
 | **Windows: the installer or app does nothing** | Look for the log file at `%TEMP%\ai_gauge_error.log` (paste that path into the Explorer address bar) and include it in an issue. |
@@ -199,7 +236,7 @@ Read the official install guide and follow it exactly:
 https://raw.githubusercontent.com/vh2c/ai-gauge/main/INSTALL.md
 
 Rules:
-1. Download only from https://github.com/vh2c/ai-gauge/releases/latest and verify the SHA-256 checksum against SHA256SUMS.txt before running anything.
+1. On macOS, prefer the one-command installer from the guide (curl ... get-ai-gauge.sh | bash), which verifies the checksum itself; on Windows, the PowerShell one-liner. Otherwise download only from https://github.com/vh2c/ai-gauge/releases/latest and verify the SHA-256 checksum against SHA256SUMS.txt before running anything.
 2. Before each command, show it to me, explain what it does in one sentence, and wait for my OK for anything that changes the system.
 3. Never disable Gatekeeper, SmartScreen, antivirus, SIP or any other system protection, and do not use sudo or administrator rights unless the guide says so.
 4. Only run xattr on "/Applications/AI Gauge.app", never on other files or folders.
