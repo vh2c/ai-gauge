@@ -223,7 +223,7 @@ extension QuotaData {
                 cursorGroups.append(g)
             } else if p.contains("copilot") || n.contains("copilot") || p.contains("github") {
                 copilotGroups.append(g)
-            } else if p.contains("studio") || n.contains("google gemini api") || n.contains("ai studio") {
+            } else if p.contains("studio") || p == "gemini" || p == "gemini_api" || n.contains("google gemini api") || n.contains("ai studio") {
                 studioGroups.append(g)
             } else if p.contains("openai") || n.contains("openai") {
                 openGroups.append(g)
@@ -2605,7 +2605,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 contentView.addSubview(cardView)
                 
                 let pLower = (g.provider ?? "").lowercased()
-                let isStudio = pLower.contains("studio") || g.name.lowercased().contains("gemini api")
+                let isStudio = pLower.contains("studio") || (pLower == "gemini" || pLower == "gemini_api") || g.name.lowercased().contains("gemini api")
                 let isClaudePro = !isStudio && !pLower.contains("antigravity") && (pLower.contains("claude") || g.name.lowercased().contains("claude")) && !g.name.lowercased().contains("claude and gpt")
                 let isChatGpt = pLower.contains("chatgpt") || g.name.lowercased().contains("chatgpt")
                 let isCursor = pLower.contains("cursor") || g.name.lowercased().contains("cursor")
