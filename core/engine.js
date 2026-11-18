@@ -68,30 +68,31 @@ class UniversalQuotaEngine {
     const providers = [];
     const add = (key, promise) => { keys.push(key); providers.push(promise); };
     const pCfg = this.config.providers || {};
+    const isEnabled = (v) => v === true || v === 'true' || v === 1 || v === '1';
 
     // Security: Only probe providers explicitly enabled by user
-    if (pCfg.antigravity?.enabled === true) {
+    if (isEnabled(pCfg.antigravity?.enabled)) {
       add('antigravity', new AntigravityProvider().fetch());
     }
-    if (pCfg.claude_pro?.enabled === true) {
+    if (isEnabled(pCfg.claude_pro?.enabled)) {
       add('claude_pro', new ClaudeProProvider(pCfg.claude_pro?.token).fetch());
     }
-    if (pCfg.chatgpt_subscription?.enabled === true) {
+    if (isEnabled(pCfg.chatgpt_subscription?.enabled)) {
       add('chatgpt_subscription', new ChatGPTSubscriptionProvider(pCfg.chatgpt_subscription?.token).fetch());
     }
-    if (pCfg.cursor?.enabled === true) {
+    if (isEnabled(pCfg.cursor?.enabled)) {
       add('cursor', new CursorProvider(pCfg.cursor?.token).fetch());
     }
-    if (pCfg.github_copilot?.enabled === true) {
+    if (isEnabled(pCfg.github_copilot?.enabled)) {
       add('github_copilot', new GitHubCopilotProvider(pCfg.github_copilot?.token).fetch());
     }
-    if (pCfg.gemini?.enabled === true && pCfg.gemini?.api_key) {
+    if (isEnabled(pCfg.gemini?.enabled) && pCfg.gemini?.api_key) {
       add('gemini', new GeminiProvider(pCfg.gemini.api_key).fetch());
     }
-    if (pCfg.openai?.enabled === true && pCfg.openai?.api_key) {
+    if (isEnabled(pCfg.openai?.enabled) && pCfg.openai?.api_key) {
       add('openai', new OpenAIProvider(pCfg.openai.api_key).fetch());
     }
-    if (pCfg.anthropic?.enabled === true && pCfg.anthropic?.api_key) {
+    if (isEnabled(pCfg.anthropic?.enabled) && pCfg.anthropic?.api_key) {
       add('anthropic', new AnthropicProvider(pCfg.anthropic.api_key).fetch());
     }
 

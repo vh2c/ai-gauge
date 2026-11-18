@@ -77,15 +77,43 @@ $DeviceIdFile = Join-Path $ConfigDir "device_id"
 
 # First run without config (e.g. installed via Setup.exe): detect installed AI tools and write a starter config.
 function Initialize-DefaultConfig {
-    if (Test-Path $ConfigFile) { return }
+    $up = $env:USERPROFILE
+    $hasClaude = (Test-Path (Join-Path $up ".claude")) -or [bool](Get-Command "claude.cmd" -ErrorAction SilentlyContinue) -or [bool](Get-Command "claude.exe" -ErrorAction SilentlyContinue)
+    $hasChatGPT = (Test-Path (Join-Path $up ".codex\auth.json")) -or (Test-Path (Join-Path $env:APPDATA "ChatGPT"))
+    $hasCursor = (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Cursor")) -or (Test-Path (Join-Path $env:LOCALAPPDATA "cursor")) -or (Test-Path (Join-Path $env:ProgramFiles "Cursor")) -or (Test-Path (Join-Path $env:APPDATA "Cursor")) -or [bool](Get-Process "Cursor" -ErrorAction SilentlyContinue)
+    $hasCopilot = (Test-Path (Join-Path $env:APPDATA "Code\User\globalStorage\github.copilot-chat")) -or [bool](Get-Command "gh.exe" -ErrorAction SilentlyContinue)
+    $hasGemini = [bool]$env:GEMINI_API_KEY
+    $hasAnti = [bool](Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or [bool](Get-Process "language_server*" -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $up ".gemini\antigravity")) -or (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Antigravity")) -or (Test-Path (Join-Path $env:ProgramFiles "Antigravity"))
+
+    if (Test-Path $ConfigFile) {
+        try {
+            $existing = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+            if ($existing -and $existing.providers) {
+                $dirty = $false
+                if ($existing.providers.antigravity -eq $null -or $existing.providers.antigravity.enabled -ne $true) {
+                    if (-not $existing.providers.antigravity) {
+                        $existing.providers | Add-Member -MemberType NoteProperty -Name "antigravity" -Value (@{ enabled = $true }) -Force
+                    } else {
+                        $existing.providers.antigravity.enabled = $true
+                    }
+                    $dirty = $true
+                }
+                if ($hasCursor -and ($existing.providers.cursor -eq $null -or $existing.providers.cursor.enabled -ne $true)) {
+                    if (-not $existing.providers.cursor) {
+                        $existing.providers | Add-Member -MemberType NoteProperty -Name "cursor" -Value (@{ enabled = $true }) -Force
+                    } else {
+                        $existing.providers.cursor.enabled = $true
+                    }
+                    $dirty = $true
+                }
+                if ($dirty) {
+                    $existing | ConvertTo-Json -Depth 5 | Set-Content -Path $ConfigFile -Encoding UTF8
+                }
+            }
+        } catch {}
+        return
+    }
     try {
-        $up = $env:USERPROFILE
-        $hasClaude = (Test-Path (Join-Path $up ".claude")) -or [bool](Get-Command "claude.cmd" -ErrorAction SilentlyContinue) -or [bool](Get-Command "claude.exe" -ErrorAction SilentlyContinue)
-        $hasChatGPT = (Test-Path (Join-Path $up ".codex\auth.json")) -or (Test-Path (Join-Path $env:APPDATA "ChatGPT"))
-        $hasCursor = (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or (Test-Path (Join-Path $env:APPDATA "Cursor")) -or [bool](Get-Process "Cursor" -ErrorAction SilentlyContinue)
-        $hasCopilot = (Test-Path (Join-Path $env:APPDATA "Code\User\globalStorage\github.copilot-chat")) -or [bool](Get-Command "gh.exe" -ErrorAction SilentlyContinue)
-        $hasGemini = [bool]$env:GEMINI_API_KEY
-        $hasAnti = [bool](Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $up ".gemini\antigravity"))
         # Names shown in the one-time welcome message (first run only)
         $global:FirstRunDetected = @()
         if ($hasAnti) { $global:FirstRunDetected += "Antigravity" }
@@ -105,6 +133,10 @@ function Initialize-DefaultConfig {
                 openai = @{ enabled = [bool]$env:OPENAI_API_KEY; api_key = if ($env:OPENAI_API_KEY) { $env:OPENAI_API_KEY } else { "" } }
                 anthropic = @{ enabled = [bool]$env:ANTHROPIC_API_KEY; api_key = if ($env:ANTHROPIC_API_KEY) { $env:ANTHROPIC_API_KEY } else { "" } }
             }
+            refresh_interval_seconds = 30
+            hidden_hud_gauges = @()
+            onboarding_completed = $true
+        }
             refresh_interval_seconds = 30
             hidden_hud_gauges = @()
             onboarding_completed = $true

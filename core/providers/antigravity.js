@@ -75,62 +75,74 @@ class AntigravityProvider {
     this.platform = process.platform;
   }
 
-  findFromDaemonHubs() {
+  findAllDaemonHubs() {
+    const hubs = [];
     try {
-      const daemonDir = path.join(os.homedir(), '.gemini', 'antigravity', 'daemon');
-      if (!fs.existsSync(daemonDir)) return null;
-      const files = fs.readdirSync(daemonDir).filter(f => f.startsWith('hub_') && f.endsWith('.json'));
-      // Sort newest first
-      files.sort((a, b) => {
-        try {
-          return fs.statSync(path.join(daemonDir, b)).mtimeMs - fs.statSync(path.join(daemonDir, a)).mtimeMs;
-        } catch (_) { return 0; }
-      });
+      const home = os.homedir();
+      const userProfile = process.env.USERPROFILE || home;
+      const localApp = process.env.LOCALAPPDATA || path.join(userProfile, 'AppData', 'Local');
+      const appData = process.env.APPDATA || path.join(userProfile, 'AppData', 'Roaming');
 
-      for (const file of files) {
-        try {
-          const filePath = path.join(daemonDir, file);
-          const stat = fs.statSync(filePath);
-          // Skip stale files older than 24h
-          if (Date.now() - stat.mtimeMs > 24 * 3600 * 1000) continue;
+      const daemonDirs = [
+        path.join(home, '.gemini', 'antigravity', 'daemon'),
+        path.join(userProfile, '.gemini', 'antigravity', 'daemon'),
+        path.join(localApp, 'Antigravity', 'daemon'),
+        path.join(appData, 'Antigravity', 'daemon'),
+        path.join(home, '.antigravity', 'daemon')
+      ];
 
-          const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-          if (content.csrfToken && (content.httpPort || content.httpsPort || content.pid)) {
-            let isAlive = true;
-            if (content.pid) {
-              try {
-                process.kill(content.pid, 0);
-              } catch (err) {
-                // ESRCH means process definitely does not exist. EPERM means process exists but no permission.
-                if (err.code === 'ESRCH') isAlive = false;
-              }
-            }
-            if (isAlive) {
-              return {
+      const seenDirs = new Set();
+      for (const d of daemonDirs) {
+        if (!d || seenDirs.has(d)) continue;
+        seenDirs.add(d);
+        if (!fs.existsSync(d)) continue;
+
+        let files = [];
+        try {
+          files = fs.readdirSync(d).filter(f => f.startsWith('hub_') && f.endsWith('.json'));
+        } catch (_) { continue; }
+
+        // Sort newest first
+        files.sort((a, b) => {
+          try {
+            return fs.statSync(path.join(d, b)).mtimeMs - fs.statSync(path.join(d, a)).mtimeMs;
+          } catch (_) { return 0; }
+        });
+
+        for (const file of files) {
+          try {
+            const filePath = path.join(d, file);
+            const stat = fs.statSync(filePath);
+            // Skip files older than 48h
+            if (Date.now() - stat.mtimeMs > 48 * 3600 * 1000) continue;
+
+            const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            if (content.csrfToken && (content.httpPort || content.httpsPort)) {
+              hubs.push({
                 pid: content.pid || 0,
                 csrfToken: content.csrfToken,
-                httpPort: content.httpPort,
-                httpsPort: content.httpsPort,
+                httpPort: content.httpPort || null,
+                httpsPort: content.httpsPort || null,
                 commandLine: ''
-              };
+              });
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
       }
     } catch (_) {}
-    return null;
+    return hubs;
+  }
+
+  findFromDaemonHubs() {
+    const hubs = this.findAllDaemonHubs();
+    return hubs.length > 0 ? hubs[0] : null;
   }
 
   async findRunningProcess() {
-    // 1. Instant check from daemon directory
-    const daemonHub = this.findFromDaemonHubs();
-    if (daemonHub) return daemonHub;
-
-    // 2. Fallback to process table scan
     try {
       if (this.platform === 'win32') {
         const cmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -match \'language_server|agy|Antigravity\' } | Select-Object ProcessId, CommandLine | ConvertTo-Json"';
-        const { stdout } = await execAsync(cmd, { timeout: 4000 });
+        const { stdout } = await execAsync(cmd, { timeout: 5000 });
         let items = JSON.parse(stdout || '[]');
         if (!Array.isArray(items)) items = [items];
         for (const item of items) {
@@ -155,18 +167,19 @@ class AntigravityProvider {
   }
 
   async getPorts(proc) {
-    if (proc.httpsPort || proc.httpPort) {
-      const p = [];
-      if (proc.httpsPort) p.push(proc.httpsPort);
-      if (proc.httpPort) p.push(proc.httpPort);
-      return p;
-    }
+    const ports = [];
+    if (proc.httpPort && !ports.includes(proc.httpPort)) ports.push(proc.httpPort);
+    if (proc.httpsPort && !ports.includes(proc.httpsPort)) ports.push(proc.httpsPort);
+
     const pid = proc.pid;
     const commandLine = proc.commandLine || '';
-    const ports = extractCliPorts(commandLine);
+    for (const p of extractCliPorts(commandLine)) {
+      if (!ports.includes(p)) ports.push(p);
+    }
+
     try {
       if (this.platform === 'win32') {
-        const { stdout } = await execAsync(`netstat -ano | findstr "${pid}"`, { timeout: 3000 });
+        const { stdout } = await execAsync(`netstat -ano | findstr "${pid}"`, { timeout: 4000 });
         for (const line of stdout.split('\n')) {
           if (!line.includes('LISTENING')) continue;
           const parts = line.trim().split(/\s+/);
@@ -190,8 +203,16 @@ class AntigravityProvider {
       }
     } catch (_) {}
 
-    // Security: Only return ports strictly verified to belong to proc.pid.
-    // Never send CSRF token to unverified arbitrary default ports.
+    // Fallback: add ports seen in any hub file and default IDE ports
+    for (const h of this.findAllDaemonHubs()) {
+      if (h.httpPort && !ports.includes(h.httpPort)) ports.push(h.httpPort);
+      if (h.httpsPort && !ports.includes(h.httpsPort)) ports.push(h.httpsPort);
+    }
+    const defaults = [53078, 53079, 58014, 58013, 53530, 53527, 53529, 53533, 53534];
+    for (const d of defaults) {
+      if (!ports.includes(d)) ports.push(d);
+    }
+
     return ports;
   }
 
@@ -208,7 +229,7 @@ class AntigravityProvider {
           'Content-Length': Buffer.byteLength(data),
           'x-codeium-csrf-token': token
         },
-        timeout: 2500,
+        timeout: 1500,
         rejectUnauthorized: false
       };
 
@@ -238,7 +259,8 @@ class AntigravityProvider {
 
   findLanguageServerBinary() {
     const home = os.homedir();
-    const localApp = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    const userProfile = process.env.USERPROFILE || home;
+    const localApp = process.env.LOCALAPPDATA || path.join(userProfile, 'AppData', 'Local');
     const progFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
     const progFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
 
@@ -249,16 +271,22 @@ class AntigravityProvider {
       path.join(home, '.local/share/antigravity/bin/language_server'),
       path.join(home, '.gemini/antigravity/bin/language_server'),
       // Windows candidates:
+      path.join(localApp, 'Programs', 'Antigravity', 'resources', 'app', 'bin', 'language_server_windows_x64.exe'),
       path.join(localApp, 'Programs', 'Antigravity', 'resources', 'bin', 'language_server_windows_x64.exe'),
       path.join(localApp, 'Programs', 'Antigravity', 'resources', 'bin', 'language_server.exe'),
       path.join(localApp, 'Programs', 'Antigravity', 'bin', 'language_server_windows_x64.exe'),
       path.join(localApp, 'Programs', 'Antigravity', 'bin', 'language_server.exe'),
       path.join(localApp, 'Antigravity', 'bin', 'language_server_windows_x64.exe'),
+      path.join(progFiles, 'Antigravity', 'resources', 'app', 'bin', 'language_server_windows_x64.exe'),
       path.join(progFiles, 'Antigravity', 'resources', 'bin', 'language_server_windows_x64.exe'),
       path.join(progFiles, 'Antigravity', 'resources', 'bin', 'language_server.exe'),
+      path.join(progFiles, 'Antigravity', 'bin', 'language_server_windows_x64.exe'),
       path.join(progFilesX86, 'Antigravity', 'resources', 'bin', 'language_server_windows_x64.exe'),
+      path.join(progFilesX86, 'Antigravity', 'bin', 'language_server_windows_x64.exe'),
       path.join(home, '.gemini', 'antigravity', 'bin', 'language_server_windows_x64.exe'),
       path.join(home, '.gemini', 'antigravity', 'bin', 'language_server.exe'),
+      path.join(userProfile, '.gemini', 'antigravity', 'bin', 'language_server_windows_x64.exe'),
+      path.join(userProfile, '.gemini', 'antigravity', 'bin', 'language_server.exe'),
       path.join(home, '.gemini', 'antigravity', 'bin', 'language_server')
     ];
     for (const c of candidates) {
@@ -305,7 +333,7 @@ class AntigravityProvider {
       const tryConnect = async (port, isHttps) => {
         if (resolved) return;
         // Small delay for server initialization
-        await new Promise(r => setTimeout(r, 250));
+        await new Promise(r => setTimeout(r, 200));
         const userRes = await this.requestRpc(port, token, RPC_USER_STATUS_PATH, {}, isHttps);
         const sumRes = await this.requestRpc(port, token, RPC_SUMMARY_PATH, {}, isHttps);
         if (!resolved && (sumRes.ok || userRes.ok)) {
@@ -318,19 +346,24 @@ class AntigravityProvider {
 
       const handleChunk = (chunk) => {
         const text = chunk.toString();
+        // Check for HTTP port
+        const mHttp = text.match(/listening on random port at (\d+) for HTTP/i) ||
+                      text.match(/hub_(\d+)\.json/i);
+        if (mHttp) {
+          const port = parseInt(mHttp[1], 10);
+          tryConnect(port, false);
+        }
         // Check for HTTPS port
         const mHttps = text.match(/listening on random port at (\d+) for HTTPS/i);
         if (mHttps) {
           const port = parseInt(mHttps[1], 10);
           tryConnect(port, true);
-          return;
         }
-        // Check for HTTP port
-        const mHttp = text.match(/listening on random port at (\d+) for HTTP/i);
-        if (mHttp) {
-          const port = parseInt(mHttp[1], 10);
+        // Generic port match fallback
+        const mGen = text.match(/http:\/\/127\.0\.0\.1:(\d+)/i) || text.match(/port\s*[:=]\s*(\d+)/i);
+        if (mGen) {
+          const port = parseInt(mGen[1], 10);
           tryConnect(port, false);
-          return;
         }
       };
 
@@ -362,12 +395,31 @@ class AntigravityProvider {
   }
 
   async fetch() {
-    // 1. Tenta processo em execução (0 overhead)
+    // 1. Tenta todos os hubs locais salvos (~/.gemini/antigravity/daemon) - 0 overhead, mais rápido e direto
+    const hubs = this.findAllDaemonHubs();
+    for (const hub of hubs) {
+      if (hub.httpPort) {
+        const userRes = await this.requestRpc(hub.httpPort, hub.csrfToken, RPC_USER_STATUS_PATH, {}, false);
+        if (userRes.ok) {
+          const sumRes = await this.requestRpc(hub.httpPort, hub.csrfToken, RPC_SUMMARY_PATH, {}, false);
+          return this.normalize(sumRes.data || {}, userRes.data || {}, 'online');
+        }
+      }
+      if (hub.httpsPort) {
+        const userRes = await this.requestRpc(hub.httpsPort, hub.csrfToken, RPC_USER_STATUS_PATH, {}, true);
+        if (userRes.ok) {
+          const sumRes = await this.requestRpc(hub.httpsPort, hub.csrfToken, RPC_SUMMARY_PATH, {}, true);
+          return this.normalize(sumRes.data || {}, userRes.data || {}, 'online');
+        }
+      }
+    }
+
+    // 2. Se nenhum hub de arquivo respondeu, tenta processo em execução
     const proc = await this.findRunningProcess();
-    if (proc) {
+    if (proc && proc.csrfToken) {
       const ports = await this.getPorts(proc);
       for (const port of ports) {
-        for (const isHttps of [true, false]) {
+        for (const isHttps of [false, true]) {
           const userRes = await this.requestRpc(port, proc.csrfToken, RPC_USER_STATUS_PATH, {}, isHttps);
           if (userRes.ok) {
             const sumRes = await this.requestRpc(port, proc.csrfToken, RPC_SUMMARY_PATH, {}, isHttps);
@@ -377,7 +429,7 @@ class AntigravityProvider {
       }
     }
 
-    // 2. Se não estiver rodando, tenta boot headless independente
+    // 3. Se não estiver rodando, tenta boot headless independente
     const headlessRes = await this.fetchHeadless();
     if (headlessRes) {
       return this.normalize(headlessRes.summary || {}, headlessRes.user || {}, 'headless');
