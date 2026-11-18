@@ -236,8 +236,6 @@ For **PRO**, the server stores only the app version, and only when it changes.
 
 A note on IP addresses: like any web server, ours sees your IP address while handling the request, but it is **not stored with your device record** and it is **never sent to any third party**. For FREE users the server keeps a one-way hash of the IP that changes every day, so it cannot be linked across days. The server **does not derive your country, state or city**. The only case where an IP address is kept is when a request is invalid or abusive (for example a malformed call): it is then held in a block list for a limited time (blocks last 10 minutes, then 24 hours) to protect the server. PRO users are not hashed.
 
-> Until 2026-11-18, older server versions derived an approximate location (country / state / city) for FREE users through a third-party IP lookup service. That was removed.
-
 ### Promotional messages (FREE only)
 If an active promo exists, it appears as a small window **at most once every 6 hours**, starting one minute after the app opens. It is chosen from the data received at the last check, so showing it **needs no extra network request and sends no extra data**. It never opens twice at the same time, even if the computer stays on for days or the app restarts. If there is no active promo, nothing is shown. PRO users never see promos, and FREE users also see a fixed "Help AI GAUGE developers team" banner.
 
