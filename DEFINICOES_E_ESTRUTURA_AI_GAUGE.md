@@ -246,7 +246,7 @@ Em consonância com a skill `api`, a estrutura de classes respeitará os 5 bloco
 4. **`RouterService`**:
    - Roteador REST simples e performático (`get()`, `post()`, `put()`, `delete()`).
 5. **`ApiService` (Controladores)**:
-   - `TelemetryController@heartbeat`: Recebe ping do app, atualiza `dispositivos`, resolve GeoIP e devolve announcements ativos e status de update.
+   - `TelemetryController@heartbeat`: Recebe o contato do app (só ao abrir e, se ficar aberto, a cada 24 h), atualiza `dispositivos` (para PRO, apenas `versao_app`) e devolve announcement, promo (só FREE) e status de update. Não há GeoIP: a API não deriva país/estado/cidade nem envia o IP a terceiros.
    - `LicenseController@validate`: Valida a chave de licença enviada pelo app.
    - `AnnouncementController@list`: Retorna os avisos vigentes para renderizar o banner no app.
    - `VisitorController@track`: Endpoint `sendBeacon` / `fetch` para métricas da landing page.
