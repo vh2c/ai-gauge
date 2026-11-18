@@ -66,6 +66,39 @@ test('ChatGPT: an old cache is shown as Outdated, a recent one is not', () => {
   assert.ok(!fresh.groups[0].outdated);
 });
 
+test('Claude: desktop usage from recent session is loaded cleanly', () => {
+  const desktopDir = path.join(TMP_HOME, 'ClaudeDesktop');
+  fs.mkdirSync(desktopDir, { recursive: true });
+  fs.writeFileSync(path.join(desktopDir, 'plan-usage-history.json'), JSON.stringify({
+    version: 2,
+    samples: [
+      { t: Date.now() - 5 * MIN, org: 'test-org', u: { fh: 15, sd: 35 } }
+    ]
+  }));
+  const p = new ClaudeProProvider('t');
+  const r = p.getDesktopUsage(desktopDir);
+  assert.ok(r);
+  assert.strictEqual(r.groups[0].outdated, undefined);
+  assert.strictEqual(r.groups[0].buckets[0].remaining_pct, 85);
+  assert.strictEqual(r.groups[0].buckets[1].remaining_pct, 65);
+});
+
+test('Claude: old desktop usage (>30m) is marked Outdated', () => {
+  const desktopDir = path.join(TMP_HOME, 'ClaudeDesktopOld');
+  fs.mkdirSync(desktopDir, { recursive: true });
+  fs.writeFileSync(path.join(desktopDir, 'plan-usage-history.json'), JSON.stringify({
+    version: 2,
+    samples: [
+      { t: Date.now() - 40 * MIN, org: 'test-org', u: { fh: 20, sd: 40 } }
+    ]
+  }));
+  const p = new ClaudeProProvider('t');
+  const r = p.getDesktopUsage(desktopDir);
+  assert.ok(r);
+  assert.strictEqual(r.groups[0].outdated, true);
+  assert.strictEqual(r.groups[0].buckets[0].reset_in, 'Outdated');
+});
+
 let failed = 0;
 for (const t of tests) {
   try { t.f(); console.log('  ok   ' + t.n); } catch (e) { failed++; console.log('  FAIL ' + t.n + '\n       ' + e.message); }

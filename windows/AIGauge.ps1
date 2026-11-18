@@ -1421,9 +1421,10 @@ function Render-UI ($data) {
                 $row.Children.Add($tbReset) | Out-Null
             }
             
+            $isOutdated = ($b.reset_in -eq "Outdated")
             $tbVal = New-Object System.Windows.Controls.TextBlock
-            $tbVal.Text = "$pct%"
-            $tbVal.Foreground = $statusBrush
+            $tbVal.Text = if ($isOutdated) { "--%" } else { "$pct%" }
+            $tbVal.Foreground = if ($isOutdated) { New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xF5, 0xA6, 0x23)) } else { $statusBrush }
             $tbVal.FontWeight = [System.Windows.FontWeights]::Bold
             $tbVal.FontSize = 18
             $tbVal.MinWidth = 56
@@ -1435,7 +1436,7 @@ function Render-UI ($data) {
             $cardStack.Children.Add($row) | Out-Null
             
             # Progress bar: two star columns, so it always fills the card width (flex)
-            $pctClamped = [Math]::Min([Math]::Max($pct, 0), 100)
+            $pctClamped = if ($isOutdated) { 0 } else { [Math]::Min([Math]::Max($pct, 0), 100) }
             $pbar = New-Object System.Windows.Controls.Grid
             $pbar.Height = 8
             $pbar.Margin = New-Object System.Windows.Thickness(0, 6, 0, 0)

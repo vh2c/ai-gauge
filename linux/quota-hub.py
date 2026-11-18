@@ -812,10 +812,11 @@ class QuotaHubAppLinux:
                 bname = tk.Label(row1, text=b.get("name", ""), font=("Sans", 9), fg="#FFFFFF", bg="#1F1F1F")
                 bname.pack(side="left")
 
-                pct = b.get("remaining_pct", 100)
-                reset_str = f" • {b.get('reset_in')}" if b.get("reset_in") else ""
-                val_text = f"{pct}%{reset_str}"
-                val_col = status_color(pct, accent_col)
+                is_outdated = (b.get("reset_in") == "Outdated")
+                pct = 0 if is_outdated else b.get("remaining_pct", 100)
+                reset_str = " • Outdated · sign in again" if is_outdated else (f" • {b.get('reset_in')}" if b.get("reset_in") else "")
+                val_text = f"--%{reset_str}" if is_outdated else f"{pct}%{reset_str}"
+                val_col = "#F5A623" if is_outdated else status_color(pct, accent_col)
                 bval = tk.Label(row1, text=val_text, font=("Monospace", 9, "bold"), fg=val_col, bg="#1F1F1F")
                 bval.pack(side="right")
 

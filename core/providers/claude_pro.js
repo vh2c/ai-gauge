@@ -8,7 +8,7 @@ const path = require('path');
 const os = require('os');
 const { markOutdated } = require('../staleness');
 
-const CLAUDE_SIGNIN_HINT = 'Outdated: sign in to Claude Code again (run claude, then /login)';
+const CLAUDE_SIGNIN_HINT = 'Outdated: sign in to Claude Code again (run "claude auth login --claudeai") or open Claude Desktop';
 
 class ClaudeProProvider {
   constructor(token) {
@@ -37,7 +37,7 @@ class ClaudeProProvider {
     try {
       const claudeBin = this.findClaudeBinary();
       if (claudeBin) {
-        execFileSync(claudeBin, ['-p', 'ping'], {
+        execFileSync(claudeBin, ['auth', 'status'], {
           timeout: 6000,
           stdio: ['ignore', 'ignore', 'ignore'],
           env: {
@@ -165,6 +165,78 @@ class ClaudeProProvider {
     };
   }
 
+  getDesktopUsage(customDir) {
+    const defaultFile = process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'plan-usage-history.json')
+      : (process.platform === 'win32'
+        ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Claude', 'plan-usage-history.json')
+        : path.join(os.homedir(), '.config', 'Claude', 'plan-usage-history.json'));
+
+    const file = customDir ? path.join(customDir, 'plan-usage-history.json') : defaultFile;
+    if (!fs.existsSync(file)) return null;
+
+    try {
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const samples = raw.samples;
+      if (!Array.isArray(samples) || samples.length === 0) return null;
+      const latest = samples[samples.length - 1];
+      if (!latest || typeof latest.t !== 'number' || !latest.u) return null;
+
+      const util5h = Number(latest.u.fh ?? 0.0);
+      const util7d = Number(latest.u.sd ?? 0.0);
+      const rem5h = Math.round(Math.max(0, Math.min(100, 100.0 - util5h)));
+      const rem7d = Math.round(Math.max(0, Math.min(100, 100.0 - util7d)));
+
+      let windowStart = latest.t;
+      for (let i = samples.length - 1; i >= 0; i--) {
+        const s = samples[i];
+        if (latest.t - s.t > 5 * 3600 * 1000) break;
+        if (Number(s.u?.fh || 0) > 0) {
+          windowStart = s.t;
+        }
+      }
+      const reset5hTarget = windowStart + (5 * 3600 * 1000);
+      const reset5h = this.formatResetRemaining(new Date(reset5hTarget).toISOString()) || '5h';
+      const reset7d = '7d';
+
+      const age = Date.now() - latest.t;
+
+      const payload = {
+        provider: 'claude_pro',
+        account: 'Claude Pro (Desktop)',
+        plan: 'Claude Pro Plan',
+        mode: 'desktop_session',
+        groups: [
+          {
+            name: 'Claude',
+            description: 'Claude subscription limits (Claude Desktop)',
+            provider: 'Claude',
+            buckets: [
+              {
+                id: 'claude-pro-5h',
+                name: '5 Hours Limit',
+                remaining_pct: rem5h,
+                reset_in: reset5h,
+                detail: `5h window (${rem5h}% available)`
+              },
+              {
+                id: 'claude-pro-7d',
+                name: 'Weekly Limit',
+                remaining_pct: rem7d,
+                reset_in: reset7d,
+                detail: `Weekly quota (${rem7d}% available)`
+              }
+            ]
+          }
+        ]
+      };
+
+      return markOutdated(payload, age, CLAUDE_SIGNIN_HINT);
+    } catch (_) {
+      return null;
+    }
+  }
+
   async fetch() {
     // Check if we have a very fresh cache (< 45s) to avoid triggering Anthropic 429 rate limit
     try {
@@ -178,12 +250,25 @@ class ClaudeProProvider {
 
     const token = this.token || this.getTokenFromKeychain() || this.getTokenFromFile();
 
-    // Fallback: if no live token, check cache
+    // Fallback: if no live token, check desktop session first, then cache
     if (!token) {
-      return this.fetchFromCache();
+      const desktop = this.getDesktopUsage();
+      if (desktop && !desktop.groups?.[0]?.outdated) {
+        return desktop;
+      }
+      return this.fetchFromCache(desktop);
     }
 
     return new Promise((resolve) => {
+      const fallback = () => {
+        const desktop = this.getDesktopUsage();
+        if (desktop && !desktop.groups?.[0]?.outdated) {
+          resolve(desktop);
+          return;
+        }
+        resolve(this.fetchFromCache(desktop));
+      };
+
       const options = {
         hostname: 'api.anthropic.com',
         path: '/api/oauth/usage',
@@ -215,20 +300,25 @@ class ClaudeProProvider {
               return;
             } catch (_) {}
           }
-          resolve(this.fetchFromCache());
+          fallback();
         });
       });
 
-      req.on('error', () => resolve(this.fetchFromCache()));
+      req.on('error', () => fallback());
       req.on('timeout', () => {
         req.destroy();
-        resolve(this.fetchFromCache());
+        fallback();
       });
       req.end();
     });
   }
 
-  fetchFromCache() {
+  fetchFromCache(desktopUsage) {
+    const desktop = desktopUsage !== undefined ? desktopUsage : this.getDesktopUsage();
+    if (desktop && !desktop.groups?.[0]?.outdated) {
+      return desktop;
+    }
+
     // 1. Try dedicated live cache first
     try {
       if (fs.existsSync(this.dedicatedCachePath)) {
@@ -239,6 +329,9 @@ class ClaudeProProvider {
         }
       }
     } catch (_) {}
+
+    // 2. Desktop usage if available (even if outdated)
+    if (desktop) return desktop;
 
     // 2. Fallback to VS Code status cache
     try {

@@ -935,7 +935,8 @@ class TachometerGaugeView: NSView {
         }
         
         // 4. Arco Preenchido Dinâmico
-        let pct = Double(min(max(item.percentage, 0), 100))
+        let isOutdated = (item.resetIn == "Outdated")
+        let pct = isOutdated ? 0.0 : Double(min(max(item.percentage, 0), 100))
         let sweepPctDeg = (pct / 100.0) * totalSweepDeg
         let currentAngleDeg = startAngleDeg - sweepPctDeg
         
@@ -962,7 +963,9 @@ class TachometerGaugeView: NSView {
         let colorRed = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
         
         let activeColor: NSColor
-        if pct >= 50.0 {
+        if isOutdated {
+            activeColor = colorYellow
+        } else if pct >= 50.0 {
             activeColor = colorHealthy
         } else if pct >= 20.0 {
             activeColor = colorYellow
@@ -1028,10 +1031,10 @@ class TachometerGaugeView: NSView {
         )
         
         // 7. Porcentagem no Centro Inferior
-        let pctStr = "\(item.percentage)%" as NSString
+        let pctStr = (isOutdated ? "--%" : "\(item.percentage)%") as NSString
         let pctAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .bold),
-            .foregroundColor: NSColor.white
+            .foregroundColor: isOutdated ? colorYellow : NSColor.white
         ]
         let pctSize = pctStr.size(withAttributes: pctAttrs)
         pctStr.draw(at: CGPoint(x: cx - pctSize.width / 2.0, y: cy - 23.0), withAttributes: pctAttrs)
@@ -1046,10 +1049,11 @@ class TachometerGaugeView: NSView {
         modelStr.draw(at: CGPoint(x: cx - mSize.width / 2.0, y: 12.0), withAttributes: modelAttrs)
         
         if let reset = item.resetIn, !reset.isEmpty {
-            let rStr = reset as NSString
+            let isItemOutdated = (reset == "Outdated")
+            let rStr = (isItemOutdated ? "Outdated" : reset) as NSString
             let rAttrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 8.5, weight: .regular),
-                .foregroundColor: NSColor(white: 0.50, alpha: 1.0)
+                .foregroundColor: isItemOutdated ? colorYellow : NSColor(white: 0.50, alpha: 1.0)
             ]
             let rSize = rStr.size(withAttributes: rAttrs)
             rStr.draw(at: CGPoint(x: cx - rSize.width / 2.0, y: 1.0), withAttributes: rAttrs)
@@ -1819,12 +1823,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func updateStatusItemTitle() {
         guard let quota = latestQuota else { return }
         var minPct = 100
+        var hasValidBucket = false
         for g in quota.groups {
             for b in g.buckets {
-                if b.remaining_pct < minPct { minPct = b.remaining_pct }
+                if b.reset_in != "Outdated" {
+                    if b.remaining_pct < minPct { minPct = b.remaining_pct }
+                    hasValidBucket = true
+                }
             }
         }
-        if minPct < 100 {
+        if hasValidBucket && minPct < 100 {
             statusItem?.button?.title = " \(minPct)%"
         } else {
             statusItem?.button?.title = ""
@@ -2802,21 +2810,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     bTitle.frame = NSRect(x: 14, y: cardY, width: cardView.frame.width - 210, height: 16)
                     cardView.addSubview(bTitle)
                     
+                    let isOutdated = (b.reset_in == "Outdated")
+                    
                     if let reset = b.reset_in, !reset.isEmpty {
-                        let resetLabel = NSTextField(labelWithString: reset == "Now" ? "Renews now" : (reset == "Active" ? "Active" : (reset == "Outdated" ? "Outdated · sign in again" : "Renews in \(reset)")))
-                        resetLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
-                        resetLabel.textColor = (reset == "Outdated")
-                            ? NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)   // amber: the numbers are old
-                            : NSColor(white: 0.50, alpha: 1.0)
-                        resetLabel.alignment = .right
-                        resetLabel.frame = NSRect(x: cardView.frame.width - 210, y: cardY + 2, width: 140, height: 13)
-                        cardView.addSubview(resetLabel)
+                        if isOutdated {
+                            let signInBtn = NSButton(frame: NSRect(x: cardView.frame.width - 210, y: cardY + 1, width: 140, height: 15))
+                            signInBtn.isBordered = false
+                            signInBtn.target = self
+                            signInBtn.action = #selector(handleOutdatedSignInClicked(_:))
+                            let pStyle = NSMutableParagraphStyle()
+                            pStyle.alignment = .right
+                            signInBtn.attributedTitle = NSAttributedString(
+                                string: "Outdated · sign in again",
+                                attributes: [
+                                    .foregroundColor: NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0),
+                                    .font: NSFont.systemFont(ofSize: 9.5, weight: .semibold),
+                                    .underlineStyle: NSUnderlineStyle.single.rawValue,
+                                    .paragraphStyle: pStyle
+                                ]
+                            )
+                            cardView.addSubview(signInBtn)
+                        } else {
+                            let resetText = reset == "Now" ? "Renews now" : (reset == "Active" ? "Active" : "Renews in \(reset)")
+                            let resetLabel = NSTextField(labelWithString: resetText)
+                            resetLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
+                            resetLabel.textColor = NSColor(white: 0.50, alpha: 1.0)
+                            resetLabel.alignment = .right
+                            resetLabel.frame = NSRect(x: cardView.frame.width - 210, y: cardY + 2, width: 140, height: 13)
+                            cardView.addSubview(resetLabel)
+                        }
                     }
                     
-                    let valStr = "\(b.remaining_pct)%"
+                    let valStr = isOutdated ? "--%" : "\(b.remaining_pct)%"
                     let bVal = NSTextField(labelWithString: valStr)
                     bVal.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .bold)
-                    if b.remaining_pct >= 50 {
+                    if isOutdated {
+                        bVal.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 0.8)
+                    } else if b.remaining_pct >= 50 {
                         bVal.textColor = accentColor
                     } else if b.remaining_pct >= 20 {
                         bVal.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
@@ -2834,13 +2864,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     barBg.cornerRadius = 3
                     cardView.addSubview(barBg)
                     
-                    let fillWidth = max(CGFloat(barBg.frame.width) * CGFloat(b.remaining_pct) / 100.0, 4)
-                    let barFill = NSBox(frame: NSRect(x: 14, y: cardY + 22, width: fillWidth, height: 6))
-                    barFill.boxType = .custom
-                    barFill.fillColor = bVal.textColor ?? NSColor.systemGreen
-                    barFill.borderColor = .clear
-                    barFill.cornerRadius = 3
-                    cardView.addSubview(barFill)
+                    if !isOutdated {
+                        let fillWidth = max(CGFloat(barBg.frame.width) * CGFloat(b.remaining_pct) / 100.0, 4)
+                        let barFill = NSBox(frame: NSRect(x: 14, y: cardY + 22, width: fillWidth, height: 6))
+                        barFill.boxType = .custom
+                        barFill.fillColor = bVal.textColor ?? NSColor.systemGreen
+                        barFill.borderColor = .clear
+                        barFill.cornerRadius = 3
+                        cardView.addSubview(barFill)
+                    }
                     
                     cardY += 38
                 }
@@ -3011,6 +3043,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // Evitar roubar foco da janela de configurações se o usuário estiver nela
             if settingsWindow == nil || settingsWindow?.isVisible == false {
                 window.orderFront(nil)
+            }
+        }
+    }
+    
+    @objc func handleOutdatedSignInClicked(_ sender: Any?) {
+        let alert = NSAlert()
+        alert.messageText = "Renew AI Quota Credentials"
+        alert.informativeText = "AI Gauge detected that credentials for this provider are out of date.\n\n• Claude: If you use Claude Desktop, simply open Claude.app and chat. To sign in with Claude Code CLI, click 'Sign in to Claude Code' (runs claude auth login --claudeai).\n• ChatGPT: Open the ChatGPT app and sign in.\n\nAfter signing in, click 'Refresh' in AI Gauge."
+        alert.addButton(withTitle: "Sign in to Claude Code")
+        alert.addButton(withTitle: "Open Claude.ai")
+        alert.addButton(withTitle: "OK")
+        let resp = alert.runModal()
+        if resp == .alertFirstButtonReturn {
+            let script = "tell application \"Terminal\" to do script \"claude auth login --claudeai\" activate"
+            if let appleScript = NSAppleScript(source: script) {
+                var err: NSDictionary?
+                appleScript.executeAndReturnError(&err)
+            }
+        } else if resp == .alertSecondButtonReturn {
+            if let url = URL(string: "https://claude.ai") {
+                NSWorkspace.shared.open(url)
             }
         }
     }
