@@ -79,7 +79,7 @@ var
   ResultCode: Integer;
 begin
   Exec('powershell.exe',
-    '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq ''powershell.exe'' -or $_.Name -eq ''wscript.exe'') -and $_.ProcessId -ne $PID -and $_.CommandLine -match ''AIGauge\.(ps1|vbs)|GeminiGauge|AntigravityQuotaHub'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"',
+    '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq ''powershell.exe'' -or $_.Name -eq ''wscript.exe'' -or $_.Name -eq ''node.exe'') -and $_.ProcessId -ne $PID -and ($_.CommandLine -match ''AIGauge|GeminiGauge|AntigravityQuotaHub'' -or $_.ExecutablePath -like ''*AIGauge*'' -or $_.ExecutablePath -like ''*GeminiGauge*'') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 

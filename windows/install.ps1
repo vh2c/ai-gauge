@@ -3,6 +3,26 @@
 
 $ErrorActionPreference = "Stop"
 
+trap {
+    Write-Host ""
+    Write-Host "❌ Erro durante a instalação: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Detalhes: $($_.Exception.ToString())" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "Pressione qualquer tecla para encerrar..."
+    try { [Console]::ReadKey($true) | Out-Null } catch {}
+    exit 1
+}
+
+function Safe-JoinPath ($base, $child) {
+    if ([string]::IsNullOrWhiteSpace($base) -or [string]::IsNullOrWhiteSpace($child)) { return $null }
+    return (Join-Path $base $child)
+}
+
+function Safe-TestPath ($base, $child) {
+    if ([string]::IsNullOrWhiteSpace($base) -or [string]::IsNullOrWhiteSpace($child)) { return $false }
+    return (Test-Path (Join-Path $base $child) -ErrorAction SilentlyContinue)
+}
+
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host " ⚡ AI Gauge - Windows Installer (VH2C)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Green
@@ -22,8 +42,8 @@ Write-Host "🧹 Checking for a previous version..." -ForegroundColor Cyan
 
 # 0.1 Close any running AI Gauge instance (current or legacy names)
 try {
-    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'wscript.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match 'AIGauge\.(ps1|vbs)|GeminiGauge\.(ps1|vbs)|AntigravityQuotaHub' -and $_.ProcessId -ne $PID } |
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'wscript.exe' OR Name = 'node.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { ($_.CommandLine -match 'AIGauge\.(ps1|vbs)|GeminiGauge\.(ps1|vbs)|AntigravityQuotaHub' -or $_.ExecutablePath -like "*AIGauge*" -or $_.ExecutablePath -like "*GeminiGauge*") -and $_.ProcessId -ne $PID } |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Milliseconds 600
 } catch {}
@@ -80,36 +100,37 @@ $HasGemini = $false
 if ((Get-Process "Antigravity" -ErrorAction SilentlyContinue) -or
     (Get-Process "language_server" -ErrorAction SilentlyContinue) -or
     (Get-Process "language_server_windows_x64" -ErrorAction SilentlyContinue) -or
-    (Test-Path (Join-Path $env:USERPROFILE ".gemini\antigravity")) -or
-    (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Antigravity")) -or
-    (Test-Path (Join-Path $env:ProgramFiles "Antigravity"))) {
+    (Safe-TestPath $env:USERPROFILE ".gemini\antigravity") -or
+    (Safe-TestPath $env:LOCALAPPDATA "Programs\Antigravity") -or
+    (Safe-TestPath $env:ProgramFiles "Antigravity") -or
+    (Safe-TestPath ${env:ProgramFiles(x86)} "Antigravity")) {
     $HasAnti = $true
 }
 
 # 2. Claude
-if ((Test-Path (Join-Path $env:USERPROFILE ".claude")) -or (Get-Command "claude.cmd" -ErrorAction SilentlyContinue) -or (Get-Command "claude.exe" -ErrorAction SilentlyContinue)) {
+if ((Safe-TestPath $env:USERPROFILE ".claude") -or (Get-Command "claude.cmd" -ErrorAction SilentlyContinue) -or (Get-Command "claude.exe" -ErrorAction SilentlyContinue)) {
     $HasClaude = $true
 }
 
 # 3. ChatGPT
-if ((Test-Path (Join-Path $env:USERPROFILE ".codex\auth.json")) -or (Test-Path (Join-Path $env:APPDATA "ChatGPT"))) {
+if ((Safe-TestPath $env:USERPROFILE ".codex\auth.json") -or (Safe-TestPath $env:APPDATA "ChatGPT")) {
     $HasChatGPT = $true
 }
 
 # 4. Cursor
 if ((Get-Process "Cursor" -ErrorAction SilentlyContinue) -or
-    (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor")) -or
-    (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\Cursor")) -or
-    (Test-Path (Join-Path $env:LOCALAPPDATA "cursor")) -or
-    (Test-Path (Join-Path $env:ProgramFiles "Cursor")) -or
-    (Test-Path (Join-Path ${env:ProgramFiles(x86)} "Cursor")) -or
-    (Test-Path (Join-Path $env:APPDATA "Cursor")) -or
-    (Test-Path (Join-Path $env:USERPROFILE ".cursor"))) {
+    (Safe-TestPath $env:LOCALAPPDATA "Programs\cursor") -or
+    (Safe-TestPath $env:LOCALAPPDATA "Programs\Cursor") -or
+    (Safe-TestPath $env:LOCALAPPDATA "cursor") -or
+    (Safe-TestPath $env:ProgramFiles "Cursor") -or
+    (Safe-TestPath ${env:ProgramFiles(x86)} "Cursor") -or
+    (Safe-TestPath $env:APPDATA "Cursor") -or
+    (Safe-TestPath $env:USERPROFILE ".cursor")) {
     $HasCursor = $true
 }
 
 # 5. GitHub Copilot (VS Code)
-if ((Test-Path (Join-Path $env:APPDATA "Code\User\globalStorage\github.copilot-chat")) -or (Get-Command "gh.exe" -ErrorAction SilentlyContinue)) {
+if ((Safe-TestPath $env:APPDATA "Code\User\globalStorage\github.copilot-chat") -or (Get-Command "gh.exe" -ErrorAction SilentlyContinue)) {
     $HasCopilot = $true
 }
 
@@ -255,18 +276,19 @@ function Install-PortableNode ($DestDir) {
 }
 
 function Find-SystemNode {
-    $cmd = Get-Command "node.exe" -ErrorAction SilentlyContinue
-    if (-not $cmd) { $cmd = Get-Command "node" -ErrorAction SilentlyContinue }
-    if ($cmd -and (Test-Path $cmd.Source)) { return $cmd.Source }
+    try {
+        $cmd = Get-Command "node.exe" -ErrorAction SilentlyContinue
+        if (-not $cmd) { $cmd = Get-Command "node" -ErrorAction SilentlyContinue }
+        if ($cmd -and (Test-Path $cmd.Source -ErrorAction SilentlyContinue)) { return $cmd.Source }
+    } catch {}
     
-    $common = @(
-        (Join-Path $env:ProgramFiles "nodejs\node.exe"),
-        (Join-Path ${env:ProgramFiles(x86)} "nodejs\node.exe"),
-        (Join-Path $env:LOCALAPPDATA "Programs\node\node.exe"),
-        (Join-Path $env:LOCALAPPDATA "Programs\nodejs\node.exe")
-    )
-    foreach ($p in $common) {
-        if ($p -and (Test-Path $p)) { return $p }
+    $commonBases = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA, (Safe-JoinPath $env:LOCALAPPDATA "Programs")) | Where-Object { $_ }
+    $subPaths = @("nodejs\node.exe", "node\node.exe")
+    foreach ($b in $commonBases) {
+        foreach ($s in $subPaths) {
+            $p = Safe-JoinPath $b $s
+            if ($p -and (Test-Path $p -ErrorAction SilentlyContinue)) { return $p }
+        }
     }
     return $null
 }
