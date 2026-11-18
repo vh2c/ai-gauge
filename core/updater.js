@@ -210,14 +210,24 @@ async function checkForUpdates(opts = {}) {
 
   let mode = null; // 'launch' | 'recheck'
   if (startup) {
-    const gapOk = !cached || !cached.last_launch_at || (now - cached.last_launch_at) >= STARTUP_MIN_GAP_MS;
+    // A different app version than the one that wrote the cache means the app was just updated: always check,
+    // regardless of the 10-minute guard, so the "new release" banner for the old version is cleared right away.
+    const upgraded = !!cached && !!cached.current_version && cached.current_version !== CURRENT_VERSION;
+    const gapOk = !cached || !cached.last_launch_at || upgraded || (now - cached.last_launch_at) >= STARTUP_MIN_GAP_MS;
     if (gapOk) mode = 'launch';
   } else if (!cached) {
     mode = 'launch';
   } else if (now >= (cached.next_check_at || 0)) {
     mode = 'recheck';
   }
-  if (!mode) return cached;
+  if (!mode) {
+    // Whether an update is available depends on the version that is running NOW, not on the one that wrote the cache
+    return cached ? {
+      ...cached,
+      current_version: CURRENT_VERSION,
+      update_available: isNewer(cached.latest_version, CURRENT_VERSION)
+    } : cached;
+  }
 
   const optedOut = telemetryOptedOut();
   const staleFresh = !optedOut && cached && cached.timestamp && (now - cached.timestamp < STALE_MAX_AGE_MS);

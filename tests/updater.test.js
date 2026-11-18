@@ -159,6 +159,25 @@ test('telemetry opted out: the AI Gauge API is never called and no announcement/
   assert.strictEqual(r.tier, 'free');
 });
 
+test('after the app is updated, the old "new release" banner is cleared without any network call', async () => {
+  respond = FREE_OK;
+  await updater.checkForUpdates({ startup: true });
+  // cache written by an OLDER app (it thought an update was available)
+  patchCache({ current_version: '0.0.1', latest_version: updater.CURRENT_VERSION, update_available: true });
+  const r = await updater.checkForUpdates({});            // normal refresh, no network expected
+  assert.strictEqual(requests.length, 1);
+  assert.strictEqual(r.current_version, updater.CURRENT_VERSION);
+  assert.strictEqual(r.update_available, false);
+});
+
+test('opening the app right after an update checks the server even inside the 10-minute guard', async () => {
+  respond = FREE_OK;
+  await updater.checkForUpdates({ startup: true });
+  patchCache({ current_version: '0.0.1' });                // last launch was seconds ago, but by an older version
+  await updater.checkForUpdates({ startup: true });
+  assert.strictEqual(requests.length, 2);
+});
+
 // --- runner --------------------------------------------------------------------------------------------
 (async () => {
   const port = await startServer();
