@@ -105,14 +105,14 @@ class CursorProvider {
               name: 'Fast Requests (Claude / GPT-4o)',
               remaining_pct: 100,
               reset_in: resetInDays,
-              detail: '500 requisições rápidas / mês (Plano Pro)'
+              detail: '500 fast requests / month (Pro Plan)'
             },
             {
               id: 'cursor-monthly-cycle',
               name: 'Ciclo Mensal de Faturamento',
               remaining_pct: Math.round(((30 - Math.min(30, daysRemaining)) / 30) * 100),
               reset_in: resetInDays,
-              detail: `Renovação de cota em ${daysRemaining} dias`
+              detail: `Quota renews in ${daysRemaining} days`
             }
           ]
         }
@@ -168,14 +168,14 @@ class CursorProvider {
                         name: 'Fast Requests (Claude / GPT-4o)',
                         remaining_pct: remainingPct,
                         reset_in: `${daysRemaining}d`,
-                        detail: `${remaining} de ${maxRequests} requisições restantes`
+                        detail: `${remaining} of ${maxRequests} requests remaining`
                       },
                       {
                         id: 'cursor-monthly-cycle',
                         name: 'Ciclo Mensal de Faturamento',
                         remaining_pct: Math.round(((30 - Math.min(30, daysRemaining)) / 30) * 100),
                         reset_in: `${daysRemaining}d`,
-                        detail: `Renovação de cota em ${daysRemaining} dias`
+                        detail: `Quota renews in ${daysRemaining} days`
                       }
                     ]
                   }

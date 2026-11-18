@@ -1,14 +1,14 @@
-# Como publicar uma nova versão
+# How to publish a new version
 
-A versão exibida aos usuários e o link de download são decididos pela **API** (`ai_gauge_api`).
-O GitHub Release serve apenas como arquivo dos pacotes.
+The version shown to users and the download link are decided by the **API** (`ai_gauge_api`).
+The GitHub Release only serves as an archive of the packages.
 
-1. **Versão no código** (mesmo número em todos): `core/updater.js` (`CURRENT_VERSION`), `core/telemetry.js`,
-   `macos/build.sh` (Info.plist) e o `MyAppVersion` padrão em `windows/installer/AIGauge.iss`.
-2. **Commit e tag:** `git tag v1.2.0 && git push origin main --tags`.
-3. **CI (`Release Build`):** gera `AI-Gauge-Setup.exe`, ZIP do Windows, macOS, Linux e `SHA256SUMS.txt`
-   e cria um Release em **rascunho (draft)**. Para testar sem tag: Actions → Release Build → Run workflow.
-4. **Teste** o `AI-Gauge-Setup.exe` numa máquina Windows limpa.
-5. **Publique o rascunho** no GitHub (só então `releases/latest` passa a apontar para ele).
-6. **Atualize a API** (`TelemetryController.php`: `$latestVer` e, se mudar, `download_url`) e faça o deploy
-   seguindo o fluxo da VPS (GitHub antes da VPS). Só depois disso os apps passam a avisar a atualização.
+1. **Version in the code** (same number everywhere): `core/updater.js` (`CURRENT_VERSION`), `core/telemetry.js`,
+   `macos/build.sh` (Info.plist) and the default `MyAppVersion` in `windows/installer/AIGauge.iss`.
+2. **Commit and tag:** `git tag v1.2.0 && git push origin main --tags`.
+3. **CI (`Release Build`):** builds `AI-Gauge-Setup.exe`, the Windows, macOS and Linux ZIPs and `SHA256SUMS.txt`,
+   and creates a **draft** Release. To test without a tag: Actions → Release Build → Run workflow.
+4. **Test** `AI-Gauge-Setup.exe` on a clean Windows machine.
+5. **Publish the draft** on GitHub (only then does `releases/latest` point to it).
+6. **Update the API** (`TelemetryController.php`: `$latestVer` and, if it changes, `download_url`) and deploy
+   following the VPS flow (GitHub before the VPS). Only after that do the apps start announcing the update.

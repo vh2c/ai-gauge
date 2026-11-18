@@ -96,7 +96,7 @@ class GitHubCopilotProvider {
               id: 'copilot-chat-limit',
               name: 'Copilot Chat & Model Limits',
               remaining_pct: 100,
-              reset_in: 'Ativo',
+              reset_in: 'Active',
               detail: 'Modelos Claude 3.5 & GPT-4o habilitados'
             },
             {
@@ -104,7 +104,7 @@ class GitHubCopilotProvider {
               name: 'Code Completions Rate Limits',
               remaining_pct: 100,
               reset_in: '1h',
-              detail: 'Taxa operacional normal (Sem restrições)'
+              detail: 'Normal operating rate (No restrictions)'
             }
           ]
         }
@@ -153,7 +153,7 @@ class GitHubCopilotProvider {
                         id: 'copilot-chat-limit',
                         name: 'Copilot Chat & Model Limits',
                         remaining_pct: 100,
-                        reset_in: 'Ativo',
+                        reset_in: 'Active',
                         detail: `${skuLabel} • Claude 3.5 & GPT-4o Liberados`
                       },
                       {
@@ -161,7 +161,7 @@ class GitHubCopilotProvider {
                         name: 'Code Completions Rate Limits',
                         remaining_pct: 100,
                         reset_in: '1h',
-                        detail: 'Taxa operacional normal (Sem restrições)'
+                        detail: 'Normal operating rate (No restrictions)'
                       }
                     ]
                   }

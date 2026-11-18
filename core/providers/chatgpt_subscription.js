@@ -159,14 +159,14 @@ class ChatGPTSubscriptionProvider {
               name: 'GPT-4o (3h)',
               remaining_pct: rem4o,
               reset_in: reset4o,
-              detail: planType === 'free' ? `Cota ativa (${rem4o}% disponível)` : `Janela de 3h (${rem4o}% disponível)`
+              detail: planType === 'free' ? `Active quota (${rem4o}% available)` : `3h window (${rem4o}% available)`
             },
             {
               id: 'chatgpt-o1-weekly',
               name: 'o1 Reasoning (Semanal)',
               remaining_pct: remO1,
               reset_in: resetO1,
-              detail: `Cota semanal o1 (${remO1}% disponível)`
+              detail: `Weekly o1 quota (${remO1}% available)`
             }
           ]
         }
@@ -286,14 +286,14 @@ class ChatGPTSubscriptionProvider {
                     name: 'GPT-4o (3h)',
                     remaining_pct: rem4o,
                     reset_in: reset4o,
-                    detail: `Janela de 3h (${rem4o}% disponível)`
+                    detail: `3h window (${rem4o}% available)`
                   },
                   {
                     id: 'chatgpt-o1-weekly',
                     name: 'o1 Reasoning (Semanal)',
                     remaining_pct: remO1,
                     reset_in: resetO1,
-                    detail: `Cota semanal o1 (${remO1}% disponível)`
+                    detail: `Weekly o1 quota (${remO1}% available)`
                   }
                 ]
               }
@@ -321,14 +321,14 @@ class ChatGPTSubscriptionProvider {
                 name: 'GPT-4o (3h)',
                 remaining_pct: 100,
                 reset_in: '3h',
-                detail: 'Janela de 3h (100% disponível)'
+                detail: '3h window (100% available)'
               },
               {
                 id: 'chatgpt-o1-weekly',
                 name: 'o1 Reasoning (Semanal)',
                 remaining_pct: 100,
                 reset_in: '7d',
-                detail: 'Cota semanal o1 (100% disponível)'
+                detail: 'Weekly o1 quota (100% available)'
               }
             ]
           }

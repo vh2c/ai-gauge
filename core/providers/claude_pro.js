@@ -116,14 +116,14 @@ class ClaudeProProvider {
               name: '5 Hours Limit',
               remaining_pct: rem5h,
               reset_in: reset5h,
-              detail: `Janela de 5h (${rem5h}% disponível)`
+              detail: `5h window (${rem5h}% available)`
             },
             {
               id: 'claude-pro-7d',
               name: 'Weekly Limit',
               remaining_pct: rem7d,
               reset_in: reset7d,
-              detail: `Cota semanal (${rem7d}% disponível)`
+              detail: `Weekly quota (${rem7d}% available)`
             }
           ]
         }
@@ -239,14 +239,14 @@ class ClaudeProProvider {
                     name: '5 Hours Limit',
                     remaining_pct: rem5h,
                     reset_in: reset5h,
-                    detail: `Janela de 5h (${rem5h}% disponível)`
+                    detail: `5h window (${rem5h}% available)`
                   },
                   {
                     id: 'claude-pro-7d',
                     name: 'Weekly Limit',
                     remaining_pct: rem7d,
                     reset_in: reset7d,
-                    detail: `Cota semanal (${rem7d}% disponível)`
+                    detail: `Weekly quota (${rem7d}% available)`
                   }
                 ]
               }

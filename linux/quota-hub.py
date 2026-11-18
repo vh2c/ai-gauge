@@ -127,7 +127,7 @@ def save_config(cfg):
         except Exception:
             pass
     except Exception as e:
-        print(f"Erro ao salvar configurações: {e}")
+        print(f"Error saving settings: {e}")
 
 def find_node():
     # 1. Check local app embedded/portable node
@@ -276,23 +276,23 @@ def print_cli(quota):
     send_telemetry_heartbeat()
     if not quota or quota.get("needs_setup"):
         print("\n" + "="*58)
-        print(" ⚡ Universal AI Quota Monitor - Configuração Necessária")
+        print(" ⚡ Universal AI Quota Monitor - Setup Required")
         print("="*58)
-        print(" Nenhum provedor de IA ativo ou configurado.")
-        print(f" Configure suas chaves em: {CONFIG_FILE}")
-        print(" Exemplo: Adicione GEMINI_API_KEY ou OPENAI_API_KEY.")
+        print(" No active or configured AI provider.")
+        print(f" Configure your keys in: {CONFIG_FILE}")
+        print(" Example: add GEMINI_API_KEY or OPENAI_API_KEY.")
         print("="*58 + "\n")
         return
 
     print("\n" + "="*58)
     print(f" ⚡ Universal AI Quota Monitor - vh2c.com.br")
-    print(f" Conta: {quota.get('account', 'Multi-Provider')} • Plano {quota.get('plan', 'Universal')}")
-    print(f" Atualizado às {quota.get('updated_at', 'agora')} " + ("(Tempo real)" if not quota.get("from_cache") else "(Cache)"))
+    print(f" Account: {quota.get('account', 'Multi-Provider')} • Plan {quota.get('plan', 'Universal')}")
+    print(f" Updated at {quota.get('updated_at', 'now')} " + ("(Live)" if not quota.get("from_cache") else "(Cache)"))
     print("="*58)
 
     for g in quota.get("groups", []):
         prov = f" [{g.get('provider')}]" if g.get('provider') else ""
-        print(f"\n📂 {g.get('name', 'Grupo').upper()}{prov}")
+        print(f"\n📂 {g.get('name', 'Group').upper()}{prov}")
         for b in g.get("buckets", []):
             pct = b.get("remaining_pct", 0)
             reset = f" • {b.get('reset_in')}" if b.get("reset_in") else ""
@@ -301,7 +301,7 @@ def print_cli(quota):
             bar = "█" * filled + "░" * (bar_len - filled)
             col = "\033[92m" if pct > 50 else ("\033[93m" if pct > 20 else "\033[91m")
             rst = "\033[0m"
-            print(f"  {b.get('name', 'Limite'):<26} {col}{pct:>3}%{rst}{reset}")
+            print(f"  {b.get('name', 'Limit'):<26} {col}{pct:>3}%{rst}{reset}")
             print(f"  [{col}{bar}{rst}]")
     print("\n" + "="*58 + "\n")
 
@@ -453,7 +453,7 @@ class QuotaHubAppLinux:
 
         dlg = tk.Toplevel(self.root)
         self.settings_dlg = dlg
-        dlg.title("Configurar Provedores de IA - AI Gauge")
+        dlg.title("Configure AI Providers - AI Gauge")
         dlg.geometry("520x600")
         dlg.configure(bg="#181818")
         dlg.transient(self.root)
@@ -467,10 +467,10 @@ class QuotaHubAppLinux:
                 pass
         dlg.protocol("WM_DELETE_WINDOW", close_dlg)
 
-        header = tk.Label(dlg, text="⚙️ Provedores de IA & Seleção de Gauges", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818")
+        header = tk.Label(dlg, text="⚙️ AI Providers & Gauge Selection", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818")
         header.pack(fill="x", pady=(14, 4), padx=16)
 
-        sub = tk.Label(dlg, text="Ative seus provedores e selecione os Gauges do seu Painel Lateral HUD:", font=("Sans", 8), fg="#999999", bg="#181818")
+        sub = tk.Label(dlg, text="Enable your providers and select the gauges for your HUD side panel:", font=("Sans", 8), fg="#999999", bg="#181818")
         sub.pack(fill="x", padx=16, pady=(0, 10))
 
         # Bottom buttons bar (packed first with side="bottom" to guarantee visibility)
@@ -515,7 +515,7 @@ class QuotaHubAppLinux:
         cb_anti = tk.Checkbutton(f_anti, text="Antigravity IDE (Live & Headless Standalone)", variable=var_anti,
                                  font=("Sans", 9, "bold"), fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
         cb_anti.pack(anchor="w")
-        tk.Label(f_anti, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#888888", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        tk.Label(f_anti, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#888888", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_anti1 = tk.Frame(f_anti, bg="#1F1F1F")
         r_anti1.pack(anchor="w")
         add_hud_cb(r_anti1, "gemini-weekly", "Gemini Semanal")
@@ -531,14 +531,14 @@ class QuotaHubAppLinux:
         f_cpro = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#D78C68", highlightthickness=1)
         f_cpro.pack(fill="x", pady=5)
         var_claude_pro = tk.BooleanVar(value=cpro_cfg.get("enabled", True))
-        cb_cpro = tk.Checkbutton(f_cpro, text="Claude (Sessão & Limites)", variable=var_claude_pro,
+        cb_cpro = tk.Checkbutton(f_cpro, text="Claude (Session & Limits)", variable=var_claude_pro,
                                  font=("Sans", 9, "bold"), fg="#D78C68", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#D78C68")
         cb_cpro.pack(anchor="w")
         ent_claude_token = tk.Entry(f_cpro, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_claude_token.insert(0, cpro_cfg.get("token", ""))
         ent_claude_token.pack(fill="x", pady=2)
-        tk.Label(f_cpro, text="💡 Token OAuth opcional (detectado automaticamente se houver sessão)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_cpro, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#D78C68", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        tk.Label(f_cpro, text="💡 Optional OAuth token (auto-detected if a session exists)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_cpro, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#D78C68", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_cpro = tk.Frame(f_cpro, bg="#1F1F1F")
         r_cpro.pack(anchor="w")
         add_hud_cb(r_cpro, "claude-pro-5h", "Janela de 5h")
@@ -555,8 +555,8 @@ class QuotaHubAppLinux:
         ent_chatgpt_token = tk.Entry(f_gpt, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_chatgpt_token.insert(0, gpt_cfg.get("token", ""))
         ent_chatgpt_token.pack(fill="x", pady=2)
-        tk.Label(f_gpt, text="💡 Token de Acesso / Sessão do ChatGPT (janela de 3h e cota o1)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_gpt, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#8AE39A", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        tk.Label(f_gpt, text="💡 ChatGPT Access / Session Token (3h window and o1 quota)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_gpt, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#8AE39A", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_gpt = tk.Frame(f_gpt, bg="#1F1F1F")
         r_gpt.pack(anchor="w")
         add_hud_cb(r_gpt, "chatgpt-4o-3h", "GPT-4o (3h)")
@@ -573,8 +573,8 @@ class QuotaHubAppLinux:
         ent_cursor_token = tk.Entry(f_cur, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_cursor_token.insert(0, cur_cfg.get("token", ""))
         ent_cursor_token.pack(fill="x", pady=2)
-        tk.Label(f_cur, text="💡 Token de Sessão do Cursor (opcional se logado no Cursor)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_cur, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#C084FC", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        tk.Label(f_cur, text="💡 Cursor Session Token (optional if signed in to Cursor)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_cur, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#C084FC", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_cur = tk.Frame(f_cur, bg="#1F1F1F")
         r_cur.pack(anchor="w")
         add_hud_cb(r_cur, "cursor-fast-requests", "Fast Requests")
@@ -591,8 +591,8 @@ class QuotaHubAppLinux:
         ent_copilot_token = tk.Entry(f_cop, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_copilot_token.insert(0, cop_cfg.get("token", ""))
         ent_copilot_token.pack(fill="x", pady=2)
-        tk.Label(f_cop, text="💡 GitHub Personal Access Token para Copilot (opcional)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_cop, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#FF5265", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        tk.Label(f_cop, text="💡 GitHub Personal Access Token for Copilot (optional)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
+        tk.Label(f_cop, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#FF5265", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_cop = tk.Frame(f_cop, bg="#1F1F1F")
         r_cop.pack(anchor="w")
         add_hud_cb(r_cop, "copilot-chat-limit", "Chat Limits")
@@ -609,15 +609,15 @@ class QuotaHubAppLinux:
         ent_gem = tk.Entry(f_gem, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
         ent_gem.insert(0, gem_cfg.get("api_key", ""))
         ent_gem.pack(fill="x", pady=2)
-        link_gem = tk.Label(f_gem, text="🔗 Obter chave grátis no Google AI Studio", font=("Sans", 7), fg="#4DA3FF", bg="#1F1F1F", cursor="hand2")
+        link_gem = tk.Label(f_gem, text="🔗 Get a free key at Google AI Studio", font=("Sans", 7), fg="#4DA3FF", bg="#1F1F1F", cursor="hand2")
         link_gem.pack(anchor="w")
         link_gem.bind("<Button-1>", lambda e: webbrowser.open("https://aistudio.google.com/app/apikey"))
-        tk.Label(f_gem, text="Gauges no Painel Lateral HUD:", font=("Sans", 7, "bold"), fg="#38BDF8", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
+        tk.Label(f_gem, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#38BDF8", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
         r_gem = tk.Frame(f_gem, bg="#1F1F1F")
         r_gem.pack(anchor="w")
         add_hud_cb(r_gem, "gemini-flash-rpm", "Flash RPM")
         add_hud_cb(r_gem, "gemini-pro-rpm", "Pro RPM")
-        add_hud_cb(r_gem, "gemini-key-status", "Status da Chave")
+        add_hud_cb(r_gem, "gemini-key-status", "Key Status")
 
         # 4. OpenAI Card
         oa_cfg = pCfg.get("openai", {})
@@ -734,12 +734,12 @@ class QuotaHubAppLinux:
         main_frame = tk.Frame(self.root, bg="#181818", padx=20, pady=16)
         main_frame.pack(fill="both", expand=True)
 
-        acc_text = f"{quota.get('account', 'Multi-Provider')} • Plano {quota.get('plan', 'Universal')}"
+        acc_text = f"{quota.get('account', 'Multi-Provider')} • Plan {quota.get('plan', 'Universal')}"
         lbl_acc = tk.Label(main_frame, text=acc_text, font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818", anchor="w")
         lbl_acc.pack(fill="x")
 
-        time_status = "(Tempo real)" if not quota.get("from_cache") else f"(Cache {quota.get('cache_age_seconds', 0)}s)"
-        time_text = f"Atualizado às {quota.get('updated_at', 'agora')} {time_status}"
+        time_status = "(Live)" if not quota.get("from_cache") else f"(Cache {quota.get('cache_age_seconds', 0)}s)"
+        time_text = f"Updated at {quota.get('updated_at', 'now')} {time_status}"
         lbl_time = tk.Label(main_frame, text=time_text, font=("Sans", 9), fg="#A0A0A0", bg="#181818", anchor="w")
         lbl_time.pack(fill="x", pady=(2, 8))
 
@@ -752,7 +752,7 @@ class QuotaHubAppLinux:
             up_lbl = tk.Label(up_box, text=f"New release v{new_v} available", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699")
             up_lbl.pack(side="left")
             d_url = update_info.get("download_url") or "https://github.com/vh2c/gemini-gauge/releases/latest"
-            btn_up = tk.Button(up_box, text="Baixar", font=("Sans", 8, "bold"), fg="#121212", bg="#FFFFFF",
+            btn_up = tk.Button(up_box, text="Download", font=("Sans", 8, "bold"), fg="#121212", bg="#FFFFFF",
                                activebackground="#EEEEEE", activeforeground="#121212", relief="flat", padx=10, pady=2, cursor="hand2", command=lambda: webbrowser.open(d_url))
             btn_up.pack(side="right")
 
@@ -791,11 +791,11 @@ class QuotaHubAppLinux:
         if not groups:
             empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=20, highlightbackground="#2A2A2A", highlightthickness=1)
             empty_frame.pack(fill="both", expand=True, pady=10)
-            tk.Label(empty_frame, text="🤖 Nenhum Registro de IA Encontrado", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(8, 4))
-            tk.Label(empty_frame, text="Não foram encontradas sessões ativas locais (Antigravity, Claude, ChatGPT, Cursor, Copilot).\nConfigure uma chave de API (Gemini, OpenAI, Anthropic) ou token de sessão:", font=("Sans", 8.5), fg="#AAAAAA", bg="#1F1F1F", justify="center").pack(pady=(0, 12))
-            tk.Button(empty_frame, text="⚙️ Configurar Provedores e Chaves", font=("Sans", 9.5, "bold"), fg="#121212", bg="#00E699",
+            tk.Label(empty_frame, text="🤖 No AI Records Found", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(8, 4))
+            tk.Label(empty_frame, text="No active local sessions were found (Antigravity, Claude, ChatGPT, Cursor, Copilot).\nConfigure an API key (Gemini, OpenAI, Anthropic) or session token:", font=("Sans", 8.5), fg="#AAAAAA", bg="#1F1F1F", justify="center").pack(pady=(0, 12))
+            tk.Button(empty_frame, text="⚙️ Configure Providers and Keys", font=("Sans", 9.5, "bold"), fg="#121212", bg="#00E699",
                       activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=16, pady=6, cursor="hand2", command=self.open_settings).pack(pady=(0, 6))
-            tk.Button(empty_frame, text="🔗 Obter Chave Gratuita no Google AI Studio (aistudio.google.com) →", font=("Sans", 8), fg="#38BDF8", bg="#18181C",
+            tk.Button(empty_frame, text="🔗 Get a Free Key at Google AI Studio (aistudio.google.com) →", font=("Sans", 8), fg="#38BDF8", bg="#18181C",
                       activebackground="#252530", activeforeground="#38BDF8", relief="flat", padx=10, pady=4, cursor="hand2", command=lambda: webbrowser.open("https://aistudio.google.com/app/apikey")).pack()
 
         cfg = load_config()
@@ -907,14 +907,14 @@ class QuotaHubAppLinux:
             canvas.tag_bind(t, "<Leave>", lambda e: canvas.itemconfig(t, fill="#999999"))
 
         if is_vert:
-            make_icon(14, 14, "✕", "Fechar", self.root.destroy)
-            make_icon(34, 14, "⇄", "Alternar Orientação", self.toggle_orientation)
+            make_icon(14, 14, "✕", "Close", self.root.destroy)
+            make_icon(34, 14, "⇄", "Toggle Orientation", self.toggle_orientation)
             make_icon(54, 14, "⊞", "Modo Completo", self.toggle_mode)
             make_icon(74, 14, "⚙", "Configurar", self.open_settings)
             make_icon(92, 14, "↻", "Atualizar", lambda: self.refresh(True))
         else:
-            make_icon(14, 14, "✕", "Fechar", self.root.destroy)
-            make_icon(14, 34, "⇄", "Alternar Orientação", self.toggle_orientation)
+            make_icon(14, 14, "✕", "Close", self.root.destroy)
+            make_icon(14, 34, "⇄", "Toggle Orientation", self.toggle_orientation)
             make_icon(14, 54, "⊞", "Modo Completo", self.toggle_mode)
             make_icon(14, 74, "⚙", "Configurar", self.open_settings)
             make_icon(14, 94, "↻", "Atualizar", lambda: self.refresh(True))
@@ -983,14 +983,14 @@ def main():
         return
 
     if not HAS_TK:
-        print("⚠️  Módulo python3-tk (Tkinter) não encontrado.")
-        print("💡 Para abrir a interface gráfica no Ubuntu, execute: sudo apt install -y python3-tk")
-        print("⚡ Exibindo cotas em modo terminal (CLI):\n")
+        print("⚠️  Module python3-tk (Tkinter) not found.")
+        print("💡 To open the graphical interface on Ubuntu, run: sudo apt install -y python3-tk")
+        print("⚡ Showing quotas in terminal mode (CLI):\n")
         quota = load_quota(force=("--force" in sys.argv))
         print_cli(quota)
         return
 
-    print("⚡ Abrindo interface gráfica do AI Gauge...")
+    print("⚡ Opening the AI Gauge graphical interface...")
     app = QuotaHubAppLinux()
     app.root.mainloop()
 

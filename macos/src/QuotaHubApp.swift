@@ -301,7 +301,7 @@ extension QuotaData {
             }
             sections.append(GaugeSection(
                 name: "Claude",
-                subtitle: "Sessão Desktop",
+                subtitle: "Desktop Session",
                 tag: "CLAUDE_PRO",
                 accentColor: claudeColor,
                 items: items
@@ -334,7 +334,7 @@ extension QuotaData {
             }
             sections.append(GaugeSection(
                 name: "ChatGPT",
-                subtitle: "Sessão Web",
+                subtitle: "Web Session",
                 tag: "CHATGPT",
                 accentColor: chatgptColor,
                 items: items
@@ -1952,7 +1952,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let toggleBtn = NSButton(title: "", target: self, action: #selector(toggleModeClicked))
             toggleBtn.isBordered = false
             toggleBtn.frame = NSRect(x: 8, y: topBarY, width: 22, height: 20)
-            toggleBtn.toolTip = "Alternar para Janela Completa (Cmd+M)"
+            toggleBtn.toolTip = "Switch to Full Window (Cmd+M)"
             if let sym = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Alternar Modo") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 toggleBtn.image = sym.withSymbolConfiguration(cfg)
@@ -1963,8 +1963,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let menuBtn = NSButton(title: "", target: self, action: #selector(showHudContextMenu(_:)))
             menuBtn.isBordered = false
             menuBtn.frame = NSRect(x: (hudW - 22) / 2.0, y: topBarY, width: 22, height: 20)
-            menuBtn.toolTip = "Menu de Opções"
-            if let sym = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Opções") {
+            menuBtn.toolTip = "Options Menu"
+            if let sym = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Options") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 menuBtn.image = sym.withSymbolConfiguration(cfg)
                 menuBtn.contentTintColor = NSColor(white: 0.65, alpha: 1.0)
@@ -1974,8 +1974,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let closeBtn = NSButton(title: "", target: self, action: #selector(closeWindowClicked))
             closeBtn.isBordered = false
             closeBtn.frame = NSRect(x: hudW - 30, y: topBarY, width: 22, height: 20)
-            closeBtn.toolTip = "Fechar Janela (✕)"
-            if let sym = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Fechar") {
+            closeBtn.toolTip = "Close Window (✕)"
+            if let sym = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 closeBtn.image = sym.withSymbolConfiguration(cfg)
                 closeBtn.contentTintColor = NSColor(white: 0.65, alpha: 1.0)
@@ -1997,7 +1997,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 emptyTitle.frame = NSRect(x: 4, y: hudH - 82, width: hudW - 8, height: 16)
                 container.addSubview(emptyTitle)
                 
-                let emptySub = NSTextField(labelWithString: "Abra o IDE ou\ninsira API Key")
+                let emptySub = NSTextField(labelWithString: "Open the IDE or\nenter an API Key")
                 emptySub.font = NSFont.systemFont(ofSize: 9, weight: .regular)
                 emptySub.textColor = NSColor(white: 0.60, alpha: 1.0)
                 emptySub.alignment = .center
@@ -2077,7 +2077,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 upBtn.isBordered = false
                 upBtn.targetUrl = versionUrl
                 upBtn.frame = NSRect(x: 2, y: 3, width: hudW - 4, height: 16)
-                upBtn.toolTip = "Nova versão disponível. Clique para baixar agora."
+                upBtn.toolTip = "New version available. Click to download now."
                 upBtn.attributedTitle = NSAttributedString(
                     string: "● NOVA VERSÃO",
                     attributes: [
@@ -2108,7 +2108,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 msgLabel.frame = NSRect(x: 14, y: hudH - 36, width: hudW - 60, height: 16)
                 container.addSubview(msgLabel)
                 
-                let subLabel = NSTextField(labelWithString: "Abra o Antigravity IDE ou adicione uma chave de API")
+                let subLabel = NSTextField(labelWithString: "Open the Antigravity IDE or add an API key")
                 subLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
                 subLabel.textColor = NSColor(white: 0.60, alpha: 1.0)
                 subLabel.frame = NSRect(x: 14, y: hudH - 56, width: hudW - 60, height: 14)
@@ -2152,8 +2152,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let closeBtn = NSButton(title: "", target: self, action: #selector(closeWindowClicked))
             closeBtn.isBordered = false
             closeBtn.frame = NSRect(x: colX, y: hudH - 28, width: 22, height: 20)
-            closeBtn.toolTip = "Fechar Janela (✕)"
-            if let sym = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Fechar") {
+            closeBtn.toolTip = "Close Window (✕)"
+            if let sym = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 closeBtn.image = sym.withSymbolConfiguration(cfg)
                 closeBtn.contentTintColor = NSColor(white: 0.65, alpha: 1.0)
@@ -2163,7 +2163,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let toggleBtn = NSButton(title: "", target: self, action: #selector(toggleModeClicked))
             toggleBtn.isBordered = false
             toggleBtn.frame = NSRect(x: colX, y: (hudH - 20) / 2.0, width: 22, height: 20)
-            toggleBtn.toolTip = "Alternar para Janela Completa (Cmd+M)"
+            toggleBtn.toolTip = "Switch to Full Window (Cmd+M)"
             if let sym = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Alternar Modo") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 toggleBtn.image = sym.withSymbolConfiguration(cfg)
@@ -2174,8 +2174,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let menuBtn = NSButton(title: "", target: self, action: #selector(showHudContextMenu(_:)))
             menuBtn.isBordered = false
             menuBtn.frame = NSRect(x: colX, y: 10, width: 22, height: 20)
-            menuBtn.toolTip = "Menu de Opções"
-            if let sym = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Opções") {
+            menuBtn.toolTip = "Options Menu"
+            if let sym = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Options") {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
                 menuBtn.image = sym.withSymbolConfiguration(cfg)
                 menuBtn.contentTintColor = NSColor(white: 0.65, alpha: 1.0)
@@ -2194,7 +2194,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 upBtn.isBordered = false
                 upBtn.targetUrl = versionUrl
                 upBtn.frame = NSRect(x: 12, y: 2, width: 100, height: 14)
-                upBtn.toolTip = "Nova versão disponível. Clique para baixar agora."
+                upBtn.toolTip = "New version available. Click to download now."
                 upBtn.attributedTitle = NSAttributedString(
                     string: "● NOVA VERSÃO",
                     attributes: [
@@ -2228,7 +2228,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func buildContextMenu() -> NSMenu {
-        let menu = NSMenu(title: "Opções AI Gauge")
+        let menu = NSMenu(title: "AI Gauge Options")
         
         let titleItem = NSMenuItem(title: "⚡ AI Gauge", action: nil, keyEquivalent: "")
         titleItem.attributedTitle = NSAttributedString(
@@ -2238,11 +2238,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(titleItem)
         menu.addItem(NSMenuItem.separator())
         
-        let fullItem = NSMenuItem(title: "Alternar Modo de Tela (Janela / HUD)", action: #selector(toggleModeClicked), keyEquivalent: "m")
+        let fullItem = NSMenuItem(title: "Toggle Display Mode (Window / HUD)", action: #selector(toggleModeClicked), keyEquivalent: "m")
         fullItem.target = self
         menu.addItem(fullItem)
         
-        let orientTitle = (hudOrientation == .vertical) ? "Mudar para Régua Horizontal" : "Mudar para Régua Vertical"
+        let orientTitle = (hudOrientation == .vertical) ? "Switch to Horizontal Bar" : "Switch to Vertical Bar"
         let orientItem = NSMenuItem(title: orientTitle, action: #selector(toggleHudOrientation), keyEquivalent: "o")
         orientItem.target = self
         menu.addItem(orientItem)
@@ -2366,7 +2366,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         contentView.addSubview(appTitle)
         y += 24
         
-        let accountText = "\(quota.account)  •  Plano \(quota.plan ?? "Universal")"
+        let accountText = "\(quota.account)  •  Plan \(quota.plan ?? "Universal")"
         let accountLabel = NSTextField(labelWithString: accountText)
         accountLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
         accountLabel.textColor = NSColor(white: 0.85, alpha: 1.0)
@@ -2374,8 +2374,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         contentView.addSubview(accountLabel)
         y += 18
         
-        let cacheInfo = (quota.from_cache ?? false) ? " (Cache \(quota.cache_age_seconds ?? 0)s atrás)" : " (Tempo real)"
-        let timeText = "Atualizado às \(quota.updated_at ?? "agora")\(cacheInfo)"
+        let cacheInfo = (quota.from_cache ?? false) ? " (Cache \(quota.cache_age_seconds ?? 0)s ago)" : " (Live)"
+        let timeText = "Updated at \(quota.updated_at ?? "now")\(cacheInfo)"
         let timeLabel = NSTextField(labelWithString: timeText)
         timeLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
         timeLabel.textColor = NSColor(white: 0.55, alpha: 1.0)
@@ -2490,7 +2490,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             contentView.addSubview(annBox)
             
             // 1. Título limpo (SEM '[AVISO]')
-            let titleText = ann.title ?? (isVersao ? "Nova Versão Disponível" : "Informativo")
+            let titleText = ann.title ?? (isVersao ? "New Version Available" : "Notice")
             let titleLabel = NSTextField(labelWithString: titleText)
             titleLabel.font = NSFont.systemFont(ofSize: 11.5, weight: .bold)
             titleLabel.textColor = isVersao
@@ -2565,13 +2565,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             cardView.cornerRadius = 8
             contentView.addSubview(cardView)
             
-            let eTitle = NSTextField(labelWithString: "Nenhum Provedor Ativo")
+            let eTitle = NSTextField(labelWithString: "No Active Provider")
             eTitle.font = NSFont.systemFont(ofSize: 13, weight: .bold)
             eTitle.textColor = .white
             eTitle.frame = NSRect(x: 16, y: 14, width: cardView.frame.width - 32, height: 18)
             cardView.addSubview(eTitle)
             
-            let eDesc = NSTextField(labelWithString: "Não foram encontradas sessões ativas de IA (Antigravity, Claude, ChatGPT, Cursor, Copilot). Configure uma chave de API (Gemini, OpenAI, Claude) ou token de acesso:")
+            let eDesc = NSTextField(labelWithString: "No active AI sessions were found (Antigravity, Claude, ChatGPT, Cursor, Copilot). Configure an API key (Gemini, OpenAI, Claude) or access token:")
             eDesc.font = NSFont.systemFont(ofSize: 11, weight: .regular)
             eDesc.textColor = NSColor(white: 0.65, alpha: 1.0)
             eDesc.lineBreakMode = .byWordWrapping
@@ -2688,7 +2688,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     cardView.addSubview(bTitle)
                     
                     if let reset = b.reset_in, !reset.isEmpty {
-                        let resetLabel = NSTextField(labelWithString: "Renova em \(reset)")
+                        let resetLabel = NSTextField(labelWithString: "Renews in \(reset)")
                         resetLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
                         resetLabel.textColor = NSColor(white: 0.50, alpha: 1.0)
                         resetLabel.alignment = .right
@@ -2909,7 +2909,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            win.title = "Configurações - AI Gauge"
+            win.title = "Settings - AI Gauge"
             win.appearance = NSAppearance(named: .darkAqua)
             win.backgroundColor = NSColor(srgbRed: 0x18/255.0, green: 0x18/255.0, blue: 0x18/255.0, alpha: 1.0)
             win.isReleasedWhenClosed = false
@@ -3061,18 +3061,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.antigravityCheck = antiBtn
         addPastelPicker(providerKey: "antigravity", in: antiCard)
         
-        let antiDesc = NSTextField(labelWithString: "Detecta cotas do IDE em execução ou via sonda headless quando fechado.")
+        let antiDesc = NSTextField(labelWithString: "Detects quotas from the running IDE, or via a headless probe when it is closed.")
         antiDesc.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
         antiDesc.textColor = NSColor(white: 0.55, alpha: 1.0)
         antiDesc.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
         antiCard.addSubview(antiDesc)
         
         let antiHudY = createHudSectionLabel(y: 54, in: antiCard)
-        addCheckbox(id: "gemini-weekly", title: "Gemini Semanal", frame: NSRect(x: 14, y: antiHudY, width: colW, height: 18), in: antiCard)
+        addCheckbox(id: "gemini-weekly", title: "Gemini Weekly", frame: NSRect(x: 14, y: antiHudY, width: colW, height: 18), in: antiCard)
         addCheckbox(id: "gemini-5h", title: "Gemini (5 Horas)", frame: NSRect(x: 14 + colW, y: antiHudY, width: colW, height: 18), in: antiCard)
-        addCheckbox(id: "3p-weekly", title: "Claude / GPT Semanal", frame: NSRect(x: 14, y: antiHudY + 22, width: colW, height: 18), in: antiCard)
+        addCheckbox(id: "3p-weekly", title: "Claude / GPT Weekly", frame: NSRect(x: 14, y: antiHudY + 22, width: colW, height: 18), in: antiCard)
         addCheckbox(id: "3p-5h", title: "Claude / GPT (5 Horas)", frame: NSRect(x: 14 + colW, y: antiHudY + 22, width: colW, height: 18), in: antiCard)
-        addCheckbox(id: "gemini-argon-wtu-weekly", title: "Argon Semanal", frame: NSRect(x: 14, y: antiHudY + 44, width: colW, height: 18), in: antiCard)
+        addCheckbox(id: "gemini-argon-wtu-weekly", title: "Argon Weekly", frame: NSRect(x: 14, y: antiHudY + 44, width: colW, height: 18), in: antiCard)
         
         cy += antiCardH + 12
         
@@ -3102,8 +3102,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let hasKeychain = QuotaManager.hasClaudeProKeychainSession()
         let statusMsg = hasKeychain
-            ? "✓ Sessão ativa detectada no macOS Keychain (Claude Code / Antigravity)"
-            : "ℹ️ Sessão não encontrada no Keychain. Faça login no Antigravity ou cole token:"
+            ? "✓ Active session detected in macOS Keychain (Claude Code / Antigravity)"
+            : "ℹ️ Session not found in Keychain. Sign in to Antigravity or paste a token:"
         let claudeStatus = NSTextField(labelWithString: statusMsg)
         claudeStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         claudeStatus.textColor = hasKeychain ? claudeColor : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
@@ -3120,8 +3120,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.claudeProTokenField = claudeToken
         
         let claudeHudY = createHudSectionLabel(y: 92, in: claudeCard)
-        addCheckbox(id: "claude-pro-5h", title: "Janela de 5 Horas (5h)", frame: NSRect(x: 14, y: claudeHudY, width: colW, height: 18), in: claudeCard)
-        addCheckbox(id: "claude-pro-7d", title: "Cota Semanal (7 dias)", frame: NSRect(x: 14 + colW, y: claudeHudY, width: colW, height: 18), in: claudeCard)
+        addCheckbox(id: "claude-pro-5h", title: "5-Hour Window (5h)", frame: NSRect(x: 14, y: claudeHudY, width: colW, height: 18), in: claudeCard)
+        addCheckbox(id: "claude-pro-7d", title: "Weekly Quota (7 days)", frame: NSRect(x: 14 + colW, y: claudeHudY, width: colW, height: 18), in: claudeCard)
         
         cy += claudeCardH + 12
         
@@ -3151,8 +3151,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let hasGptKeychain = QuotaManager.hasChatGPTKeychainSession()
         let gptStatusMsg = hasGptKeychain
-            ? "✓ Sessão ativa detectada (ChatGPT App / Codex)"
-            : "ℹ️ Acompanhe a janela do GPT-4o e cota semanal do o1:"
+            ? "✓ Active session detected (ChatGPT App / Codex)"
+            : "ℹ️ Track the GPT-4o window and weekly o1 quota:"
         let gptStatus = NSTextField(labelWithString: gptStatusMsg)
         gptStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         gptStatus.textColor = hasGptKeychain ? NSColor(srgbRed: 0x10/255.0, green: 0xA3/255.0, blue: 0x7F/255.0, alpha: 1.0) : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
@@ -3162,15 +3162,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let chatgptToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
-            placeholder: hasGptKeychain ? "Token gerenciado automaticamente" : "Access Token / Session Token do ChatGPT",
+            placeholder: hasGptKeychain ? "Token managed automatically" : "ChatGPT Access Token / Session Token",
             value: chatgptCfg?.token ?? ""
         )
         chatgptCard.addSubview(chatgptToken)
         self.chatgptTokenField = chatgptToken
         
         let gptHudY = createHudSectionLabel(y: 92, in: chatgptCard)
-        addCheckbox(id: "chatgpt-4o-3h", title: "GPT-4o (Janela de 3h)", frame: NSRect(x: 14, y: gptHudY, width: colW, height: 18), in: chatgptCard)
-        addCheckbox(id: "chatgpt-o1-weekly", title: "o1 Reasoning (Semanal)", frame: NSRect(x: 14 + colW, y: gptHudY, width: colW, height: 18), in: chatgptCard)
+        addCheckbox(id: "chatgpt-4o-3h", title: "GPT-4o (3h Window)", frame: NSRect(x: 14, y: gptHudY, width: colW, height: 18), in: chatgptCard)
+        addCheckbox(id: "chatgpt-o1-weekly", title: "o1 Reasoning (Weekly)", frame: NSRect(x: 14 + colW, y: gptHudY, width: colW, height: 18), in: chatgptCard)
         
         cy += chatgptCardH + 12
         
@@ -3199,7 +3199,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         addPastelPicker(providerKey: "cursor", in: cursorCard)
         
         let hasCursor = QuotaManager.hasCursor()
-        let cursorStatus = NSTextField(labelWithString: hasCursor ? "✓ Editor Cursor detectado no Mac (Claude 3.5 & GPT-4o)" : "ℹ️ Cota mensal de Fast Requests do plano Pro:")
+        let cursorStatus = NSTextField(labelWithString: hasCursor ? "✓ Cursor editor detected on this Mac (Claude 3.5 & GPT-4o)" : "ℹ️ Monthly Fast Requests quota of the Pro plan:")
         cursorStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         cursorStatus.textColor = hasCursor ? NSColor(srgbRed: 0xA8/255.0, green: 0x55/255.0, blue: 0xF7/255.0, alpha: 1.0) : NSColor(white: 0.6, alpha: 1.0)
         cursorStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
@@ -3207,7 +3207,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let cursorToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
-            placeholder: "Token de Sessão do Cursor (opcional se logado no Cursor)",
+            placeholder: "Cursor Session Token (optional if signed in to Cursor)",
             value: cursorCfg?.token ?? ""
         )
         cursorCard.addSubview(cursorToken)
@@ -3244,7 +3244,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         addPastelPicker(providerKey: "github_copilot", in: copilotCard)
         
         let hasCopilot = QuotaManager.hasCopilot()
-        let copilotStatus = NSTextField(labelWithString: hasCopilot ? "✓ Visual Studio Code & Copilot detectados no Mac" : "ℹ️ Copilot Chat e Code Completions do VS Code:")
+        let copilotStatus = NSTextField(labelWithString: hasCopilot ? "✓ Visual Studio Code & Copilot detected on this Mac" : "ℹ️ VS Code Copilot Chat and Code Completions:")
         copilotStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         copilotStatus.textColor = hasCopilot ? NSColor(srgbRed: 0xFF/255.0, green: 0x52/255.0, blue: 0x65/255.0, alpha: 1.0) : NSColor(white: 0.6, alpha: 1.0)
         copilotStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
@@ -3288,7 +3288,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.geminiCheck = geminiBtn
         addPastelPicker(providerKey: "gemini", in: geminiCard)
         
-        let geminiHint = NSTextField(labelWithString: "💡 Chaves do Google AI Studio começam com AIzaSy...")
+        let geminiHint = NSTextField(labelWithString: "💡 Google AI Studio keys start with AIzaSy...")
         geminiHint.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
         geminiHint.textColor = NSColor(white: 0.55, alpha: 1.0)
         geminiHint.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
@@ -3297,7 +3297,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let fieldW: CGFloat = cardW - 28 - 92
         let geminiField = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: fieldW, height: 34),
-            placeholder: "Chave de API Gemini (AIzaSy...)",
+            placeholder: "Gemini API Key (AIzaSy...)",
             value: geminiCfg?.api_key ?? ""
         )
         geminiCard.addSubview(geminiField)
@@ -3330,7 +3330,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         geminiLink.isBordered = false
         geminiLink.frame = NSRect(x: 14, y: 112, width: cardW - 28, height: 18)
         geminiLink.attributedTitle = NSAttributedString(
-            string: "Obter Chave Gratuita no Google AI Studio (aistudio.google.com) ↗",
+            string: "Get a Free Key at Google AI Studio (aistudio.google.com) ↗",
             attributes: [
                 .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0),
                 .font: NSFont.systemFont(ofSize: 10.5, weight: .regular)
@@ -3342,7 +3342,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let gColW = (cardW - 36) / 3.0
         addCheckbox(id: "gemini-flash-rpm", title: "Flash RPM", frame: NSRect(x: 14, y: geminiHudY, width: gColW, height: 18), in: geminiCard)
         addCheckbox(id: "gemini-pro-rpm", title: "Pro RPM", frame: NSRect(x: 14 + gColW, y: geminiHudY, width: gColW, height: 18), in: geminiCard)
-        addCheckbox(id: "gemini-key-status", title: "Status da Chave", frame: NSRect(x: 14 + gColW * 2, y: geminiHudY, width: gColW, height: 18), in: geminiCard)
+        addCheckbox(id: "gemini-key-status", title: "Key Status", frame: NSRect(x: 14 + gColW * 2, y: geminiHudY, width: gColW, height: 18), in: geminiCard)
         
         cy += geminiCardH + 12
         
@@ -3372,7 +3372,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let openField = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
-            placeholder: "Chave de API OpenAI (sk-...)",
+            placeholder: "OpenAI API Key (sk-...)",
             value: openCfg?.api_key ?? ""
         )
         openCard.addSubview(openField)
@@ -3406,7 +3406,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let antField = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
-            placeholder: "Chave de API Anthropic (sk-ant-...)",
+            placeholder: "Anthropic API Key (sk-ant-...)",
             value: antCfg?.api_key ?? ""
         )
         antCard.addSubview(antField)
@@ -3490,19 +3490,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func testGeminiKeyClicked() {
         let key = geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if key.isEmpty {
-            geminiStatusLabel?.stringValue = "⚠️ Digite uma chave de API para testar"
+            geminiStatusLabel?.stringValue = "⚠️ Enter an API key to test"
             geminiStatusLabel?.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
             return
         }
         
         if key.hasPrefix("AQ.") || key.hasPrefix("ya29.") {
-            geminiStatusLabel?.stringValue = "⚠️ Use Chave do Google AI Studio (inicia com AIzaSy...)"
+            geminiStatusLabel?.stringValue = "⚠️ Use a Google AI Studio key (starts with AIzaSy...)"
             geminiStatusLabel?.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
             return
         }
         
         geminiTestBtn?.isEnabled = false
-        geminiStatusLabel?.stringValue = "Testando conexão com Google AI..."
+        geminiStatusLabel?.stringValue = "Testing connection to Google AI..."
         geminiStatusLabel?.textColor = NSColor(white: 0.70, alpha: 1.0)
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -3533,18 +3533,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 DispatchQueue.main.async {
                     self?.geminiTestBtn?.isEnabled = true
                     if output.contains("\"ok\":true") {
-                        self?.geminiStatusLabel?.stringValue = "✓ Chave válida! Modelos Gemini conectados."
+                        self?.geminiStatusLabel?.stringValue = "✓ Valid key! Gemini models connected."
                         self?.geminiStatusLabel?.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
                         self?.geminiCheck?.state = .on
                     } else {
-                        self?.geminiStatusLabel?.stringValue = "✕ Não autorizado. Obtenha chave em aistudio.google.com"
+                        self?.geminiStatusLabel?.stringValue = "✕ Not authorized. Get a key at aistudio.google.com"
                         self?.geminiStatusLabel?.textColor = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
                     }
                 }
             } catch {
                 DispatchQueue.main.async {
                     self?.geminiTestBtn?.isEnabled = true
-                    self?.geminiStatusLabel?.stringValue = "✕ Erro: \(error.localizedDescription)"
+                    self?.geminiStatusLabel?.stringValue = "✕ Error: \(error.localizedDescription)"
                     self?.geminiStatusLabel?.textColor = NSColor.systemRed
                 }
             }
@@ -3659,7 +3659,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            win.title = "AI Gauge - Assistente de Configuração"
+            win.title = "AI Gauge - Setup Assistant"
             win.appearance = NSAppearance(named: .darkAqua)
             win.backgroundColor = NSColor(srgbRed: 0x14/255.0, green: 0x14/255.0, blue: 0x18/255.0, alpha: 1.0)
             win.isReleasedWhenClosed = false
@@ -3692,13 +3692,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         win.contentView = mainView
         
         // Header
-        let titleLabel = NSTextField(labelWithString: "⚡ AI Gauge - Configuração Inicial")
+        let titleLabel = NSTextField(labelWithString: "⚡ AI Gauge - Initial Setup")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .bold)
         titleLabel.textColor = .white
         titleLabel.frame = NSRect(x: 24, y: 18, width: winW - 48, height: 22)
         mainView.addSubview(titleLabel)
         
-        let subLabel = NSTextField(wrappingLabelWithString: "Detectamos os aplicativos de IA disponíveis neste Mac. Selecione quais quotas você deseja monitorar no seu Cockpit:")
+        let subLabel = NSTextField(wrappingLabelWithString: "We detected the AI apps available on this Mac. Select which quotas you want to monitor in your Cockpit:")
         subLabel.font = NSFont.systemFont(ofSize: 11.5, weight: .regular)
         subLabel.textColor = NSColor(white: 0.72, alpha: 1.0)
         subLabel.frame = NSRect(x: 24, y: 44, width: winW - 48, height: 32)
@@ -3783,9 +3783,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let (claudeCard, claudeBtn) = buildAppCard(
             y: cy,
             title: "Claude",
-            subtitle: "Anthropic Claude Pro & Code (5h e Semanal)",
+            subtitle: "Anthropic Claude Pro & Code (5h and Weekly)",
             detected: hasClaude,
-            detectedText: "✓ Sessão / Token Ativo",
+            detectedText: "✓ Active Session / Token",
             defaultChecked: hasClaude
         )
         mainView.addSubview(claudeCard)
@@ -3796,9 +3796,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let (chatgptCard, chatgptBtn) = buildAppCard(
             y: cy,
             title: "ChatGPT",
-            subtitle: "OpenAI ChatGPT Plus & Pro (3h e Semanal)",
+            subtitle: "OpenAI ChatGPT Plus & Pro (3h and Weekly)",
             detected: hasChatgpt,
-            detectedText: "✓ Sessão Desktop Ativa",
+            detectedText: "✓ Active Desktop Session",
             defaultChecked: hasChatgpt
         )
         mainView.addSubview(chatgptCard)
@@ -3837,7 +3837,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             title: "Gemini",
             subtitle: "Google AI Studio API (RPM, TPM, RPD)",
             detected: hasGemini,
-            detectedText: "✓ Chave Configurada",
+            detectedText: "✓ Key Configured",
             defaultChecked: hasGemini
         )
         mainView.addSubview(geminiCard)
@@ -3852,7 +3852,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         infoBox.layer?.borderWidth = 1
         infoBox.layer?.cornerRadius = 6
         
-        let infoLbl = NSTextField(wrappingLabelWithString: "💡 Você pode adicionar, remover ou ocultar gauges específicos a qualquer momento nas Configurações (⌘,) pelo ícone da barra de menus.")
+        let infoLbl = NSTextField(wrappingLabelWithString: "💡 You can add, remove or hide specific gauges at any time in Settings (⌘,) from the menu bar icon.")
         infoLbl.font = NSFont.systemFont(ofSize: 10, weight: .regular)
         infoLbl.textColor = NSColor(srgbRed: 0x90/255.0, green: 0xC0/255.0, blue: 0xF0/255.0, alpha: 1.0)
         infoLbl.frame = NSRect(x: 12, y: 6, width: cardW - 24, height: 32)
@@ -3861,14 +3861,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         cy += 44 + 14
         
         // Footer Buttons
-        let allBtn = NSButton(title: "Ativar Todos", target: self, action: #selector(onboardingEnableAllClicked))
+        let allBtn = NSButton(title: "Enable All", target: self, action: #selector(onboardingEnableAllClicked))
         allBtn.isBordered = false
         allBtn.wantsLayer = true
         allBtn.layer?.backgroundColor = NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x30/255.0, alpha: 1.0).cgColor
         allBtn.layer?.cornerRadius = 6
         allBtn.frame = NSRect(x: 24, y: cy, width: 120, height: 36)
         allBtn.attributedTitle = NSAttributedString(
-            string: "Ativar Todos",
+            string: "Enable All",
             attributes: [
                 .foregroundColor: NSColor(white: 0.9, alpha: 1.0),
                 .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
@@ -3876,14 +3876,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         mainView.addSubview(allBtn)
         
-        let startBtn = NSButton(title: "Iniciar Cockpit 🚀", target: self, action: #selector(onboardingFinishClicked))
+        let startBtn = NSButton(title: "Start Cockpit 🚀", target: self, action: #selector(onboardingFinishClicked))
         startBtn.isBordered = false
         startBtn.wantsLayer = true
         startBtn.layer?.backgroundColor = colorGreen.cgColor
         startBtn.layer?.cornerRadius = 6
         startBtn.frame = NSRect(x: winW - 24 - 190, y: cy, width: 190, height: 36)
         startBtn.attributedTitle = NSAttributedString(
-            string: "Iniciar Cockpit 🚀",
+            string: "Start Cockpit 🚀",
             attributes: [
                 .foregroundColor: NSColor(srgbRed: 0x10/255.0, green: 0x10/255.0, blue: 0x14/255.0, alpha: 1.0),
                 .font: NSFont.systemFont(ofSize: 12.5, weight: .bold)
@@ -4199,7 +4199,7 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
             <h3 class="promo-title">\(title)</h3>
             <p class="promo-desc">\(text)</p>
             <div class="promo-actions">
-              <button id="btnLater" class="btn-secondary" onclick="closePromo()">Agora não</button>
+              <button id="btnLater" class="btn-secondary" onclick="closePromo()">Not now</button>
               \(primaryBtnHtml)
             </div>
           </div>
@@ -4220,15 +4220,15 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
           }
           if (rem > 0) {
             btnLater.disabled = true;
-            btnLater.innerText = 'Agora não (' + rem + 's)';
+            btnLater.innerText = 'Not now (' + rem + 's)';
             const t = setInterval(() => {
               rem--;
               if (rem <= 0) {
                 clearInterval(t);
                 btnLater.disabled = false;
-                btnLater.innerText = 'Agora não';
+                btnLater.innerText = 'Not now';
               } else {
-                btnLater.innerText = 'Agora não (' + rem + 's)';
+                btnLater.innerText = 'Not now (' + rem + 's)';
               }
             }, 1000);
           }

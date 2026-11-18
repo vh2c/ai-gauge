@@ -11,7 +11,10 @@ mkdir -p "${BIN_DIR}" "${RES_DIR}/core"
 
 echo "🔨 Compiling Swift binary for AI Gauge..."
 cp "${SCRIPT_DIR}/src/QuotaHubApp.swift" /tmp/QuotaHubApp.swift
-swiftc -O -target arm64-apple-macos11.0 /tmp/QuotaHubApp.swift -o "${BIN_DIR}/AIGauge"
+swiftc -O -target arm64-apple-macos11.0 /tmp/QuotaHubApp.swift -o /tmp/AIGauge-arm64
+swiftc -O -target x86_64-apple-macos13.0 /tmp/QuotaHubApp.swift -o /tmp/AIGauge-x86_64
+lipo -create /tmp/AIGauge-arm64 /tmp/AIGauge-x86_64 -output "${BIN_DIR}/AIGauge"
+rm -f /tmp/AIGauge-arm64 /tmp/AIGauge-x86_64
 
 echo "📦 Bundling core engine & assets..."
 cp -r "${REPO_DIR}/core/"* "${RES_DIR}/core/"
@@ -50,5 +53,10 @@ cat << 'PLIST' > "${APP_BUNDLE}/Contents/Info.plist"
 </dict>
 </plist>
 PLIST
+
+echo "🔏 Signing bundle (ad-hoc)..."
+xattr -cr "${APP_BUNDLE}" 2>/dev/null || true
+find "${APP_BUNDLE}" -name '._*' -delete
+codesign --force --deep -s - "${APP_BUNDLE}"
 
 echo "✅ App bundle created at ${APP_BUNDLE}"

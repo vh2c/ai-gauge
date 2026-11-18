@@ -32,7 +32,7 @@ trap {
         $err = $_.Exception.ToString()
         $logPath = Join-Path $env:TEMP "ai_gauge_error.log"
         Set-Content -Path $logPath -Value $err -Encoding UTF8 -Force
-        [System.Windows.MessageBox]::Show("Ocorreu um erro ao executar o AI Gauge:`n`n$($_.Exception.Message)`n`nArquivo de log salvo em:`n$logPath", "AI Gauge - Erro", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+        [System.Windows.MessageBox]::Show("An error occurred while running AI Gauge:`n`n$($_.Exception.Message)`n`nLog file saved to:`n$logPath", "AI Gauge - Error", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
     } catch {}
     exit 1
 }
@@ -269,8 +269,8 @@ function Write-AppError ($ex) {
 
 function New-NodeMissingData {
     return @{
-        account = "Node.js não detectado"
-        plan = "Requer Instalação"
+        account = "Node.js not detected"
+        plan = "Installation Required"
         updated_at = (Get-Date -Format "HH:mm:ss")
         groups = @()
         node_missing = $true
@@ -291,16 +291,16 @@ function New-DemoData {
         # Two independent components (like the real API): `announcement` = version notice banner, `promo` = ad toast
         announcement = @{
             type = "versao"
-            title = "Versão 2.1 Disponível"
-            message = "Baixe agora a versão mais recente."
-            action_label = "Baixar Atualização"
+            title = "Version 2.1 Available"
+            message = "Download the latest version now."
+            action_label = "Download Update"
             action_url = "https://github.com/vh2c/gemini-gauge/releases/latest"
         }
-        # Same shape/values the real API sends for the "Super Oferta" ad: image, no action link, no countdown
+        # Same shape/values the real API sends for the "Super Offer" ad: image, no action link, no countdown
         promo = @{
             type = "publicidade"
-            title = "Super Oferta"
-            message = "Somente hoje você compra sua licença PRO por apenas R$ 10.00"
+            title = "Super Offer"
+            message = "Today only: get your PRO license for just R$ 10.00"
             action_label = $null
             action_url = $null
             image_url = "https://dashboard.vh2c.com.br/uploads/ads/ad_20261116_144942_2f64117f.jpg"
@@ -322,7 +322,7 @@ function New-DemoData {
                 (B "demo-o1-weekly" "o1 Reasoning Weekly" 100 "7d")) },
             @{ name = "Cursor"; provider = "Cursor"; buckets = @(
                 (B "demo-cursor-fast" "Fast Requests (Claude)" 64 "14d"),
-                (B "demo-cursor-month" "Ciclo Mensal de Faturamento" 12 "14d")) }
+                (B "demo-cursor-month" "Monthly Billing Cycle" 12 "14d")) }
         )
     }
 }
@@ -441,7 +441,7 @@ $global:quotaPoll.Add_Tick({
                 <!-- Subtitle / Account Info -->
                 <StackPanel Grid.Row="1" Margin="2,2,0,12">
                     <TextBlock Name="TxtAppName" Text="AI Gauge" Foreground="White" FontSize="21" FontWeight="Bold"/>
-                    <TextBlock Name="TxtAccount" Text="Carregando cotas..." Foreground="#E5E7EB" FontSize="13.5" Margin="0,4,0,0"/>
+                    <TextBlock Name="TxtAccount" Text="Loading quotas..." Foreground="#E5E7EB" FontSize="13.5" Margin="0,4,0,0"/>
                     <TextBlock Name="TxtUpdated" Text="" Foreground="#888894" FontSize="11.5" Margin="0,3,0,0"/>
                     <Border Height="1" Background="#2C2C34" Margin="0,12,0,0"/>
                 </StackPanel>
@@ -619,17 +619,17 @@ function Show-HudMenu {
     $menu.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2A, 0x2A, 0x2E)))
 
     $miSettings = New-Object System.Windows.Controls.MenuItem
-    $miSettings.Header = "Configurações"
+    $miSettings.Header = "Settings"
     $miSettings.Add_Click({ Show-SettingsDialog })
     $menu.Items.Add($miSettings) | Out-Null
 
     $miRefresh = New-Object System.Windows.Controls.MenuItem
-    $miRefresh.Header = "Atualizar agora"
+    $miRefresh.Header = "Refresh now"
     $miRefresh.Add_Click({ Refresh-Data })
     $menu.Items.Add($miRefresh) | Out-Null
 
     $miTop = New-Object System.Windows.Controls.MenuItem
-    $miTop.Header = "Sempre no topo"
+    $miTop.Header = "Always on top"
     $miTop.IsCheckable = $true
     $miTop.IsChecked = [bool]$window.Topmost
     $miTop.Add_Click({ param($s, $e) $window.Topmost = [bool]$s.IsChecked })
@@ -638,7 +638,7 @@ function Show-HudMenu {
     $menu.Items.Add((New-Object System.Windows.Controls.Separator)) | Out-Null
 
     $miGauges = New-Object System.Windows.Controls.MenuItem
-    $miGauges.Header = "Medidores no HUD"
+    $miGauges.Header = "HUD Gauges"
     $hidden = Get-HiddenGauges
     if ($global:currentData -and $global:currentData.groups) {
         foreach ($g in $global:currentData.groups) {
@@ -661,7 +661,7 @@ function Show-HudMenu {
     $menu.Items.Add((New-Object System.Windows.Controls.Separator)) | Out-Null
 
     $miCockpit = New-Object System.Windows.Controls.MenuItem
-    $miCockpit.Header = "Abrir janela completa"
+    $miCockpit.Header = "Open full window"
     $miCockpit.Add_Click({ Toggle-HudMode })
     $menu.Items.Add($miCockpit) | Out-Null
 
@@ -781,7 +781,7 @@ function New-NoticeBanner ($ann, $data) {
     $annStack = New-Object System.Windows.Controls.StackPanel
 
     $annHead = New-Object System.Windows.Controls.TextBlock
-    $annHead.Text = if ($ann.title) { "$($ann.title)" } elseif ($isVersao) { "Nova Versão Disponível" } else { "Informativo" }
+    $annHead.Text = if ($ann.title) { "$($ann.title)" } elseif ($isVersao) { "New Version Available" } else { "Notice" }
     $annHead.FontWeight = [System.Windows.FontWeights]::Bold
     $annHead.FontSize = 14
     $annHead.Foreground = $titleC
@@ -954,8 +954,8 @@ function Show-PromoToastNow ($ann) {
             <TextBlock Name="PromoText" FontSize="13.5" Foreground="#94A3B8" TextWrapping="Wrap" MaxHeight="62" TextTrimming="CharacterEllipsis" Margin="0,0,0,16"/>
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                <Button Name="BtnLater" Grid.Column="0" Height="44" Margin="0,0,5,0" Content="Agora não" Background="#14FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" Foreground="#E2E8F0" FontSize="14" FontWeight="SemiBold"/>
-                <Button Name="BtnPromo" Grid.Column="1" Height="44" Margin="5,0,0,0" Content="Ver Detalhes" BorderThickness="0" Foreground="White" FontSize="14" FontWeight="SemiBold">
+                <Button Name="BtnLater" Grid.Column="0" Height="44" Margin="0,0,5,0" Content="Not now" Background="#14FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" Foreground="#E2E8F0" FontSize="14" FontWeight="SemiBold"/>
+                <Button Name="BtnPromo" Grid.Column="1" Height="44" Margin="5,0,0,0" Content="View Details" BorderThickness="0" Foreground="White" FontSize="14" FontWeight="SemiBold">
                     <Button.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#6366F1" Offset="0"/><GradientStop Color="#4F46E5" Offset="1"/>
@@ -1024,12 +1024,12 @@ function Show-PromoToastNow ($ann) {
             [System.Windows.Controls.Grid]::SetColumnSpan($btnLater, 2)
         }
 
-        # "Agora não" is locked for duracao_segundos (countdown), like on macOS
+        # "Not now" is locked for duracao_segundos (countdown), like on macOS
         $global:promoRemaining = if ($ann.duracao_segundos) { [int]$ann.duracao_segundos } else { 0 }
         $btnLater.Add_Click({ param($s, $e) if ($global:promoRemaining -le 0) { Close-PromoToast } })
         if ($global:promoRemaining -gt 0) {
             $btnLater.IsEnabled = $false
-            $btnLater.Content = "Agora não ($($global:promoRemaining)s)"
+            $btnLater.Content = "Not now ($($global:promoRemaining)s)"
             $global:promoTimer = New-Object System.Windows.Threading.DispatcherTimer
             $global:promoTimer.Interval = [TimeSpan]::FromSeconds(1)
             $global:promoTimer.Add_Tick({
@@ -1038,9 +1038,9 @@ function Show-PromoToastNow ($ann) {
                 if ($global:promoRemaining -le 0) {
                     $global:promoTimer.Stop()
                     $lb.IsEnabled = $true
-                    $lb.Content = "Agora não"
+                    $lb.Content = "Not now"
                 } else {
-                    $lb.Content = "Agora não ($($global:promoRemaining)s)"
+                    $lb.Content = "Not now ($($global:promoRemaining)s)"
                 }
             })
             $global:promoTimer.Start()
@@ -1065,7 +1065,7 @@ function Render-UI ($data) {
     
     # ----------------- EMPTY STATE (ONBOARDING) -----------------
     if (-not $hasGroups) {
-        $txtAcc.Text = "Nenhuma conta ou quota de IA detectada localmente"
+        $txtAcc.Text = "No AI account or quota detected locally"
         
         $emptyBorder = New-Object System.Windows.Controls.Border
         $emptyBorder.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x1B, 0x1B, 0x22)))
@@ -1079,14 +1079,14 @@ function Render-UI ($data) {
         
         # Check if Node.js is missing
         if ($data -and $data.node_missing) {
-            $txtAcc.Text = "Node.js não foi encontrado no sistema"
+            $txtAcc.Text = "Node.js was not found on this system"
             $tIconNode = New-Object System.Windows.Controls.TextBlock
             $tIconNode.Text = "⚠️"
             $tIconNode.FontSize = 18
             $tIconNode.Margin = (New-Object System.Windows.Thickness(0, 0, 8, 0))
             
             $tTitleNode = New-Object System.Windows.Controls.TextBlock
-            $tTitleNode.Text = "Node.js Necessário"
+            $tTitleNode.Text = "Node.js Required"
             $tTitleNode.FontSize = 14
             $tTitleNode.FontWeight = [System.Windows.FontWeights]::Bold
             $tTitleNode.Foreground = [System.Windows.Media.Brushes]::White
@@ -1099,7 +1099,7 @@ function Render-UI ($data) {
             $emptyStack.Children.Add($tRowNode) | Out-Null
             
             $tDescNode = New-Object System.Windows.Controls.TextBlock
-            $tDescNode.Text = "O AI Gauge precisa do Node.js (v18+) para agregar as cotas em segundo plano. Clique no botão abaixo para baixar gratuitamente:"
+            $tDescNode.Text = "AI Gauge needs Node.js (v18+) to aggregate quotas in the background. Click the button below to download it for free:"
             $tDescNode.TextWrapping = [System.Windows.TextWrapping]::Wrap
             $tDescNode.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xBB, 0xBB, 0xC4)))
             $tDescNode.FontSize = 11
@@ -1107,7 +1107,7 @@ function Render-UI ($data) {
             $emptyStack.Children.Add($tDescNode) | Out-Null
             
             $btnNode = New-Object System.Windows.Controls.Button
-            $btnNode.Content = "⬇ Baixar Node.js Oficial (nodejs.org)"
+            $btnNode.Content = "⬇ Download Official Node.js (nodejs.org)"
             $btnNode.Height = 32
             $btnNode.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
             $btnNode.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x14)))
@@ -1135,7 +1135,7 @@ function Render-UI ($data) {
         $tRow.Children.Add($tIcon) | Out-Null
         
         $tTitle = New-Object System.Windows.Controls.TextBlock
-        $tTitle.Text = "Nenhum Registro de IA Encontrado"
+        $tTitle.Text = "No AI Records Found"
         $tTitle.FontSize = 14
         $tTitle.FontWeight = [System.Windows.FontWeights]::Bold
         $tTitle.Foreground = [System.Windows.Media.Brushes]::White
@@ -1145,7 +1145,7 @@ function Render-UI ($data) {
         
         # 2. Explanation
         $tDesc = New-Object System.Windows.Controls.TextBlock
-        $tDesc.Text = "Não encontramos contas ou sessões ativas locais (Antigravity, Claude, ChatGPT, Cursor ou Copilot) nesta máquina."
+        $tDesc.Text = "We did not find any local accounts or active sessions (Antigravity, Claude, ChatGPT, Cursor or Copilot) on this machine."
         $tDesc.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $tDesc.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xBB, 0xBB, 0xC4)))
         $tDesc.FontSize = 11
@@ -1164,7 +1164,7 @@ function Render-UI ($data) {
         $guideStack = New-Object System.Windows.Controls.StackPanel
         
         $gHead = New-Object System.Windows.Controls.TextBlock
-        $gHead.Text = "Como direcionar e monitorar suas cotas:"
+        $gHead.Text = "How to route and monitor your quotas:"
         $gHead.FontWeight = [System.Windows.FontWeights]::Bold
         $gHead.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
         $gHead.FontSize = 10.5
@@ -1172,7 +1172,7 @@ function Render-UI ($data) {
         $guideStack.Children.Add($gHead) | Out-Null
         
         $item1 = New-Object System.Windows.Controls.TextBlock
-        $item1.Text = "• Google Gemini (Recomendado): Crie uma chave gratuita no Google AI Studio (leva 30 segundos e não exige IDE instalada)."
+        $item1.Text = "• Google Gemini (Recommended): Create a free key at Google AI Studio (takes 30 seconds and needs no IDE installed)."
         $item1.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $item1.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
         $item1.FontSize = 10
@@ -1180,7 +1180,7 @@ function Render-UI ($data) {
         $guideStack.Children.Add($item1) | Out-Null
         
         $item2 = New-Object System.Windows.Controls.TextBlock
-        $item2.Text = "• OpenAI & Anthropic: Adicione suas chaves de API sk-... para monitorar cotas e limites de requisição."
+        $item2.Text = "• OpenAI & Anthropic: Add your sk-... API keys to monitor quotas and request limits."
         $item2.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $item2.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
         $item2.FontSize = 10
@@ -1188,7 +1188,7 @@ function Render-UI ($data) {
         $guideStack.Children.Add($item2) | Out-Null
         
         $item3 = New-Object System.Windows.Controls.TextBlock
-        $item3.Text = "• Tokens de Sessão: Insira seu token de assinatura do Claude Pro, ChatGPT ou Cursor se assinar tais serviços."
+        $item3.Text = "• Session Tokens: Enter your Claude Pro, ChatGPT or Cursor subscription token if you subscribe to those services."
         $item3.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $item3.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xD4)))
         $item3.FontSize = 10
@@ -1201,7 +1201,7 @@ function Render-UI ($data) {
         $btnStack = New-Object System.Windows.Controls.StackPanel
         
         $btnConfig = New-Object System.Windows.Controls.Button
-        $btnConfig.Content = "⚙ Configurar Provedores e Chaves de API"
+        $btnConfig.Content = "⚙ Configure Providers and API Keys"
         $btnConfig.Height = 32
         $btnConfig.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x00, 0xE6, 0x99)))
         $btnConfig.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x12, 0x12, 0x14)))
@@ -1212,7 +1212,7 @@ function Render-UI ($data) {
         $btnStack.Children.Add($btnConfig) | Out-Null
         
         $btnStudio = New-Object System.Windows.Controls.Button
-        $btnStudio.Content = "🔗 Obter Chave Gratuita no Google AI Studio (aistudio.google.com) ->"
+        $btnStudio.Content = "🔗 Get a Free Key at Google AI Studio (aistudio.google.com) ->"
         $btnStudio.Height = 28
         $btnStudio.Margin = (New-Object System.Windows.Thickness(0, 6, 0, 0))
         $btnStudio.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x22, 0x22, 0x2B)))
@@ -1231,9 +1231,9 @@ function Render-UI ($data) {
         return
     }
     
-    $cacheInfo = if ($data.from_cache) { "Cache" } elseif ($DemoMode) { "Demo" } else { "Tempo real" }
-    $txtAcc.Text = "$($data.account)  •  Plano $($data.plan)"
-    $txtUpdated.Text = "Atualizado às $($data.updated_at) ($cacheInfo)"
+    $cacheInfo = if ($data.from_cache) { "Cache" } elseif ($DemoMode) { "Demo" } else { "Live" }
+    $txtAcc.Text = "$($data.account)  •  Plan $($data.plan)"
+    $txtUpdated.Text = "Updated at $($data.updated_at) ($cacheInfo)"
     
     # ----------------- BANNERS (top of the window) + independent promo toast -----------------
     $ann = $data.announcement
@@ -1243,7 +1243,7 @@ function Render-UI ($data) {
 
     # 1. New-version notice (from the app's own update check)
     if ($updAvail -and $annType -ne "versao") {
-        $upAnn = @{ type = "versao"; title = "Nova Versão Disponível"; message = "Versão $($data.update.latest_version) disponível para download."; action_label = "Download Now"; action_url = $data.update.download_url }
+        $upAnn = @{ type = "versao"; title = "New Version Available"; message = "Version $($data.update.latest_version) is available for download."; action_label = "Download Now"; action_url = $data.update.download_url }
         $cardsPanel.Children.Add((New-NoticeBanner $upAnn $data)) | Out-Null
     }
 
@@ -1356,7 +1356,7 @@ function Render-UI ($data) {
 
             if ($b.reset_in) {
                 $tbReset = New-Object System.Windows.Controls.TextBlock
-                $tbReset.Text = "Renova em $($b.reset_in)"
+                $tbReset.Text = "Renews in $($b.reset_in)"
                 $tbReset.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8E, 0x8E, 0x9A))
                 $tbReset.FontSize = 11
                 $tbReset.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
@@ -1441,7 +1441,7 @@ function Render-HUD ($data) {
         $cardStack.Children.Add($icon) | Out-Null
         
         $t1 = New-Object System.Windows.Controls.TextBlock
-        $t1.Text = "SEM COTAS"
+        $t1.Text = "NO QUOTAS"
         $t1.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x8F, 0xBC, 0xFF)))
         $t1.FontSize = 8.5
         $t1.FontWeight = [System.Windows.FontWeights]::Bold
@@ -1450,7 +1450,7 @@ function Render-HUD ($data) {
         $cardStack.Children.Add($t1) | Out-Null
         
         $t2 = New-Object System.Windows.Controls.TextBlock
-        $t2.Text = "Clique para configurar contas ou tokens."
+        $t2.Text = "Click to configure accounts or tokens."
         $t2.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $t2.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x94, 0xA3, 0xB8)))
         $t2.FontSize = 8
@@ -1645,7 +1645,7 @@ function Render-HUD ($data) {
             
             # 4. Reset Countdown Underneath (e.g. "4d 1h", "4h 51m")
             $tbReset = New-Object System.Windows.Controls.TextBlock
-            $tbReset.Text = if ($b.reset_in) { $b.reset_in } else { "Ativo" }
+            $tbReset.Text = if ($b.reset_in) { $b.reset_in } else { "Active" }
             $tbReset.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xA8, 0xA8, 0xB4)))
             $tbReset.FontSize = 9.5
             $tbReset.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
@@ -2077,7 +2077,7 @@ $txtBrand.Add_MouseDown({
 })
 
 # Initial Load: runs after the window is rendered (never before, so dialogs can use it as Owner)
-$txtAcc.Text = "Carregando cotas..."
+$txtAcc.Text = "Loading quotas..."
 $window.Add_ContentRendered({
     if ($global:contentRenderedOnce) { return }
     $global:contentRenderedOnce = $true

@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host " ⚡ AI Gauge - Instalador Windows (VH2C)" -ForegroundColor Cyan
+Write-Host " ⚡ AI Gauge - Windows Installer (VH2C)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host ""
 
@@ -18,7 +18,7 @@ $RepoDir = Split-Path -Parent $ScriptDir
 # ----------------------------------------------------
 # 0. LIMPEZA DA VERSÃO ANTERIOR (upgrade limpo)
 # ----------------------------------------------------
-Write-Host "🧹 Verificando versão anterior..." -ForegroundColor Cyan
+Write-Host "🧹 Checking for a previous version..." -ForegroundColor Cyan
 
 # 0.1 Close any running AI Gauge instance (current or legacy names)
 try {
@@ -47,7 +47,7 @@ if ((Test-Path $legacyNode) -and -not (Test-Path (Join-Path $TargetDir "bin\node
 }
 if ((Test-Path $LegacyDir) -and ($ScriptDir -notlike "$LegacyDir*")) {
     Remove-Item $LegacyDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "   ✓ Versão antiga removida ($LegacyDir)" -ForegroundColor Green
+    Write-Host "   ✓ Old version removed ($LegacyDir)" -ForegroundColor Green
 }
 
 # 0.4 Clean the current install folder (keeps bin\node.exe; your settings live elsewhere and are kept)
@@ -61,7 +61,7 @@ Write-Host ""
 # ----------------------------------------------------
 # 1. SCAN DE APLICATIVOS DE IA INSTALADOS
 # ----------------------------------------------------
-Write-Host "🔍 Escaneando aplicativos e sessões de IA no computador..." -ForegroundColor Cyan
+Write-Host "🔍 Scanning for AI apps and sessions on this computer..." -ForegroundColor Cyan
 
 $ConfigDir = Join-Path $env:USERPROFILE ".config\UniversalAIQuota"
 $ConfigFile = Join-Path $ConfigDir "config.json"
@@ -106,11 +106,11 @@ if ($env:GEMINI_API_KEY) {
     $HasGemini = $true
 }
 
-Write-Host "  [1] ⚡ Antigravity:       $(if ($HasAnti) {'✓ Detectado no sistema'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasAnti) {'Green'} else {'Gray'})
-Write-Host "  [2] 🟣 Claude (Pro/Code): $(if ($HasClaude) {'✓ Sessão / Token detectado'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasClaude) {'Green'} else {'Gray'})
-Write-Host "  [3] 🟢 ChatGPT (Desktop): $(if ($HasChatGPT) {'✓ Sessão Desktop / Codex detectada'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasChatGPT) {'Green'} else {'Gray'})
-Write-Host "  [4] 🔮 Cursor (IDE):      $(if ($HasCursor) {'✓ Detectado no sistema'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasCursor) {'Green'} else {'Gray'})
-Write-Host "  [5] 🔴 Copilot (VS Code): $(if ($HasCopilot) {'✓ Detectado (VS Code)'} else {'○ Não detectado (opcional)'})" -ForegroundColor $(if ($HasCopilot) {'Green'} else {'Gray'})
+Write-Host "  [1] ⚡ Antigravity:       $(if ($HasAnti) {'✓ Detected on this system'} else {'○ Not detected (optional)'})" -ForegroundColor $(if ($HasAnti) {'Green'} else {'Gray'})
+Write-Host "  [2] 🟣 Claude (Pro/Code): $(if ($HasClaude) {'✓ Session / Token detected'} else {'○ Not detected (optional)'})" -ForegroundColor $(if ($HasClaude) {'Green'} else {'Gray'})
+Write-Host "  [3] 🟢 ChatGPT (Desktop): $(if ($HasChatGPT) {'✓ Desktop Session / Codex detected'} else {'○ Not detected (optional)'})" -ForegroundColor $(if ($HasChatGPT) {'Green'} else {'Gray'})
+Write-Host "  [4] 🔮 Cursor (IDE):      $(if ($HasCursor) {'✓ Detected on this system'} else {'○ Not detected (optional)'})" -ForegroundColor $(if ($HasCursor) {'Green'} else {'Gray'})
+Write-Host "  [5] 🔴 Copilot (VS Code): $(if ($HasCopilot) {'✓ Detected (VS Code)'} else {'○ Not detected (optional)'})" -ForegroundColor $(if ($HasCopilot) {'Green'} else {'Gray'})
 Write-Host "  [6] 🔷 Gemini (Studio):   $(if ($HasGemini) {'✓ Chave configurada'} else {'○ Chave de API (opcional)'})" -ForegroundColor $(if ($HasGemini) {'Green'} else {'Gray'})
 Write-Host ""
 
@@ -124,10 +124,10 @@ $EnableGemini = $HasGemini
 # Check if interactive
 $IsInteractive = [Environment]::UserInteractive
 if ($IsInteractive -and ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup"))) {
-    Write-Host "📋 Quais quotas você deseja monitorar no seu AI Gauge?" -ForegroundColor Yellow
+    Write-Host "📋 Which quotas do you want to monitor in AI Gauge?" -ForegroundColor Yellow
     Write-Host "   Pressione ENTER para monitorar todos os detectados [Recomendado]," -ForegroundColor Gray
-    Write-Host "   ou digite os números desejados separados por vírgula (ex: 1,2,3):" -ForegroundColor Gray
-    $UserChoice = Read-Host "   Sua escolha [Padrão: Detectados]"
+    Write-Host "   or type the numbers you want, separated by commas (e.g. 1,2,3):" -ForegroundColor Gray
+    $UserChoice = Read-Host "   Your choice [Default: Detected]"
     
     if (-not [string]::IsNullOrWhiteSpace($UserChoice)) {
         $EnableAnti = $UserChoice -match "1"
@@ -138,7 +138,7 @@ if ($IsInteractive -and ((-not (Test-Path $ConfigFile)) -or ($args -contains "--
         $EnableGemini = $UserChoice -match "6"
     }
     Write-Host ""
-    Write-Host "💡 Informação: Você poderá adicionar ou excluir itens a qualquer momento depois no menu de configurações do app." -ForegroundColor Cyan
+    Write-Host "💡 Note: You can add or remove items at any time later in the app's settings menu." -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -168,13 +168,13 @@ if ((-not (Test-Path $ConfigFile)) -or ($args -contains "--setup")) {
         $acl.AddAccessRule($rule)
         Set-Acl -Path $ConfigFile -AclObject $acl
     } catch {}
-    Write-Host "✅ Configuração inicial gravada com sucesso em ~/.config/UniversalAIQuota/config.json!" -ForegroundColor Green
+    Write-Host "✅ Initial configuration saved to ~/.config/UniversalAIQuota/config.json!" -ForegroundColor Green
 }
 
 # ----------------------------------------------------
 # 2. INSTALAÇÃO DOS ARQUIVOS
 # ----------------------------------------------------
-Write-Host "📦 Instalando arquivos em $TargetDir..." -ForegroundColor Gray
+Write-Host "📦 Installing files to $TargetDir..." -ForegroundColor Gray
 Copy-Item -Path (Join-Path $RepoDir "core") -Destination $TargetDir -Recurse -Force
 Copy-Item -Path (Join-Path $ScriptDir "*") -Destination $TargetDir -Recurse -Force
 
@@ -190,7 +190,7 @@ function Install-PortableNode ($DestDir) {
     $nodeExe = Join-Path $binDir "node.exe"
     if (Test-Path $nodeExe) { return $true }
 
-    Write-Host "⬇️  Baixando Node.js portátil (apenas uma vez, ~30 MB)..." -ForegroundColor Cyan
+    Write-Host "⬇️  Downloading portable Node.js (one time only, ~30 MB)..." -ForegroundColor Cyan
     $tmp = Join-Path $env:TEMP ("aigauge_node_" + [guid]::NewGuid().ToString("N"))
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -200,7 +200,7 @@ function Install-PortableNode ($DestDir) {
         $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "win-arm64" } else { "win-x64" }
         $index = Invoke-RestMethod -Uri "https://nodejs.org/dist/index.json" -UseBasicParsing
         $rel = $index | Where-Object { $_.lts -and ($_.files -contains "$arch-zip") } | Select-Object -First 1
-        if (-not $rel) { throw "Nenhuma versão LTS do Node.js encontrada para $arch" }
+        if (-not $rel) { throw "No Node.js LTS version found for $arch" }
         $ver = $rel.version
         $zipName = "node-$ver-$arch.zip"
         $zipPath = Join-Path $tmp $zipName
@@ -209,7 +209,7 @@ function Install-PortableNode ($DestDir) {
         $sums = (Invoke-WebRequest -Uri "https://nodejs.org/dist/$ver/SHASUMS256.txt" -UseBasicParsing).Content
         $expected = ($sums -split "`n" | Where-Object { $_ -match [regex]::Escape($zipName) } | Select-Object -First 1) -split "\s+" | Select-Object -First 1
         $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash
-        if (-not $expected -or ($expected.ToLower() -ne $actual.ToLower())) { throw "Falha na verificação SHA-256 do Node.js" }
+        if (-not $expected -or ($expected.ToLower() -ne $actual.ToLower())) { throw "Node.js SHA-256 verification failed" }
 
         Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
@@ -217,8 +217,8 @@ function Install-PortableNode ($DestDir) {
         Write-Host "✅ Node.js $ver instalado em $binDir" -ForegroundColor Green
         return $true
     } catch {
-        Write-Host "⚠️  Não foi possível obter o Node.js automaticamente: $($_.Exception.Message)" -ForegroundColor Yellow
-        Write-Host "   O AI Gauge abrirá e mostrará um botão para baixar o Node.js manualmente." -ForegroundColor Yellow
+        Write-Host "⚠️  Could not fetch Node.js automatically: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "   AI Gauge will open and show a button to download Node.js manually." -ForegroundColor Yellow
         return $false
     } finally {
         Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -257,14 +257,14 @@ foreach ($dd in $desktopCandidates) {
         $lnk = Join-Path $dd "AI Gauge.lnk"
         if (New-AppShortcut $lnk) {
             $desktopOk = $true
-            Write-Host "✅ Atalho criado na Área de Trabalho: $lnk" -ForegroundColor Green
+            Write-Host "✅ Desktop shortcut created: $lnk" -ForegroundColor Green
         }
     } catch {
-        Write-Host "⚠️  Não foi possível criar o atalho em ${dd}: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "⚠️  Could not create the shortcut at ${dd}: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 if (-not $desktopOk) {
-    Write-Host "⚠️  O atalho da Área de Trabalho não foi criado. Use o Menu Iniciar > AI Gauge." -ForegroundColor Yellow
+    Write-Host "⚠️  The Desktop shortcut was not created. Use Start Menu > AI Gauge." -ForegroundColor Yellow
 }
 
 # 2. Start Menu Shortcut
@@ -280,7 +280,7 @@ $StartShortcut.Save()
 # 3. Uninstall shortcut + entry in Windows "Apps installed" (per-user, no admin needed)
 $UninstallPs1 = Join-Path $TargetDir "uninstall.ps1"
 if (Test-Path $UninstallPs1) {
-    $UninstShortcut = $WshShell.CreateShortcut((Join-Path $StartMenuDir "Desinstalar AI Gauge.lnk"))
+    $UninstShortcut = $WshShell.CreateShortcut((Join-Path $StartMenuDir "Uninstall AI Gauge.lnk"))
     $UninstShortcut.TargetPath = "powershell.exe"
     $UninstShortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$UninstallPs1`""
     $UninstShortcut.WorkingDirectory = $TargetDir
@@ -301,11 +301,11 @@ if (Test-Path $UninstallPs1) {
     } catch {}
 }
 
-Write-Host "✅ Atalho criado no Menu Iniciar!" -ForegroundColor Green
+Write-Host "✅ Start Menu shortcut created!" -ForegroundColor Green
 Write-Host "🚀 Iniciando o AI Gauge..." -ForegroundColor Cyan
 
 Start-Process "wscript.exe" -ArgumentList "`"$targetVbs`""
 
 Write-Host ""
-Write-Host "🎉 Instalação concluída com sucesso!" -ForegroundColor Green
+Write-Host "🎉 Installation completed successfully!" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green

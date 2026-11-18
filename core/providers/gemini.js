@@ -51,7 +51,7 @@ class GeminiProvider {
                 groups: [
                   {
                     name: 'Gemini',
-                    description: `${count} modelos disponíveis na sua chave`,
+                    description: `${count} models available on your key`,
                     provider: 'Gemini',
                     buckets: [
                       {
@@ -72,7 +72,7 @@ class GeminiProvider {
                         id: 'gemini-key-status',
                         name: 'Acesso & Modelos da Chave',
                         remaining_pct: 100,
-                        reset_in: 'Ativo',
+                        reset_in: 'Active',
                         detail: `${count} modelos liberados na conta`
                       }
                     ]

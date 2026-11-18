@@ -13,7 +13,7 @@ echo ""
 # ----------------------------------------------------
 # 1. SCAN DE APLICATIVOS DE IA INSTALADOS
 # ----------------------------------------------------
-echo "🔍 Escaneando aplicativos e sessões de IA no computador..."
+echo "🔍 Scanning for AI apps and sessions on this computer..."
 
 CONFIG_DIR="${HOME}/.config/UniversalAIQuota"
 CONFIG_FILE="${CONFIG_DIR}/config.json"
@@ -58,11 +58,11 @@ elif [ -f "$CONFIG_FILE" ] && grep -A 3 '"gemini"' "$CONFIG_FILE" 2>/dev/null | 
     HAS_GEMINI=true
 fi
 
-echo "  [1] ⚡ Antigravity:       $([ "$HAS_ANTIGRAVITY" = true ] && echo "✓ Detectado no Mac" || echo "○ Não detectado (opcional)")"
-echo "  [2] 🟣 Claude (Pro/Code): $([ "$HAS_CLAUDE" = true ] && echo "✓ Sessão / Token detectado" || echo "○ Não detectado (opcional)")"
-echo "  [3] 🟢 ChatGPT (Desktop): $([ "$HAS_CHATGPT" = true ] && echo "✓ Sessão Desktop / Codex detectada" || echo "○ Não detectado (opcional)")"
-echo "  [4] 🔮 Cursor (IDE):      $([ "$HAS_CURSOR" = true ] && echo "✓ Detectado no Mac" || echo "○ Não detectado (opcional)")"
-echo "  [5] 🔴 Copilot (VS Code): $([ "$HAS_COPILOT" = true ] && echo "✓ Detectado no Mac (VS Code)" || echo "○ Não detectado (opcional)")"
+echo "  [1] ⚡ Antigravity:       $([ "$HAS_ANTIGRAVITY" = true ] && echo "✓ Detected on this Mac" || echo "○ Not detected (optional)")"
+echo "  [2] 🟣 Claude (Pro/Code): $([ "$HAS_CLAUDE" = true ] && echo "✓ Session / Token detected" || echo "○ Not detected (optional)")"
+echo "  [3] 🟢 ChatGPT (Desktop): $([ "$HAS_CHATGPT" = true ] && echo "✓ Desktop Session / Codex detected" || echo "○ Not detected (optional)")"
+echo "  [4] 🔮 Cursor (IDE):      $([ "$HAS_CURSOR" = true ] && echo "✓ Detected on this Mac" || echo "○ Not detected (optional)")"
+echo "  [5] 🔴 Copilot (VS Code): $([ "$HAS_COPILOT" = true ] && echo "✓ Detected on this Mac (VS Code)" || echo "○ Not detected (optional)")"
 echo "  [6] 🔷 Gemini (Studio):   $([ "$HAS_GEMINI" = true ] && echo "✓ Chave configurada" || echo "○ Chave de API (opcional)")"
 echo ""
 
@@ -77,10 +77,10 @@ ENABLE_COPILOT=$HAS_COPILOT
 ENABLE_GEMINI=$HAS_GEMINI
 
 if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
-    echo "📋 Quais quotas você deseja monitorar no seu AI Gauge?"
+    echo "📋 Which quotas do you want to monitor in AI Gauge?"
     echo "   Pressione ENTER para monitorar todos os detectados [Recomendado],"
-    echo "   ou digite os números desejados separados por vírgula (ex: 1,2,3):"
-    read -r -p "   Sua escolha [Padrão: Detectados]: " USER_CHOICE
+    echo "   or type the numbers you want, separated by commas (e.g. 1,2,3):"
+    read -r -p "   Your choice [Default: Detected]: " USER_CHOICE
     
     if [ -n "$USER_CHOICE" ]; then
         ENABLE_ANTI=false
@@ -97,7 +97,7 @@ if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
         [[ "$USER_CHOICE" =~ 6 ]] && ENABLE_GEMINI=true
     fi
     echo ""
-    echo "💡 Informação: Você poderá adicionar ou excluir itens a qualquer momento depois nas Configurações (⌘,) do app."
+    echo "💡 Note: You can add or remove items at any time later in the app's Settings (⌘,)."
     echo ""
 fi
 
@@ -124,7 +124,7 @@ cfg = {
 os.makedirs(os.path.dirname(p), exist_ok=True)
 with open(p, 'w') as f:
     json.dump(cfg, f, indent=2)
-print('✅ Configuração inicial gravada com sucesso em ~/.config/UniversalAIQuota/config.json!')
+print('✅ Initial configuration saved to ~/.config/UniversalAIQuota/config.json!')
 "
 fi
 
@@ -134,7 +134,7 @@ fi
 echo "⚡ Compilando o AI Gauge para macOS..."
 "${SCRIPT_DIR}/build.sh"
 
-echo "📲 Instalando em /Applications..."
+echo "📲 Installing to /Applications..."
 rm -rf "/Applications/Gemini Gauge.app" 2>/dev/null || true
 rm -rf "/Applications/AI Gauge.app" 2>/dev/null || true
 cp -R "${SCRIPT_DIR}/AI Gauge.app" /Applications/
@@ -149,9 +149,9 @@ cp "${REPO_DIR}/dist/AI-Gauge-macOS-vh2c.zip" "${HOME}/Downloads/"
 
 echo ""
 echo "=========================================================="
-echo " 🎉 AI Gauge instalado e pré-configurado com sucesso!"
+echo " 🎉 AI Gauge installed and pre-configured successfully!"
 echo " 📍 Aplicativo: /Applications/AI Gauge.app"
 echo " 📦 Arquivo ZIP copiado para: ~/Downloads/AI-Gauge-macOS-vh2c.zip"
-echo " 💡 Dica: Você pode abrir com 'open \"/Applications/AI Gauge.app\"'"
-echo "    e gerenciar as quotas a qualquer momento em Preferências (⌘,)."
+echo " 💡 Tip: You can open it with 'open \"/Applications/AI Gauge.app\"'"
+echo "    and manage quotas at any time in Preferences (⌘,)."
 echo "=========================================================="

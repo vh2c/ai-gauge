@@ -31,7 +31,7 @@ function formatTimeRemaining(resetTimeString, remainingFraction = 1.0) {
   const now = new Date();
   const diffMs = resetDate - now;
   if (diffMs <= 0) {
-    return (remainingFraction !== undefined && remainingFraction >= 0.99) ? '' : 'Renovando...';
+    return (remainingFraction !== undefined && remainingFraction >= 0.99) ? '' : 'Renewing...';
   }
   const totalMinutes = Math.floor(diffMs / (1000 * 60));
   const hours = Math.floor(totalMinutes / 60);
@@ -385,7 +385,7 @@ class AntigravityProvider {
 
     return {
       provider: 'antigravity',
-      account: userStatus.email || 'Conta Antigravity',
+      account: userStatus.email || 'Antigravity Account',
       plan: planInfo.planName || 'Pro',
       mode: mode,
       groups: groups

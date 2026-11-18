@@ -23,7 +23,7 @@ jobs:
           chmod +x macos/build.sh
           ./macos/build.sh
           cd macos
-          zip -r ../AI-Gauge-macOS-vh2c.zip "AI Gauge.app"
+          ditto -c -k --keepParent --norsrc --noextattr "AI Gauge.app" ../AI-Gauge-macOS-vh2c.zip
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4

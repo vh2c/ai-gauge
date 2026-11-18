@@ -29,11 +29,10 @@ ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=no
 
 [Languages]
-Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; GroupDescription: "Atalhos:"
+Name: "desktopicon"; Description: "Create a Desktop shortcut"; GroupDescription: "Shortcuts:"
 
 [Files]
 Source: "..\AIGauge.ps1"; DestDir: "{app}"; Flags: ignoreversion
@@ -58,6 +57,7 @@ Type: files; Name: "{userprograms}\Gemini Gauge.lnk"
 Type: files; Name: "{userprograms}\Antigravity Quota Hub.lnk"
 Type: files; Name: "{userprograms}\Universal AI Quota.lnk"
 Type: files; Name: "{userprograms}\Desinstalar AI Gauge.lnk"
+Type: files; Name: "{userprograms}\Uninstall AI Gauge.lnk"
 ; Clean previous files in the install folder (user settings live in ~\.config and are kept)
 Type: filesandordirs; Name: "{app}\core"
 Type: files; Name: "{app}\*.ps1"
@@ -70,7 +70,7 @@ Type: files; Name: "{app}\AntigravityQuotaHub.vbs"
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\AIGauge"; Flags: deletekey
 
 [Run]
-Filename: "{sys}\wscript.exe"; Parameters: """{app}\AIGauge.vbs"""; Description: "Iniciar o AI Gauge"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\wscript.exe"; Parameters: """{app}\AIGauge.vbs"""; Description: "Launch AI Gauge"; Flags: nowait postinstall skipifsilent
 
 [Code]
 procedure StopRunningGauge();
@@ -98,7 +98,7 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    if MsgBox('Remover também suas configurações (contas, tokens e cores)?' + #13#10 + 'Escolha "Não" para mantê-las caso reinstale depois.',
+    if MsgBox('Also remove your settings (accounts, tokens and colors)?' + #13#10 + 'Choose "No" to keep them in case you reinstall later.',
               mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
       DelTree(ExpandConstant('{userprofile}\.config\UniversalAIQuota'), True, True, True);
   end;

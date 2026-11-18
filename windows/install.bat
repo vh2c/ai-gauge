@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ==========================================================
-echo   AI Gauge - Instalador Windows (VH2C)
+echo   AI Gauge - Windows Installer (VH2C)
 echo ==========================================================
 echo.
 

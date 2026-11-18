@@ -61,7 +61,7 @@ class AnthropicProvider {
               groups: [
                 {
                   name: 'Anthropic Claude Rate Limits',
-                  description: 'Limites de requisições e tokens por minuto',
+                  description: 'Requests and tokens per minute limits',
                   provider: 'Anthropic',
                   buckets: [
                     {
@@ -69,14 +69,14 @@ class AnthropicProvider {
                       name: 'RPM Limit Remaining',
                       remaining_pct: reqPct,
                       reset_in: resetReq ? `${resetReq}` : '1m',
-                      detail: remReq ? `${remReq}/${limitReq} reqs` : 'Ativo'
+                      detail: remReq ? `${remReq}/${limitReq} reqs` : 'Active'
                     },
                     {
                       id: 'claude-tokens',
                       name: 'TPM Limit Remaining',
                       remaining_pct: tokPct,
                       reset_in: '1m',
-                      detail: remTokens ? `${remTokens}/${limitTokens} tokens` : 'Ativo'
+                      detail: remTokens ? `${remTokens}/${limitTokens} tokens` : 'Active'
                     }
                   ]
                 }

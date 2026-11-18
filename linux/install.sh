@@ -31,10 +31,10 @@ run_as_root() {
     if [ "$(id -u)" -eq 0 ]; then
         "$@"
     elif command -v sudo >/dev/null 2>&1; then
-        echo "🔐 Solicitando permissão de administrador (sudo) para instalar dependências..."
+        echo "🔐 Requesting administrator permission (sudo) to install dependencies..."
         sudo "$@"
     else
-        echo "❌ Permissão de root/sudo necessária para instalar pacotes do sistema."
+        echo "❌ Root/sudo permission is required to install system packages."
         return 1
     fi
 }
@@ -53,13 +53,13 @@ fi
 
 # 4. Check and install Python 3
 if ! command -v python3 >/dev/null 2>&1; then
-    echo "📦 Python 3 não encontrado. Instalando..."
+    echo "📦 Python 3 not found. Installing..."
     case "${PKG_MANAGER}" in
         apt) run_as_root apt-get update && run_as_root apt-get install -y python3 ;;
         dnf) run_as_root dnf install -y python3 ;;
         pacman) run_as_root pacman -S --noconfirm python ;;
         zypper) run_as_root zypper install -y python3 ;;
-        *) echo "⚠️ Não foi possível identificar o gerenciador de pacotes para instalar python3." ;;
+        *) echo "⚠️ Could not identify the package manager to install python3." ;;
     esac
 else
     echo "✅ Python 3 detectado: $(python3 --version)"
@@ -67,13 +67,13 @@ fi
 
 # 5. Check and install Python Tkinter (required for GUI)
 if ! python3 -c "import tkinter" >/dev/null 2>&1; then
-    echo "📦 Interface gráfica (Tkinter) não encontrada. Instalando python3-tk..."
+    echo "📦 Graphical interface (Tkinter) not found. Installing python3-tk..."
     case "${PKG_MANAGER}" in
         apt) run_as_root apt-get update && run_as_root apt-get install -y python3-tk ;;
         dnf) run_as_root dnf install -y python3-tkinter ;;
         pacman) run_as_root pacman -S --noconfirm tk ;;
         zypper) run_as_root zypper install -y python3-tk ;;
-        *) echo "⚠️ Instale o pacote Tkinter manualmente para sua distribuição (ex: sudo apt install python3-tk)." ;;
+        *) echo "⚠️ Install the Tkinter package manually for your distribution (ex: sudo apt install python3-tk)." ;;
     esac
 else
     echo "✅ Tkinter (GUI) detectado e funcionando."
@@ -86,15 +86,15 @@ if command -v node >/dev/null 2>&1; then
     echo "✅ Node.js detectado no sistema: ${NODE_VER}"
     NODE_AVAILABLE=1
 elif [ -x "${TARGET_DIR}/bin/node" ]; then
-    echo "✅ Node.js portátil detectado em ${TARGET_DIR}/bin/node"
+    echo "✅ Portable Node.js detected at ${TARGET_DIR}/bin/node"
     NODE_AVAILABLE=1
 fi
 
 if [ "${NODE_AVAILABLE}" -eq 0 ]; then
     echo ""
-    echo "📦 Node.js não foi encontrado no sistema."
-    echo "⚡ Baixando versão portátil do Node.js v20 LTS diretamente para a pasta do Gemini Gauge..."
-    echo "   (Zero interferência no sistema e não requer senha de sudo!)"
+    echo "📦 Node.js was not found on this system."
+    echo "⚡ Downloading portable Node.js v20 LTS directly into the AI Gauge folder..."
+    echo "   (Zero system interference and no sudo password required!)"
     
     NODE_VERSION="v20.18.0"
     NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-${ARCH}.tar.xz"
@@ -105,14 +105,14 @@ if [ "${NODE_AVAILABLE}" -eq 0 ]; then
     elif command -v wget >/dev/null 2>&1; then
         wget -qO "${TMP_DIR}/node.tar.xz" "${NODE_URL}"
     else
-        echo "❌ curl ou wget necessário para baixar o Node.js portátil."
+        echo "❌ curl or wget is required to download portable Node.js."
     fi
 
     if [ -f "${TMP_DIR}/node.tar.xz" ]; then
         tar -xJf "${TMP_DIR}/node.tar.xz" -C "${TARGET_DIR}/bin" --strip-components=2 "node-${NODE_VERSION}-linux-${ARCH}/bin/node" || true
         rm -rf "${TMP_DIR}"
         chmod +x "${TARGET_DIR}/bin/node"
-        echo "✅ Node.js portátil v20 configurado com sucesso em ${TARGET_DIR}/bin/node!"
+        echo "✅ Portable Node.js v20 set up successfully at ${TARGET_DIR}/bin/node!"
     else
         echo "⚠️ Tentando instalar via gerenciador de pacotes do sistema..."
         case "${PKG_MANAGER}" in
@@ -127,7 +127,7 @@ fi
 # 7. Scan de Provedores e Configuração Inicial
 echo ""
 echo "=========================================================="
-echo " 🔍 Escaneando aplicativos de Inteligência Artificial..."
+echo " 🔍 Scanning for AI applications..."
 echo "=========================================================="
 
 CONFIG_DIR="${HOME}/.config/UniversalAIQuota"
@@ -167,11 +167,11 @@ elif [ -f "$CONFIG_FILE" ] && grep -A 3 '"gemini"' "$CONFIG_FILE" 2>/dev/null | 
     HAS_GEMINI=true
 fi
 
-echo "  [1] ⚡ Antigravity:       $([ "$HAS_ANTIGRAVITY" = true ] && echo "✓ Detectado no sistema" || echo "○ Não detectado (opcional)")"
-echo "  [2] 🟣 Claude (Pro/Code): $([ "$HAS_CLAUDE" = true ] && echo "✓ Sessão / Token detectado" || echo "○ Não detectado (opcional)")"
-echo "  [3] 🟢 ChatGPT (Desktop): $([ "$HAS_CHATGPT" = true ] && echo "✓ Sessão Desktop / Codex detectada" || echo "○ Não detectado (opcional)")"
-echo "  [4] 🔮 Cursor (IDE):      $([ "$HAS_CURSOR" = true ] && echo "✓ Detectado no sistema" || echo "○ Não detectado (opcional)")"
-echo "  [5] 🔴 Copilot (VS Code): $([ "$HAS_COPILOT" = true ] && echo "✓ Detectado (VS Code)" || echo "○ Não detectado (opcional)")"
+echo "  [1] ⚡ Antigravity:       $([ "$HAS_ANTIGRAVITY" = true ] && echo "✓ Detected on this system" || echo "○ Not detected (optional)")"
+echo "  [2] 🟣 Claude (Pro/Code): $([ "$HAS_CLAUDE" = true ] && echo "✓ Session / Token detected" || echo "○ Not detected (optional)")"
+echo "  [3] 🟢 ChatGPT (Desktop): $([ "$HAS_CHATGPT" = true ] && echo "✓ Desktop Session / Codex detected" || echo "○ Not detected (optional)")"
+echo "  [4] 🔮 Cursor (IDE):      $([ "$HAS_CURSOR" = true ] && echo "✓ Detected on this system" || echo "○ Not detected (optional)")"
+echo "  [5] 🔴 Copilot (VS Code): $([ "$HAS_COPILOT" = true ] && echo "✓ Detected (VS Code)" || echo "○ Not detected (optional)")"
 echo "  [6] 🔷 Gemini (Studio):   $([ "$HAS_GEMINI" = true ] && echo "✓ Chave configurada" || echo "○ Chave de API (opcional)")"
 echo ""
 
@@ -183,10 +183,10 @@ ENABLE_COPILOT=$HAS_COPILOT
 ENABLE_GEMINI=$HAS_GEMINI
 
 if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
-    echo "📋 Quais quotas você deseja monitorar no seu AI Gauge?"
+    echo "📋 Which quotas do you want to monitor in AI Gauge?"
     echo "   Pressione ENTER para monitorar todos os detectados [Recomendado],"
-    echo "   ou digite os números desejados separados por vírgula (ex: 1,2,3):"
-    read -r -p "   Sua escolha [Padrão: Detectados]: " USER_CHOICE
+    echo "   or type the numbers you want, separated by commas (e.g. 1,2,3):"
+    read -r -p "   Your choice [Default: Detected]: " USER_CHOICE
     
     if [ -n "$USER_CHOICE" ]; then
         ENABLE_ANTI=false
@@ -203,7 +203,7 @@ if [ -t 0 ] && { [ ! -f "$CONFIG_FILE" ] || [[ "$*" == *"--setup"* ]]; }; then
         [[ "$USER_CHOICE" =~ 6 ]] && ENABLE_GEMINI=true
     fi
     echo ""
-    echo "💡 Informação: Você poderá adicionar ou excluir itens a qualquer momento depois nas configurações do app."
+    echo "💡 Note: You can add or remove items at any time later in the app's settings."
     echo ""
 fi
 
@@ -237,13 +237,13 @@ cfg = {
 os.makedirs(os.path.dirname(p), exist_ok=True)
 with open(p, 'w') as f:
     json.dump(cfg, f, indent=2)
-print('✅ Configuração inicial gravada com sucesso em ~/.config/UniversalAIQuota/config.json!')
+print('✅ Initial configuration saved to ~/.config/UniversalAIQuota/config.json!')
 "
 fi
 
 # 8. Install AI Gauge application files
 echo ""
-echo "🚀 Instalando arquivos do Gemini Gauge..."
+echo "🚀 Installing AI Gauge files..."
 cp -r "${REPO_DIR}/core" "${TARGET_DIR}/"
 cp "${SCRIPT_DIR}/quota-hub.py" "${TARGET_DIR}/"
 cp "${SCRIPT_DIR}/quota-hub" "${TARGET_DIR}/"
@@ -311,11 +311,11 @@ fi
 
 echo ""
 echo "=========================================================="
-echo " 🎉 Instalação concluída com sucesso!"
+echo " 🎉 Installation completed successfully!"
 echo "=========================================================="
-echo "👉 Para abrir a interface gráfica:"
+echo "👉 To open the graphical interface:"
 echo "   - Digite no terminal: gemini-gauge (ou quota-hub)"
-echo "   - Ou clique no ícone 'Gemini Gauge' no menu de aplicativos do Linux"
+echo "   - Or click the 'Gemini Gauge' icon in your Linux applications menu"
 echo ""
 echo "👉 Para ver as cotas direto no terminal (modo texto / SSH):"
 echo "   gemini-gauge --cli"

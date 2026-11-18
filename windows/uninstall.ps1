@@ -7,10 +7,10 @@ $TargetDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $env:TEMP   # do not keep the install folder locked
 $ConfigDir = Join-Path $env:USERPROFILE ".config\UniversalAIQuota"
 
-$ask = [System.Windows.MessageBox]::Show("Deseja desinstalar o AI Gauge deste computador?", "Desinstalar AI Gauge", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
+$ask = [System.Windows.MessageBox]::Show("Deseja desinstalar o AI Gauge deste computador?", "Uninstall AI Gauge", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
 if ($ask -ne [System.Windows.MessageBoxResult]::Yes) { exit 0 }
 
-$removeCfg = [System.Windows.MessageBox]::Show("Remover também suas configurações (contas, tokens e cores)?`n`nEscolha 'Não' para mantê-las caso reinstale depois.", "Desinstalar AI Gauge", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
+$removeCfg = [System.Windows.MessageBox]::Show("Also remove your settings (accounts, tokens and colors)?`n`nChoose 'No' to keep them in case you reinstall later.", "Uninstall AI Gauge", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
 
 # Close running instances
 try {
@@ -21,7 +21,7 @@ try {
 } catch {}
 
 # Shortcuts
-$names = @("AI Gauge.lnk", "Desinstalar AI Gauge.lnk")
+$names = @("AI Gauge.lnk", "Uninstall AI Gauge.lnk", "Desinstalar AI Gauge.lnk")
 $dirs = @([Environment]::GetFolderPath("Desktop"), (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"))
 foreach ($d in $dirs) {
     foreach ($n in $names) {

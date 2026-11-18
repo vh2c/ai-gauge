@@ -105,7 +105,7 @@ class UniversalQuotaEngine {
     if (valid.length === 0) {
       return {
         needs_setup: true,
-        account: 'Nenhum Provedor Configurado',
+        account: 'No Provider Configured',
         plan: 'Configurar',
         providers_count: 0,
         groups: [],
@@ -155,7 +155,7 @@ if (require.main === module) {
       if (res && res.groups && res.groups.length > 0) {
         console.log(JSON.stringify({ ok: true, provider: 'gemini', models_count: 3 }));
       } else {
-        console.log(JSON.stringify({ ok: false, error: 'Chave inválida ou sem permissão de acesso' }));
+        console.log(JSON.stringify({ ok: false, error: 'Invalid key or no access permission' }));
       }
     }).catch(err => {
       console.log(JSON.stringify({ ok: false, error: err.message }));
