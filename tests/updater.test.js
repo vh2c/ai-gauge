@@ -127,10 +127,27 @@ test('PRO: sends only machine_id and version (no os, arch or timestamp)', async 
   patchCache({ last_launch_at: Date.now() - updater.STARTUP_MIN_GAP_MS - 1000 });
   await updater.checkForUpdates({ startup: true });          // now known to be PRO
   const p = requests[1];
-  assert.deepStrictEqual(Object.keys(p).sort(), ['app', 'machine_id', 'version']);
+  // `locale` (system language, used only to choose notice language/donation account) is the one extra field, and
+  // it is omitted when the language cannot be read (the server then assumes English).
+  const loc = updater.getSystemLocale() ? ['locale'] : [];
+  assert.deepStrictEqual(Object.keys(p).sort(), ['app', ...loc, 'machine_id', 'version'].sort());
   patchCache({ next_check_at: Date.now() - 1000 });
   await updater.checkForUpdates({});
-  assert.deepStrictEqual(Object.keys(requests[2]).sort(), ['app', 'check_only', 'machine_id', 'version']);
+  assert.deepStrictEqual(Object.keys(requests[2]).sort(), ['app', 'check_only', ...loc, 'machine_id', 'version'].sort());
+});
+
+test('locale: FREE and PRO payloads carry only a well-formed system language (or none)', async () => {
+  respond = FREE_OK;
+  await updater.checkForUpdates({ startup: true });
+  const l = requests[0].locale;
+  assert.ok(l === undefined || /^[a-z]{2,3}(-[A-Z]{2}|-[0-9]{3})?$/.test(l), 'locale looks like pt-BR / en / es-419: ' + l);
+  assert.strictEqual(requests[0].locale, updater.getSystemLocale() || undefined);
+});
+
+test('locale parsing: normalises, rejects non-locales', () => {
+  const t = (raw, want) => assert.strictEqual(updater.parseLocale(raw), want, JSON.stringify(raw));
+  t('pt_BR.UTF-8', 'pt-BR'); t('en-US', 'en-US'); t('pt-BR@euro', 'pt-BR'); t('es', 'es'); t('PT_br', 'pt-BR');
+  t('C', null); t('POSIX', null); t('', null); t(null, null); t(undefined, null); t('<script>', null); t("pt-BR'; drop", null);
 });
 
 test('API down: keeps the last announcement/promo, retries in 1h, does not retry on every refresh', async () => {

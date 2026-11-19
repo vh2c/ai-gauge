@@ -226,11 +226,16 @@ AI Gauge talks to its own server for **one reason**: to tell the **FREE** and **
 | Random anonymous ID (`machine_id`, created on your machine, no hardware fingerprint) | ✅ | ✅ (so your license is recognised) |
 | App version | ✅ | ✅ |
 | Operating system and CPU architecture | ✅ | ❌ |
+| System interface language (e.g. `pt-BR`, `en-US`), only to choose the notice language and the right donation account | ✅ (stored) | ✅ (used for that request, **not stored**) |
 | Server-side: a daily-rotating one-way hash of your IP (no location is derived) | ✅ | ❌ |
 | Launch counter and last-seen time | ✅ | ❌ |
 | What the server answers | Latest version, notices and the optional promo | Latest version |
 
 For **PRO**, the server stores only the app version, and only when it changes.
+
+**Language:** if the app cannot read your system language (or you use an older version that does not send it), the server assumes **English**. Brazil (Portuguese, or any language with the region set to Brazil, such as `en-BR`) gets notices in Portuguese and the Brazilian donation account; everything else gets English and the international one.
+
+**Donations and PRO licenses:** payments are handled by Stripe. When you pay, the country and state you type in Stripe's checkout are kept with your license so we can see where supporters come from. That is information you give us for the payment, not something derived from your device.
 
 **Never sent, in any edition:** API keys, tokens, prompts, code, projects, which AI tools or providers you use, quota values, or any personal data such as your name or e-mail.
 

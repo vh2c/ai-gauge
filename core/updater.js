@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CURRENT_VERSION = '1.2.0';
+const CURRENT_VERSION = '1.2.1';
 const GITHUB_REPO = 'vh2c/ai-gauge';
 const RECHECK_MS = 24 * 60 * 60 * 1000;        // re-check while the app stays open
 const RETRY_MS = 60 * 60 * 1000;               // after a failed check, try again in 1 hour (not on every refresh)
@@ -127,6 +127,43 @@ function fetchGithubRelease() {
 }
 
 /**
+ * Validates a raw locale string ("pt_BR.UTF-8", "en-US", "pt-BR@x") and returns it as "pt-BR" / "en-US" / "es",
+ * or null when it does not look like a locale ("C", "POSIX", garbage).
+ */
+function parseLocale(raw) {
+  if (typeof raw !== 'string') return null;
+  const base = raw.trim().split('.')[0].split('@')[0].replace(/_/g, '-');
+  const m = /^([A-Za-z]{2,3})(?:-([A-Za-z]{2}|[0-9]{3}))?(?:-[A-Za-z0-9]{2,8})*$/.exec(base);
+  if (!m) return null;
+  return m[2] ? `${m[1].toLowerCase()}-${m[2].toUpperCase()}` : m[1].toLowerCase();
+}
+
+let cachedLocale;
+/**
+ * The system interface language (e.g. "pt-BR"), used by the server only to choose the notice language and the
+ * donation account (Brazil x international). Returns null when it cannot be read: the server then assumes English.
+ * macOS: the real preferred language (Node's own default depends on env vars that GUI launches do not have).
+ */
+function getSystemLocale() {
+  if (cachedLocale !== undefined) return cachedLocale;
+  let found = null;
+  try {
+    if (process.platform === 'darwin') {
+      const { execFileSync } = require('child_process');
+      const langs = execFileSync('/usr/bin/defaults', ['read', '-g', 'AppleLanguages'], { encoding: 'utf8', timeout: 1500, stdio: ['ignore', 'pipe', 'ignore'] });
+      const first = /"?([A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*)"?\s*[,)]/.exec(langs.replace(/^\(\s*/, ''));
+      found = parseLocale(first && first[1]);
+    } else if (process.platform !== 'win32') {
+      const env = process.env;
+      found = parseLocale(env.LC_ALL) || parseLocale(env.LC_MESSAGES) || parseLocale(env.LANG) || parseLocale((env.LANGUAGE || '').split(':')[0]);
+    }
+    if (!found) found = parseLocale(Intl.DateTimeFormat().resolvedOptions().locale); // Windows (user locale) and fallback
+  } catch (_) {}
+  cachedLocale = found;
+  return found;
+}
+
+/**
  * The exact data sent to the API. PRO users send the bare minimum.
  * `checkOnly` = a plain check that the server does not count as an app launch.
  */
@@ -137,6 +174,10 @@ function buildPayload(tier, checkOnly) {
     version: CURRENT_VERSION,
     machine_id: getMachineId()
   };
+  // System language: lets the server pick the Portuguese/English notice and the right donation account. Sent by
+  // FREE and PRO; the server stores it only for FREE. Omitted when unknown (the server then assumes English).
+  const locale = getSystemLocale();
+  if (locale) payload.locale = locale;
   if (!isProTier(tier)) {
     payload.os = os.platform();
     payload.arch = os.arch();
@@ -287,6 +328,8 @@ module.exports = {
   STARTUP_MIN_GAP_MS,
   checkForUpdates,
   buildPayload,
+  parseLocale,
+  getSystemLocale,
   writeCache,
   isNewer
 };

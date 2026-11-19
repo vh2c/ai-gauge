@@ -45,9 +45,9 @@ cat << 'PLIST' > "${APP_BUNDLE}/Contents/Info.plist"
     <key>CFBundleIdentifier</key>
     <string>br.com.vh2c.ai-gauge</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.2.0</string>
+    <string>1.2.1</string>
     <key>CFBundleVersion</key>
-    <string>1.2.0</string>
+    <string>1.2.1</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>

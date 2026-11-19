@@ -42,6 +42,48 @@ test('file without the claudeAiOauth block -> null', () => {
   assert.strictEqual(p.getTokenFromFile(home), null);
 });
 
+test('extractBestTokenFromCacheObj prefers unexpired user:profile entry with largest expiresAt', () => {
+  const now = Date.now();
+  const obj = {
+    'acct:a|c1:org:https://api.anthropic.com:user:inference': {
+      token: 'tok-inference-only',
+      expiresAt: now + 999999999
+    },
+    'acct:a|c2:org:https://api.anthropic.com:user:profile': {
+      token: 'tok-profile-sooner',
+      expiresAt: now + 3600_000
+    },
+    'acct:a|c3:org:https://api.anthropic.com:user:inference user:profile': {
+      token: 'tok-profile-later',
+      expiresAt: now + 7200_000
+    },
+    'acct:a|c4:org:https://api.anthropic.com:user:profile': {
+      token: 'tok-profile-expired',
+      expiresAt: now - 1000
+    },
+    'acct:a|c5:org:https://api.anthropic.com:user:profile': {
+      token: '',
+      expiresAt: now + 999999999
+    }
+  };
+  const best = p.extractBestTokenFromCacheObj(obj);
+  assert.deepStrictEqual(best, {
+    token: 'tok-profile-later',
+    expiresAt: now + 7200_000
+  });
+});
+
+test('extractBestTokenFromCacheObj returns null when all entries are expired or empty', () => {
+  const now = Date.now();
+  const obj = {
+    'acct:a|c1:org:https://api.anthropic.com:user:profile': { token: 'expired', expiresAt: now - 5000 },
+    'acct:a|c2:org:https://api.anthropic.com:user:profile': { token: 'zero-exp', expiresAt: 0 },
+    'acct:a|c3:org:https://api.anthropic.com:user:profile': { token: '   ', expiresAt: now + 3600_000 }
+  };
+  assert.strictEqual(p.extractBestTokenFromCacheObj(obj), null);
+  assert.strictEqual(p.extractBestTokenFromCacheObj(null), null);
+});
+
 let failed = 0;
 for (const t of tests) {
   try { t.f(); console.log('  ok   ' + t.n); } catch (e) { failed++; console.log('  FAIL ' + t.n + '\n       ' + e.message); }

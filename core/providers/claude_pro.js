@@ -2,6 +2,7 @@
  * Claude Pro Provider (OAuth / Session via macOS Keychain, ~/.claude/.credentials.json & CLI)
  */
 const https = require('https');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -12,6 +13,9 @@ const CLAUDE_SIGNIN_HINT = 'Outdated: sign in to Claude Code again (run "claude 
 
 class ClaudeProProvider {
   constructor(token) {
+    this._explicitToken = Boolean(token);
+    this._ignoreCachedDesktopToken = false;
+    this.tokenCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_token_cache.json');
     this.token = token || this.getTokenFromKeychain() || this.getTokenFromFile();
     this.dedicatedCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_cache.json');
   }
@@ -103,6 +107,175 @@ class ClaudeProProvider {
       }
 
       return parsed?.claudeAiOauth?.accessToken || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Pick the best OAuth token from Claude Desktop's decrypted tokenCache object,
+   * preferring unexpired entries whose key includes the `user:profile` scope
+   * (required by /api/oauth/usage) and highest expiration timestamp.
+   */
+  extractBestTokenFromCacheObj(parsedObj) {
+    if (!parsedObj || typeof parsedObj !== 'object') return null;
+    const now = Date.now();
+    const candidates = [];
+
+    for (const [key, entry] of Object.entries(parsedObj)) {
+      if (!entry || typeof entry !== 'object') continue;
+      const rawToken = entry.token || entry.accessToken;
+      if (typeof rawToken !== 'string' || !rawToken.trim()) continue;
+
+      const expiresAt = typeof entry.expiresAt === 'number' ? entry.expiresAt : null;
+      const isValid = expiresAt === null ? true : expiresAt > (now + 60000);
+      if (!isValid) continue;
+
+      candidates.push({
+        token: rawToken.trim(),
+        expiresAt,
+        hasProfile: key.includes('user:profile')
+      });
+    }
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => {
+      if (a.hasProfile !== b.hasProfile) return a.hasProfile ? -1 : 1;
+      return (b.expiresAt ?? 0) - (a.expiresAt ?? 0);
+    });
+
+    return {
+      token: candidates[0].token,
+      expiresAt: candidates[0].expiresAt
+    };
+  }
+
+  getDesktopConfigDir(customDir) {
+    if (customDir) return customDir;
+    if (process.platform === 'darwin') {
+      return path.join(os.homedir(), 'Library', 'Application Support', 'Claude');
+    }
+    if (process.platform === 'win32') {
+      return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Claude');
+    }
+    return path.join(os.homedir(), '.config', 'Claude');
+  }
+
+  decryptSafeStorageValue(encryptedBase64, desktopDir) {
+    if (typeof encryptedBase64 !== 'string' || !encryptedBase64) return null;
+    try {
+      const buf = Buffer.from(encryptedBase64, 'base64');
+      if (buf.length < 4) return null;
+      const prefix = buf.subarray(0, 3).toString('utf8');
+      if (prefix !== 'v10') return null;
+
+      if (process.platform === 'darwin') {
+        const pass = execFileSync('security', [
+          'find-generic-password',
+          '-w',
+          '-s', 'Claude Safe Storage'
+        ], { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        if (!pass) return null;
+        const key = crypto.pbkdf2Sync(pass, 'saltysalt', 1003, 16, 'sha1');
+        const iv = Buffer.alloc(16, 0x20);
+        const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
+        return Buffer.concat([decipher.update(buf.subarray(3)), decipher.final()]).toString('utf8');
+      }
+
+      if (process.platform === 'win32') {
+        if (buf.length <= 31) return null;
+        const localStatePath = path.join(desktopDir, 'Local State');
+        if (!fs.existsSync(localStatePath)) return null;
+        const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8').replace(/^\uFEFF/, ''));
+        const encKeyB64 = localState?.os_crypt?.encrypted_key;
+        if (!encKeyB64) return null;
+        const keyBuf = Buffer.from(encKeyB64, 'base64');
+        if (keyBuf.length <= 5 || keyBuf.subarray(0, 5).toString('utf8') !== 'DPAPI') return null;
+
+        const protectedB64 = keyBuf.subarray(5).toString('base64');
+        const psScript = [
+          'Add-Type -AssemblyName System.Security;',
+          '$bytes = [Convert]::FromBase64String($env:CLAUDE_DPAPI_BLOB);',
+          '$plain = [System.Security.Cryptography.ProtectedData]::Unprotect($bytes, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser);',
+          '[Convert]::ToBase64String($plain)'
+        ].join(' ');
+        const masterKeyB64 = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], {
+          encoding: 'utf8',
+          timeout: 5000,
+          stdio: ['ignore', 'pipe', 'ignore'],
+          env: { ...process.env, CLAUDE_DPAPI_BLOB: protectedB64 }
+        }).trim();
+        const masterKey = Buffer.from(masterKeyB64, 'base64');
+        if (masterKey.length !== 32) return null;
+
+        const nonce = buf.subarray(3, 15);
+        const tag = buf.subarray(buf.length - 16);
+        const ciphertext = buf.subarray(15, buf.length - 16);
+        const decipher = crypto.createDecipheriv('aes-256-gcm', masterKey, nonce);
+        decipher.setAuthTag(tag);
+        return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+      }
+
+      // Linux Electron safeStorage (v10 uses fixed 'peanuts' PBKDF2 key)
+      const key = crypto.pbkdf2Sync('peanuts', 'saltysalt', 1, 16, 'sha1');
+      const iv = Buffer.alloc(16, 0x20);
+      const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
+      return Buffer.concat([decipher.update(buf.subarray(3)), decipher.final()]).toString('utf8');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  getTokenFromDesktopConfig(customDir) {
+    if (!customDir && !this._ignoreCachedDesktopToken) {
+      try {
+        if (fs.existsSync(this.tokenCachePath)) {
+          const cached = JSON.parse(fs.readFileSync(this.tokenCachePath, 'utf8').replace(/^\uFEFF/, ''));
+          if (cached?.token && (!cached.expiresAt || cached.expiresAt > (Date.now() + 60000))) {
+            return cached.token;
+          }
+        }
+      } catch (_) {}
+    }
+
+    try {
+      const desktopDir = this.getDesktopConfigDir(customDir);
+      const cfgPath = path.join(desktopDir, 'config.json');
+      if (!fs.existsSync(cfgPath)) return null;
+
+      const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8').replace(/^\uFEFF/, ''));
+      const combined = {};
+
+      for (const cacheKey of ['oauth:tokenCache', 'oauth:tokenCacheV2']) {
+        const rawEnc = cfg?.[cacheKey];
+        if (!rawEnc) continue;
+        const dec = this.decryptSafeStorageValue(rawEnc, desktopDir);
+        if (!dec) continue;
+        try {
+          const parsed = JSON.parse(dec);
+          if (parsed && typeof parsed === 'object') {
+            Object.assign(combined, parsed);
+          }
+        } catch (_) {}
+      }
+
+      const best = this.extractBestTokenFromCacheObj(combined);
+      if (!best || !best.token) return null;
+
+      if (!customDir) {
+        try {
+          const dir = path.dirname(this.tokenCachePath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(
+            this.tokenCachePath,
+            JSON.stringify({ token: best.token, expiresAt: best.expiresAt, updatedAt: Date.now() }),
+            { encoding: 'utf8', mode: 0o600 }
+          );
+        } catch (_) {}
+      }
+
+      return best.token;
     } catch (_) {
       return null;
     }
@@ -292,34 +465,29 @@ class ClaudeProProvider {
       }
     } catch (_) {}
 
-    const token = this.token || this.getTokenFromKeychain() || this.getTokenFromFile();
+    const token = this.token || this.getTokenFromKeychain() || this.getTokenFromFile() || this.getTokenFromDesktopConfig();
 
-    // Fallback: if no live token, check desktop session first, then cache
-    if (!token) {
+    const fallback = () => {
       const desktop = this.getDesktopUsage();
       if (desktop && !desktop.groups?.[0]?.outdated) {
         return desktop;
       }
       return this.fetchFromCache(desktop);
+    };
+
+    // Fallback: if no live token, check desktop session first, then cache
+    if (!token) {
+      return fallback();
     }
 
-    return new Promise((resolve) => {
-      const fallback = () => {
-        const desktop = this.getDesktopUsage();
-        if (desktop && !desktop.groups?.[0]?.outdated) {
-          resolve(desktop);
-          return;
-        }
-        resolve(this.fetchFromCache(desktop));
-      };
-
+    const requestUsage = (bearerToken) => new Promise((resolve) => {
       const options = {
         hostname: 'api.anthropic.com',
         path: '/api/oauth/usage',
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${bearerToken}`,
           'anthropic-beta': 'oauth-2025-04-20',
           'User-Agent': 'Claude-Code/2.1'
         },
@@ -329,32 +497,50 @@ class ClaudeProProvider {
       const req = https.request(options, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
-        res.on('end', () => {
-          if (res.statusCode === 200) {
-            try {
-              const data = JSON.parse(body);
-              // Save to dedicated cache
-              try {
-                const dir = path.dirname(this.dedicatedCachePath);
-                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(this.dedicatedCachePath, JSON.stringify({ timestamp: Date.now(), data }), 'utf8');
-              } catch (_) {}
-
-              resolve(this.buildPayload(data, false));
-              return;
-            } catch (_) {}
-          }
-          fallback();
-        });
+        res.on('end', () => resolve({ statusCode: res.statusCode || 0, body }));
       });
 
-      req.on('error', () => fallback());
+      req.on('error', () => resolve({ statusCode: 0, body: '' }));
       req.on('timeout', () => {
         req.destroy();
-        fallback();
+        resolve({ statusCode: 0, body: '' });
       });
       req.end();
     });
+
+    let res = await requestUsage(token);
+
+    if (res.statusCode === 401 || res.statusCode === 403) {
+      try { fs.rmSync(this.tokenCachePath, { force: true }); } catch (_) {}
+      this._ignoreCachedDesktopToken = true;
+
+      if (!this._explicitToken) {
+        let freshToken = this.getTokenFromKeychain() || this.getTokenFromFile();
+        if (!freshToken || freshToken === token) {
+          freshToken = this.getTokenFromDesktopConfig();
+        }
+        if (freshToken && freshToken !== token) {
+          this.token = freshToken;
+          res = await requestUsage(freshToken);
+        }
+      }
+    }
+
+    if (res.statusCode === 200) {
+      try {
+        const data = JSON.parse(res.body);
+        // Save to dedicated cache
+        try {
+          const dir = path.dirname(this.dedicatedCachePath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(this.dedicatedCachePath, JSON.stringify({ timestamp: Date.now(), data }), 'utf8');
+        } catch (_) {}
+
+        return this.buildPayload(data, false);
+      } catch (_) {}
+    }
+
+    return fallback();
   }
 
   fetchFromCache(desktopUsage) {
