@@ -775,9 +775,47 @@ class QuotaManager {
         return "node"
     }
     
+    /// Version of the app that is running now (Info.plist), not the one that wrote the cache.
+    static var runningVersion: String {
+        return (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
+    }
+
+    /// "1.2.10" > "1.2.9"; missing parts count as 0.
+    static func isVersionNewer(_ latest: String, than current: String) -> Bool {
+        func parts(_ v: String) -> [Int] {
+            return v.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+                .split(separator: ".").map { Int($0.prefix(while: { $0.isNumber })) ?? 0 }
+        }
+        let a = parts(latest), b = parts(current)
+        for i in 0..<max(a.count, b.count) {
+            let x = i < a.count ? a[i] : 0, y = i < b.count ? b[i] : 0
+            if x != y { return x > y }
+        }
+        return false
+    }
+
+    /// Whether an update is available depends on the version running NOW. A cache written by an older version
+    /// (e.g. right after "Update now") may still say "update available" for the version we just installed.
+    static func reconcileUpdate(_ quota: QuotaData) -> QuotaData {
+        guard let u = quota.update, u.update_available == true else { return quota }
+        let running = runningVersion
+        if running.isEmpty { return quota }
+        if let latest = u.latest_version, !latest.isEmpty, isVersionNewer(latest, than: running) { return quota }
+        var fixed = quota
+        fixed.update = UpdateInfo(current_version: running, latest_version: u.latest_version, update_available: false,
+                                  download_url: u.download_url, release_notes: u.release_notes)
+        return fixed
+    }
+
     static func loadQuota(force: Bool = false, maxRetries: Int = 3) -> QuotaData? {
         if !force {
-            if let cached = readCache(), let ts = cached.timestamp, (Date().timeIntervalSince1970 - ts) < 30 {
+            // A cache written by another app version is not "fresh": after an update the engine must run again
+            // (it detects the upgrade and clears the old "new release" notice).
+            let cacheIsFromThisVersion: (QuotaData) -> Bool = { c in
+                guard let cv = c.update?.current_version, !cv.isEmpty, !runningVersion.isEmpty else { return true }
+                return cv == runningVersion
+            }
+            if let cached = readCache(), cacheIsFromThisVersion(cached), let ts = cached.timestamp, (Date().timeIntervalSince1970 - ts) < 30 {
                 var c = cached
                 c.from_cache = true
                 c.cache_age_seconds = Int(Date().timeIntervalSince1970 - ts)
@@ -802,7 +840,8 @@ class QuotaManager {
     
     static func readCache() -> QuotaData? {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)) else { return nil }
-        return try? JSONDecoder().decode(QuotaData.self, from: data)
+        guard let decoded = try? JSONDecoder().decode(QuotaData.self, from: data) else { return nil }
+        return reconcileUpdate(decoded)
     }
     
     private static var startupSent = false
@@ -860,7 +899,7 @@ class QuotaManager {
                         PromoDockManager.shared.presentIfNeeded(ad)
                     }
                 }
-                var qWithTs = quota
+                var qWithTs = reconcileUpdate(quota)
                 qWithTs.timestamp = Date().timeIntervalSince1970
                 if let encoded = try? JSONEncoder().encode(qWithTs) {
                     try? encoded.write(to: URL(fileURLWithPath: cachePath))
