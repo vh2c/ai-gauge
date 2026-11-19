@@ -74,11 +74,8 @@ def get_machine_id():
         pass
     return fallback
 
-def get_app_version(quota=None):
-    if quota and quota.get("version"):
-        return quota.get("version")
-    if quota and quota.get("update", {}).get("current_version"):
-        return quota.get("update", {}).get("current_version")
+def running_version():
+    """Version of the app that is running NOW: the CURRENT_VERSION of the engine bundled with it (None if unreadable)."""
     try:
         updater_path = ENGINE_SCRIPT.parent / "updater.js"
         if updater_path.exists():
@@ -89,7 +86,60 @@ def get_app_version(quota=None):
                 return m.group(1)
     except Exception:
         pass
+    return None
+
+def get_app_version(quota=None):
+    # The running version wins: quota_cache.json may have been written by an older version of the app
+    # (e.g. right after an update) and its "version" field would show the old number.
+    running = running_version()
+    if running:
+        return running
+    if quota and quota.get("version"):
+        return quota.get("version")
+    if quota and quota.get("update", {}).get("current_version"):
+        return quota.get("update", {}).get("current_version")
     return "1.2.0"
+
+def version_is_newer(latest, current):
+    """'1.2.10' > '1.2.9'; missing parts count as 0."""
+    def parts(v):
+        out = []
+        for piece in str(v or "").strip().lstrip("vV").split("."):
+            m = re.match(r"\d+", piece)
+            out.append(int(m.group(0)) if m else 0)
+        return out
+    a, b = parts(latest), parts(current)
+    for i in range(max(len(a), len(b))):
+        x = a[i] if i < len(a) else 0
+        y = b[i] if i < len(b) else 0
+        if x != y:
+            return x > y
+    return False
+
+def reconcile_update(quota):
+    """Whether an update is available depends on the version running NOW, not on the one that wrote the cache.
+    Right after updating, an old cache still says 'update available' for the version we just installed."""
+    try:
+        upd = quota.get("update") if isinstance(quota, dict) else None
+        running = running_version()
+        if not upd or not running:
+            return quota
+        if upd.get("update_available") and not version_is_newer(upd.get("latest_version"), running):
+            upd["update_available"] = False
+        if upd.get("current_version") != running:
+            upd["current_version"] = running
+        if quota.get("version") and quota.get("version") != running:
+            quota["version"] = running
+    except Exception:
+        pass
+    return quota
+
+def cache_is_from_this_version(data):
+    """A cache written by another version of the app is not 'fresh': the engine must run again (it detects the
+    upgrade and clears the old 'new release' notice)."""
+    running = running_version()
+    cached = ((data.get("update") or {}).get("current_version") if isinstance(data, dict) else None)
+    return (not running) or (not cached) or cached == running
 
 _STARTUP_SENT = False  # set once the engine ran successfully after the app was opened
 
@@ -250,10 +300,10 @@ def load_quota(force=False):
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             ts = data.get("timestamp", 0)
-            if time.time() - ts < 30:
+            if time.time() - ts < 30 and cache_is_from_this_version(data):
                 data["from_cache"] = True
                 data["cache_age_seconds"] = int(time.time() - ts)
-                return data
+                return reconcile_update(data)
         except Exception:
             pass
 
@@ -283,7 +333,7 @@ def load_quota(force=False):
     if CACHE_FILE.exists():
         try:
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                return reconcile_update(json.load(f))
         except Exception:
             pass
     return None
@@ -642,7 +692,7 @@ class QuotaHubAppLinux:
         if CACHE_FILE.exists():
             try:
                 with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                    self.quota = json.load(f)
+                    self.quota = reconcile_update(json.load(f))
             except Exception:
                 pass
 
