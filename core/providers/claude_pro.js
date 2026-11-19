@@ -18,6 +18,56 @@ class ClaudeProProvider {
     this.tokenCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_token_cache.json');
     this.token = token || this.getTokenFromKeychain() || this.getTokenFromFile();
     this.dedicatedCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_cache.json');
+    this.backoffPath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_backoff.json');
+  }
+
+  /** After a 429 from Anthropic we stop calling the usage endpoint until this time. */
+  getBackoffUntil() {
+    try {
+      const b = JSON.parse(fs.readFileSync(this.backoffPath, 'utf8'));
+      return Number(b.until) || 0;
+    } catch (_) { return 0; }
+  }
+
+  setBackoff(ms) {
+    try {
+      fs.mkdirSync(path.dirname(this.backoffPath), { recursive: true });
+      fs.writeFileSync(this.backoffPath, JSON.stringify({ until: Date.now() + ms }), 'utf8');
+    } catch (_) {}
+  }
+
+  clearBackoff() {
+    try { fs.rmSync(this.backoffPath, { force: true }); } catch (_) {}
+  }
+
+  /**
+   * Last REAL numbers from the API (dedicated cache), used when the live call fails (rate limit, timeout, expired
+   * login). Real-but-a-bit-old is better than a guess: the Claude Desktop estimate assumes 100% once its 5h window
+   * "expired", which is wrong whenever Claude Code was used in between. Returns null when there is no real cache.
+   *  - older than 30 min -> everything is flagged Outdated ("--%")
+   *  - the cached 5h window already ended -> that bucket is unknown (a new window may have started): Outdated too,
+   *    never 100%.
+   */
+  fetchFromRealCache() {
+    try {
+      if (!fs.existsSync(this.dedicatedCachePath)) return null;
+      const cached = JSON.parse(fs.readFileSync(this.dedicatedCachePath, 'utf8').replace(/^\uFEFF/, ''));
+      if (!cached || !cached.data) return null;
+      const age = cached.timestamp ? (Date.now() - cached.timestamp) : Infinity;
+      const payload = markOutdated(this.buildPayload(cached.data, true), age, CLAUDE_SIGNIN_HINT);
+      const resets5h = cached.data.five_hour?.resets_at ? new Date(cached.data.five_hour.resets_at).getTime() : null;
+      if (resets5h !== null && resets5h <= Date.now()) {
+        const b5 = payload.groups?.[0]?.buckets?.find(b => b.id === 'claude-pro-5h');
+        if (b5) {
+          b5.reset_in = 'Outdated';
+          b5.outdated = true;
+          b5.detail = 'Waiting for Claude to answer…';
+        }
+      }
+      return payload;
+    } catch (_) {
+      return null;
+    }
   }
 
   findClaudeBinary() {
@@ -480,6 +530,12 @@ class ClaudeProProvider {
       return fallback();
     }
 
+    // The usage endpoint is rate limited (a burst of calls ends in 429). While we are paused, do not call it:
+    // show the last real numbers instead of hammering the API.
+    if (Date.now() < this.getBackoffUntil()) {
+      return this.fetchFromRealCache() || fallback();
+    }
+
     const requestUsage = (bearerToken) => new Promise((resolve) => {
       const options = {
         hostname: 'api.anthropic.com',
@@ -497,7 +553,7 @@ class ClaudeProProvider {
       const req = https.request(options, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
-        res.on('end', () => resolve({ statusCode: res.statusCode || 0, body }));
+        res.on('end', () => resolve({ statusCode: res.statusCode || 0, body, retryAfter: Number(res.headers && res.headers['retry-after']) || 0 }));
       });
 
       req.on('error', () => resolve({ statusCode: 0, body: '' }));
@@ -526,9 +582,15 @@ class ClaudeProProvider {
       }
     }
 
+    if (res.statusCode === 429) {
+      // Honour Retry-After (clamped to 30s..5min); default 60s
+      this.setBackoff(Math.min(Math.max((res.retryAfter || 60) * 1000, 30000), 300000));
+    }
+
     if (res.statusCode === 200) {
       try {
         const data = JSON.parse(res.body);
+        this.clearBackoff();
         // Save to dedicated cache
         try {
           const dir = path.dirname(this.dedicatedCachePath);
@@ -540,7 +602,9 @@ class ClaudeProProvider {
       } catch (_) {}
     }
 
-    return fallback();
+    // Live call failed (429, timeout, expired login): last real numbers first, the Desktop estimate only if there
+    // is nothing real at all.
+    return this.fetchFromRealCache() || fallback();
   }
 
   fetchFromCache(desktopUsage) {
