@@ -215,16 +215,96 @@ class UniversalQuotaEngine {
   }
 }
 
+function detectKeyProvider(key) {
+  const k = (key || '').trim();
+  if (k.startsWith('AIza') || k.startsWith('ya29.') || k.startsWith('AQ.')) return 'gemini';
+  if (k.startsWith('sk-ant-oat')) return 'claude_pro';
+  if (k.startsWith('sk-ant-')) return 'anthropic';
+  if (k.startsWith('sk-')) return 'openai';
+  if (k.startsWith('ghp_') || k.startsWith('github_pat_') || k.startsWith('gho_')) return 'github_copilot';
+  return 'gemini';
+}
+
+function normalizeTestProviderName(raw) {
+  const p = (raw || '').trim().toLowerCase();
+  if (p === 'google' || p === 'gemini_api' || p === 'ai_studio') return 'gemini';
+  if (p === 'claude') return 'anthropic';
+  if (p === 'chatgpt' || p === 'codex') return 'chatgpt_subscription';
+  if (p === 'copilot') return 'github_copilot';
+  return p;
+}
+
+const KNOWN_TEST_PROVIDERS = new Set([
+  'gemini',
+  'openai',
+  'anthropic',
+  'claude_pro',
+  'chatgpt_subscription',
+  'cursor',
+  'github_copilot',
+  'google',
+  'gemini_api',
+  'ai_studio',
+  'claude',
+  'chatgpt',
+  'codex',
+  'copilot'
+]);
+
+async function testProviderKey(providerArg, keyArg, customProviders) {
+  const rawProvider = (providerArg || '').trim().toLowerCase();
+  let provider;
+  let key;
+
+  if (KNOWN_TEST_PROVIDERS.has(rawProvider)) {
+    provider = normalizeTestProviderName(rawProvider);
+    key = (keyArg || '').trim();
+  } else {
+    key = (providerArg || '').trim();
+    provider = detectKeyProvider(key);
+  }
+
+  if (!key) {
+    return { ok: false, provider, error: 'Missing API key or token' };
+  }
+
+  const classes = customProviders || {
+    gemini: GeminiProvider,
+    openai: OpenAIProvider,
+    anthropic: AnthropicProvider,
+    claude_pro: ClaudeProProvider,
+    chatgpt_subscription: ChatGPTSubscriptionProvider,
+    cursor: CursorProvider,
+    github_copilot: GitHubCopilotProvider
+  };
+
+  const ProviderClass = classes[provider];
+  if (!ProviderClass) {
+    return { ok: false, provider, error: `Unsupported provider: ${provider}` };
+  }
+
+  try {
+    const instance = new ProviderClass(key);
+    const res = await instance.fetch();
+    if (res && Array.isArray(res.groups) && res.groups.length > 0) {
+      const result = { ok: true, provider, status: 'OK' };
+      if (provider === 'gemini') result.models_count = 3;
+      return result;
+    }
+    return { ok: false, provider, error: 'Invalid key or no access permission' };
+  } catch (err) {
+    return { ok: false, provider, error: err && err.message ? err.message : 'Test failed' };
+  }
+}
+
 if (require.main === module) {
   const args = process.argv.slice(2);
   if (args[0] === '--test-gemini' || args[0] === '--test-key') {
-    const key = args[1] || '';
-    new GeminiProvider(key).fetch().then(res => {
-      if (res && res.groups && res.groups.length > 0) {
-        console.log(JSON.stringify({ ok: true, provider: 'gemini', models_count: 3 }));
-      } else {
-        console.log(JSON.stringify({ ok: false, error: 'Invalid key or no access permission' }));
-      }
+    const runTest = args[0] === '--test-gemini'
+      ? testProviderKey('gemini', args[1] || '')
+      : testProviderKey(args[1] || '', args[2] || '');
+    runTest.then(out => {
+      console.log(JSON.stringify(out));
     }).catch(err => {
       console.log(JSON.stringify({ ok: false, error: err.message }));
     });
@@ -240,4 +320,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { UniversalQuotaEngine, loadConfig, saveConfig, stripBom };
+module.exports = {
+  UniversalQuotaEngine,
+  loadConfig,
+  saveConfig,
+  stripBom,
+  detectKeyProvider,
+  testProviderKey
+};

@@ -23,6 +23,8 @@ import uuid
 import platform
 import threading
 import re
+import tempfile
+import shutil
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
@@ -35,9 +37,15 @@ if not ENGINE_SCRIPT.exists():
     if candidate.exists():
         ENGINE_SCRIPT = candidate
 
-CONFIG_DIR = Path.home() / ".config" / "UniversalAIQuota"
+DEMO_MODE = ("--demo" in sys.argv)
+CONFIG_DIR = (Path(tempfile.gettempdir()) / "AIGaugeDemo") if DEMO_MODE else (Path.home() / ".config" / "UniversalAIQuota")
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_FILE = CONFIG_DIR / "config.json"
+if DEMO_MODE and not CONFIG_FILE.exists():
+    try:
+        CONFIG_FILE.write_text('{"providers":{},"hidden_hud_gauges":[],"onboarding_completed":true}', encoding="utf-8")
+    except Exception:
+        pass
 CACHE_FILE = CONFIG_DIR / "quota_cache.json"
 PREFS_FILE = CONFIG_DIR / "prefs.json"
 
@@ -81,7 +89,7 @@ def get_app_version(quota=None):
                 return m.group(1)
     except Exception:
         pass
-    return "1.1.5"
+    return "1.2.0"
 
 _STARTUP_SENT = False  # set once the engine ran successfully after the app was opened
 
@@ -89,7 +97,8 @@ def load_config():
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                raw = f.read().lstrip("\ufeff")
+                data = json.loads(raw)
                 if "providers" not in data:
                     data["providers"] = {}
                 if "hidden_hud_gauges" not in data:
@@ -146,7 +155,96 @@ def find_node():
     # 4. Fallback to PATH
     return "node"
 
+def new_demo_data():
+    def b(bid, name, pct, reset):
+        return {"id": bid, "name": name, "remaining_pct": pct, "reset_in": reset}
+    return {
+        "account": "demo@aigauge.test  (MODO DEMO)",
+        "plan": "DEMO",
+        "updated_at": time.strftime("%H:%M:%S"),
+        "version": get_app_version(),
+        "tier": "free",
+        "from_cache": False,
+        "announcement": {
+            "type": "versao",
+            "badge": "VERSION",
+            "title": "Version 2.1 Available",
+            "message": "Download the latest version now.",
+            "action_label": "Download Update",
+            "action_url": "https://github.com/vh2c/ai-gauge/releases/latest",
+        },
+        "promo": {
+            "type": "publicidade",
+            "title": "Super Offer",
+            "message": "Today only: get your PRO license for just R$ 10.00",
+            "action_label": None,
+            "action_url": None,
+            "image_url": "https://dashboard.vh2c.com.br/uploads/ads/ad_20261116_144942_2f64117f.jpg",
+            "image_fit": "cover",
+            "image_position": "center",
+            "image_scale": 1.05,
+            "duracao_segundos": None,
+        },
+        "groups": [
+            {
+                "name": "Antigravity",
+                "provider": "Antigravity (Live)",
+                "buckets": [
+                    b("demo-ag-gemini-weekly", "Gemini Weekly Limit Remaining", 43, "4d 1h"),
+                    b("demo-ag-gemini-5h", "Gemini Five Hour Limit Remaining", 98, "4h 51m"),
+                    b("demo-ag-argon-weekly", "Argon Weekly Limit Remaining", 27, "4d 1h"),
+                ],
+            },
+            {
+                "name": "Claude Pro",
+                "provider": "Claude Pro",
+                "buckets": [
+                    b("demo-claude-5h", "Claude 5 Hour Limit", 84, "4h 27m"),
+                    b("demo-claude-weekly", "Claude Weekly Limit", 82, "2d 18h"),
+                ],
+            },
+            {
+                "name": "ChatGPT Plus",
+                "provider": "ChatGPT",
+                "buckets": [
+                    b("demo-gpt4o-3h", "GPT-4o 3 Hour Limit", 100, "29d 23h"),
+                    b("demo-o1-weekly", "o1 Reasoning Weekly", 100, "7d"),
+                ],
+            },
+            {
+                "name": "Cursor",
+                "provider": "Cursor",
+                "buckets": [
+                    b("demo-cursor-fast", "Fast Requests (Claude)", 64, "14d"),
+                    b("demo-cursor-month", "Monthly Billing Cycle", 12, "14d"),
+                ],
+            },
+        ],
+    }
+
+def test_api_key_sync(provider, key):
+    clean = (key or "").strip()
+    if DEMO_MODE:
+        return {"ok": bool(clean), "provider": provider, "status": "OK"} if clean else {"ok": False, "provider": provider, "error": "Empty key"}
+    node_bin = find_node()
+    env = dict(os.environ)
+    extra_paths = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+    env["PATH"] = ":".join(extra_paths) + ":" + env.get("PATH", "")
+    try:
+        res = subprocess.run(
+            [node_bin, str(ENGINE_SCRIPT), "--test-key", provider, clean],
+            capture_output=True, text=True, env=env, timeout=12
+        )
+        out = (res.stdout or "").strip()
+        if out:
+            return json.loads(out)
+    except Exception as e:
+        return {"ok": False, "provider": provider, "error": str(e)}
+    return {"ok": False, "provider": provider, "error": "Invalid key"}
+
 def load_quota(force=False):
+    if DEMO_MODE:
+        return new_demo_data()
     if not force and CACHE_FILE.exists():
         try:
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -190,85 +288,170 @@ def load_quota(force=False):
             pass
     return None
 
-def get_gauge_items(quota):
+PASTEL_PALETTE = [
+    ("Sky Blue", "#8FBCFF"),
+    ("Mint", "#8AE39A"),
+    ("Coral", "#FF5265"),
+    ("Terracotta", "#D78C68"),
+    ("Lavender", "#C084FC"),
+    ("Cyan", "#67E8F9"),
+]
+
+PASTEL_DEFAULTS = {
+    "antigravity": "#8FBCFF",
+    "claude_pro": "#D78C68",
+    "chatgpt_subscription": "#8AE39A",
+    "cursor": "#C084FC",
+    "github_copilot": "#FF5265",
+    "gemini": "#67E8F9",
+    "openai": "#8AE39A",
+    "anthropic": "#D78C68",
+}
+
+def get_provider_key(group_name, provider_name):
+    gn = (group_name or "").lower()
+    pn = (provider_name or "").lower()
+    if "antigravity" in pn or "antigravity" in gn or "claude and gpt" in gn or "argon" in gn:
+        return "antigravity"
+    if "cursor" in pn or "cursor" in gn:
+        return "cursor"
+    if "copilot" in pn or "copilot" in gn or "github" in pn:
+        return "github_copilot"
+    if "chatgpt" in pn or "chatgpt" in gn:
+        return "chatgpt_subscription"
+    if "claude" in pn or "claude" in gn:
+        return "claude_pro"
+    if "studio" in pn or "gemini" in pn or "gemini" in gn:
+        return "gemini"
+    if "openai" in pn or "openai" in gn:
+        return "openai"
+    if "anthropic" in pn or "anthropic" in gn:
+        return "anthropic"
+    return "antigravity"
+
+def get_section_clean_title(prov_key, fallback_name=""):
+    return {
+        "antigravity": "Antigravity",
+        "claude_pro": "Claude",
+        "chatgpt_subscription": "ChatGPT",
+        "cursor": "Cursor",
+        "github_copilot": "Copilot",
+        "gemini": "Gemini",
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+    }.get(prov_key, fallback_name or "AI")
+
+def get_bucket_window_label(bucket_name, bucket_id):
+    s = f"{bucket_name or ''} {bucket_id or ''}".lower()
+    if "5h" in s or "5 hour" in s or "five" in s:
+        return "5 HOURS"
+    if "3h" in s or "3 hour" in s:
+        return "3 HOURS"
+    if "weekly" in s or "7d" in s or "semanal" in s:
+        return "WEEKLY"
+    if "month" in s or "mensal" in s or "ciclo" in s:
+        return "MONTHLY"
+    if "fast" in s:
+        return "FAST REQS"
+    if "flash" in s:
+        return "FLASH RPM"
+    if "pro" in s:
+        return "PRO RPM"
+    if "tpm" in s or "token" in s:
+        return "TPM LIMIT"
+    if "rate" in s or "rpm" in s:
+        return "RATE LIMIT"
+    if "chat" in s:
+        return "CHAT LIMIT"
+    if "key" in s or "status" in s:
+        return "API KEY"
+    return "QUOTA"
+
+def get_bucket_model_name(bucket_name, group_name):
+    bn = (bucket_name or "").strip()
+    gn = (group_name or "").strip()
+    bl = bn.lower()
+    gl = gn.lower()
+    if ("claude" in bl and "gpt" in bl) or ("claude" in gl and "gpt" in gl):
+        return "Claude/GPT"
+    if "argon" in bl or "argon" in gl:
+        return "Argon"
+    if "gpt-4o" in bl:
+        return "GPT-4o"
+    if "o1" in bl:
+        return "o1"
+    if "gemini" in bl:
+        return "Gemini"
+    if "claude" in bl:
+        return "Claude"
+    if "gemini" in gl:
+        return "Gemini"
+    if "claude" in gl:
+        return "Claude"
+    if "chatgpt" in gl:
+        return "ChatGPT"
+    if "cursor" in gl:
+        return "Cursor"
+    if "copilot" in gl:
+        return "Copilot"
+    if "openai" in gl:
+        return "OpenAI"
+    if "anthropic" in gl:
+        return "Anthropic"
+    return bn[:14]
+
+def get_hud_sections(quota):
     cfg = load_config()
     hidden_set = set(cfg.get("hidden_hud_gauges", []))
     sec_colors = cfg.get("section_colors", {})
-    items = []
-    for g in quota.get("groups", []):
-        gname = g.get("name", "").lower()
-        prov = g.get("provider", "").lower()
-        if "cursor" in gname or "cursor" in prov:
-            model = "Cursor"
-            accent = sec_colors.get("cursor", "#C084FC")
-        elif "copilot" in gname or "copilot" in prov or "github" in prov:
-            model = "Copilot"
-            accent = sec_colors.get("github_copilot", "#FF5265")
-        elif "claude and gpt" in gname:
-            model = "Claude/GPT"
-            accent = sec_colors.get("antigravity", "#8FBCFF")
-        elif "claude" in gname or "claude" in prov:
-            model = "Claude"
-            accent = sec_colors.get("claude_pro", "#D78C68")
-        elif "chatgpt" in gname or "chatgpt" in prov:
-            model = "ChatGPT"
-            accent = sec_colors.get("chatgpt_subscription", "#8AE39A")
-        elif "gemini 4" in gname or "argon" in gname:
-            model = "Argon"
-            accent = sec_colors.get("antigravity", "#8FBCFF")
-        elif "claude" in gname or "gpt" in gname:
-            model = "Claude/GPT"
-            accent = sec_colors.get("antigravity", "#8FBCFF")
-        elif "openai" in gname:
-            model = "OpenAI"
-            accent = sec_colors.get("openai", "#8AE39A")
-        elif "anthropic" in gname:
-            model = "Claude API"
-            accent = sec_colors.get("anthropic", "#D78C68")
-        elif "studio" in prov or "gemini api" in gname or "gemini" in prov:
-            model = "Gemini Flash" if "flash" in gname else "Gemini Pro"
-            accent = sec_colors.get("gemini", "#67E8F9")
-        else:
-            model = "Gemini"
-            accent = sec_colors.get("gemini", "#67E8F9")
+    order = []
+    sec_map = {}
 
-        for b in g.get("buckets", []):
+    for g in (quota or {}).get("groups", []):
+        gname = g.get("name", "")
+        prov = g.get("provider", "")
+        visible = [b for b in g.get("buckets", []) if (b.get("id") or b.get("name")) not in hidden_set]
+        if not visible:
+            continue
+        pk = get_provider_key(gname, prov)
+        if pk not in sec_map:
+            accent = sec_colors.get(pk) or PASTEL_DEFAULTS.get(pk, "#8FBCFF")
+            sec_obj = {
+                "key": pk,
+                "title": get_section_clean_title(pk, gname),
+                "accent": accent,
+                "items": [],
+            }
+            sec_map[pk] = sec_obj
+            order.append(sec_obj)
+        accent = sec_map[pk]["accent"]
+        for b in visible:
             bid = b.get("id", "")
-            if bid in hidden_set:
-                continue
-            bname = b.get("name", "").lower()
-            if "5" in bname or "five" in bname or "5h" in bid:
-                limit_title = "5 hours Limit"
-            elif "flash" in bname or "flash" in bid:
-                limit_title = "Flash RPM"
-            elif "pro" in bid:
-                limit_title = "Pro RPM"
-            elif "key" in bid or "status" in bname:
-                limit_title = "API Key"
-            elif "tpm" in bname or "token" in bname:
-                limit_title = "TPM Limit"
-            else:
-                limit_title = "Weekly Limit"
-
-            items.append({
+            bname = b.get("name", "")
+            sec_map[pk]["items"].append({
                 "id": bid,
-                "title": limit_title,
-                "model": model,
+                "title": get_bucket_window_label(bname, bid),
+                "model": get_bucket_model_name(bname, gname),
                 "pct": b.get("remaining_pct", 100),
                 "reset_in": b.get("reset_in", ""),
                 "detail": b.get("detail", ""),
-                "provider": g.get("provider", ""),
-                "accent": accent
+                "provider": prov,
+                "accent": accent,
             })
+    return order
+
+def get_gauge_items(quota):
+    items = []
+    for sec in get_hud_sections(quota):
+        items.extend(sec["items"])
     return items
 
 def status_color(pct, custom_accent=None):
-    if pct > 50:
-        return custom_accent if custom_accent else "#8FBCFF"
-    elif pct > 20:
-        return "#F5A623"
-    else:
+    if pct <= 15:
         return "#FF4D4F"
+    if pct <= 30:
+        return "#F5A623"
+    return custom_accent if custom_accent else "#8FBCFF"
 
 def print_cli(quota):
     app_ver = get_app_version(quota)
@@ -309,11 +492,108 @@ try:
 except ImportError:
     HAS_TK = False
 
+def make_flat_button(parent, text, fg="#181818", bg="#EEEEF0", hover_bg=None, font=("Sans", 9, "bold"), padx=10, pady=5, command=None, width=None):
+    kw = {
+        "text": text,
+        "font": font,
+        "fg": fg,
+        "bg": bg,
+        "activebackground": hover_bg or bg,
+        "activeforeground": fg,
+        "bd": 0,
+        "highlightthickness": 0,
+        "relief": "flat",
+        "takefocus": 0,
+        "padx": padx,
+        "pady": pady,
+        "cursor": "hand2",
+    }
+    if width is not None:
+        kw["width"] = width
+    if command is not None:
+        kw["command"] = command
+    btn = tk.Button(parent, **kw)
+    if hover_bg:
+        btn.bind("<Enter>", lambda _e, b=btn, hb=hover_bg: b.config(bg=hb) if str(b.cget("state")) != "disabled" else None)
+        btn.bind("<Leave>", lambda _e, b=btn, ob=bg: b.config(bg=ob) if str(b.cget("state")) != "disabled" else None)
+    return btn
+
+def bind_mousewheel_scroll(widget, canvas):
+    def _scroll(event):
+        try:
+            if not canvas.winfo_exists():
+                return
+            if getattr(event, "num", None) == 4:
+                canvas.yview_scroll(-1, "units")
+            elif getattr(event, "num", None) == 5:
+                canvas.yview_scroll(1, "units")
+            elif getattr(event, "delta", 0):
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except Exception:
+            pass
+    for ev in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+        widget.bind(ev, _scroll, add="+")
+    return _scroll
+
+class ModernCheckbox(tk.Frame):
+    """Canvas-drawn dark checkbox with zero X11 light-gray focus/highlight ring."""
+    def __init__(self, parent, text, variable, fg="#FFFFFF", bg="#1E1E22", accent="#00E699", font=("Sans", 9, "bold"), command=None):
+        super().__init__(parent, bg=bg, bd=0, highlightthickness=0)
+        self.variable = variable
+        self.accent = accent
+        self.bg_col = bg
+        self.fg_col = fg
+        self.command = command
+        self.hovered = False
+
+        self.box = tk.Canvas(self, width=16, height=16, bg=bg, bd=0, highlightthickness=0, cursor="hand2")
+        self.box.pack(side="left", padx=(0, 7))
+        self.lbl = tk.Label(self, text=text, font=font, fg=fg, bg=bg, bd=0, cursor="hand2")
+        self.lbl.pack(side="left")
+
+        for w in (self, self.box, self.lbl):
+            w.bind("<Button-1>", self._toggle)
+            w.bind("<Enter>", self._on_enter)
+            w.bind("<Leave>", self._on_leave)
+        self.draw()
+
+    def _on_enter(self, _e=None):
+        self.hovered = True
+        self.draw()
+
+    def _on_leave(self, _e=None):
+        self.hovered = False
+        self.draw()
+
+    def _toggle(self, _e=None):
+        self.variable.set(not bool(self.variable.get()))
+        self.draw()
+        if self.command:
+            self.command()
+
+    def draw(self):
+        c = self.box
+        c.delete("all")
+        checked = bool(self.variable.get())
+        if checked:
+            fill = self.accent
+            border = "#FFFFFF" if self.hovered else self.accent
+            c.create_rectangle(1, 1, 14, 14, fill=fill, outline=border, width=1)
+            c.create_line(4, 8, 7, 11, 12, 5, fill="#121214", width=2, capstyle="round", joinstyle="round")
+        else:
+            fill = "#303642" if self.hovered else "#222630"
+            border = "#CBD5E1" if self.hovered else "#64748B"
+            c.create_rectangle(1, 1, 14, 14, fill=fill, outline=border, width=1.4)
+
 class QuotaHubAppLinux:
     def __init__(self):
         self.root = tk.Tk()
+        self.root.option_add("*highlightThickness", 0)
+        self.root.option_add("*BorderWidth", 0)
         self.root.title("AI Gauge - Universal AI Quota Cockpit")
         self.root.configure(bg="#181818")
+        self._wm_overrideredirect = None
+        self._hud_pos = None
 
         # Load App Icon
         icon_candidates = [
@@ -341,6 +621,12 @@ class QuotaHubAppLinux:
         self.mode = self.prefs.get("mode", "full")
         self.orientation = self.prefs.get("orientation", "vertical")
         self.settings_dlg = None
+        self.app_started_at = time.time()
+        self.promo_last_shown_at = 0.0
+        self.promo_scheduled = False
+        self.promo_window = None
+        self.promo_photo = None
+        self.promo_countdown_job = None
 
         if "--hud" in sys.argv:
             self.mode = "hud"
@@ -407,16 +693,41 @@ class QuotaHubAppLinux:
         if self.is_refreshing:
             return
         self.is_refreshing = True
-        if animated and hasattr(self, "refresh_btn"):
-            self.refresh_btn.config(text="Refreshing...")
-            self.root.update_idletasks()
+        if animated and getattr(self, "refresh_btn", None) is not None:
+            try:
+                if self.refresh_btn.winfo_exists():
+                    self.refresh_btn.config(text="Refreshing...")
+                    self.root.update_idletasks()
+            except Exception:
+                pass
 
         def do_fetch():
             new_data = load_quota(force=True)
-            self.root.after(0, lambda: self.on_fetched(new_data))
+            try:
+                self.root.after(0, lambda: self.on_fetched(new_data))
+            except Exception:
+                pass
 
-        import threading
         threading.Thread(target=do_fetch, daemon=True).start()
+
+    def _apply_window_chrome(self, borderless: bool, topmost: bool):
+        try:
+            self.root.attributes("-topmost", bool(topmost))
+        except Exception:
+            pass
+        if self._wm_overrideredirect != borderless:
+            self._wm_overrideredirect = borderless
+            try:
+                self.root.withdraw()
+                self.root.overrideredirect(borderless)
+                self.root.update_idletasks()
+                self.root.deiconify()
+                self.root.lift()
+            except Exception:
+                try:
+                    self.root.overrideredirect(borderless)
+                except Exception:
+                    pass
 
     def on_fetched(self, data):
         self.is_refreshing = False
@@ -425,6 +736,246 @@ class QuotaHubAppLinux:
             # If settings window is currently open, don't interrupt user typing
             if not (self.settings_dlg and self.settings_dlg.winfo_exists()):
                 self.setup_ui()
+            else:
+                self.check_and_schedule_promo()
+
+    def close_promo_toast(self):
+        if self.promo_countdown_job:
+            try:
+                self.root.after_cancel(self.promo_countdown_job)
+            except Exception:
+                pass
+            self.promo_countdown_job = None
+        if self.promo_window:
+            try:
+                self.promo_window.destroy()
+            except Exception:
+                pass
+            self.promo_window = None
+        self.promo_photo = None
+
+    def check_and_schedule_promo(self):
+        quota = self.quota if isinstance(self.quota, dict) else {}
+        tier = (quota.get("tier") or "free").lower()
+        promo = quota.get("promo")
+        ann = quota.get("announcement")
+        if not promo and isinstance(ann, dict) and (ann.get("type") or "").lower() == "publicidade":
+            promo = ann
+        if not isinstance(promo, dict) or not (promo.get("title") or promo.get("message")):
+            return
+        if tier in ("pro", "enterprise") and not quota.get("promo"):
+            return
+        if self.promo_window and self.promo_window.winfo_exists():
+            return
+        if self.promo_scheduled:
+            return
+
+        now = time.time()
+        interval_seconds = 6 * 3600.0
+        if self.promo_last_shown_at > 0 and (now - self.promo_last_shown_at) < interval_seconds:
+            return
+
+        if self.promo_last_shown_at == 0:
+            initial_delay = 6.0 if DEMO_MODE else 60.0
+            wait_s = max(0.2, initial_delay - (now - self.app_started_at))
+        else:
+            wait_s = 0.2
+
+        self.promo_scheduled = True
+        self.root.after(int(wait_s * 1000), lambda p=promo: self._trigger_promo_toast(p))
+
+    def _trigger_promo_toast(self, fallback_promo):
+        self.promo_scheduled = False
+        quota = self.quota if isinstance(self.quota, dict) else {}
+        promo = quota.get("promo")
+        ann = quota.get("announcement")
+        if not promo and isinstance(ann, dict) and (ann.get("type") or "").lower() == "publicidade":
+            promo = ann
+        if not promo:
+            promo = fallback_promo
+        if not isinstance(promo, dict):
+            return
+
+        self.promo_last_shown_at = time.time()
+        self.show_promo_toast(promo)
+        self.root.after(int(6 * 3600 * 1000), self.check_and_schedule_promo)
+
+    def _download_promo_image_payload(self, url_str, target_w=348, target_h=160):
+        """Worker-thread helper: NEVER calls tk/ImageTk (must run strictly on main Tk thread)."""
+        if not url_str:
+            return None
+        if url_str.startswith("http://"):
+            url_str = "https://" + url_str[7:]
+        tmp_raw = None
+        tmp_png = None
+        try:
+            req = urllib.request.Request(url_str, headers={"User-Agent": "AIGauge/1.2"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = resp.read()
+            if not data:
+                return None
+
+            try:
+                from PIL import Image
+                import io
+                img = Image.open(io.BytesIO(data)).convert("RGB")
+                iw, ih = img.size
+                if iw > 0 and ih > 0:
+                    scale = max(target_w / float(iw), target_h / float(ih))
+                    nw, nh = max(1, int(iw * scale)), max(1, int(ih * scale))
+                    img = img.resize((nw, nh), Image.LANCZOS)
+                    left = max(0, (nw - target_w) // 2)
+                    top = max(0, (nh - target_h) // 2)
+                    img = img.crop((left, top, left + target_w, top + target_h))
+                return ("pil", img, None)
+            except Exception:
+                pass
+
+            fd, tmp_raw = tempfile.mkstemp(prefix="aigauge_promo_")
+            os.close(fd)
+            with open(tmp_raw, "wb") as f:
+                f.write(data)
+
+            if url_str.lower().split("?")[0].endswith(".png"):
+                return ("file", tmp_raw, tmp_raw)
+
+            tmp_png = tmp_raw + ".png"
+            conv = shutil.which("convert") or shutil.which("magick")
+            ffm = shutil.which("ffmpeg")
+            if conv:
+                subprocess.run([conv, tmp_raw, "-resize", f"{target_w}x{target_h}^", "-gravity", "center", "-extent", f"{target_w}x{target_h}", tmp_png],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            elif ffm:
+                subprocess.run([ffm, "-y", "-i", tmp_raw, "-vf", f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}", tmp_png],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            try:
+                os.remove(tmp_raw)
+            except Exception:
+                pass
+            if os.path.exists(tmp_png):
+                return ("file", tmp_png, tmp_png)
+        except Exception:
+            for p in (tmp_raw, tmp_png):
+                if p and os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+        return None
+
+    def show_promo_toast(self, promo):
+        self.close_promo_toast()
+        win = tk.Toplevel(self.root)
+        self.promo_window = win
+        win.title("AI Gauge")
+        win.overrideredirect(True)
+        win.attributes("-topmost", True)
+        win.configure(bg="#2E2E3A")
+
+        card = tk.Frame(win, bg="#16171F", padx=16, pady=14)
+        card.pack(fill="both", expand=True, padx=1, pady=1)
+
+        top = tk.Frame(card, bg="#16171F")
+        top.pack(fill="x")
+        tk.Label(top, text="⚡ AI GAUGE - PROMOTION", font=("Sans", 8, "bold"), fg="#94A3B8", bg="#16171F").pack(side="left")
+        btn_x = make_flat_button(top, "✕", fg="#64748B", bg="#16171F", hover_bg="#222330",
+                                 font=("Sans", 9, "bold"), padx=6, pady=1, command=self.close_promo_toast)
+        btn_x.pack(side="right")
+
+        media_holder = tk.Frame(card, bg="#16171F")
+        media_holder.pack(fill="x")
+
+        title_str = (promo.get("title") or "AI Gauge Pro").strip()
+        msg_str = (promo.get("message") or "").strip()
+
+        tk.Label(card, text=title_str, font=("Sans", 13, "bold"), fg="#FFFFFF", bg="#16171F",
+                 anchor="w", justify="left", wraplength=346).pack(fill="x", pady=(10, 4))
+        tk.Label(card, text=msg_str, font=("Sans", 10), fg="#94A3B8", bg="#16171F",
+                 anchor="w", justify="left", wraplength=346).pack(fill="x", pady=(0, 14))
+
+        btns = tk.Frame(card, bg="#16171F")
+        btns.pack(fill="x")
+
+        rem = [int(promo.get("duracao_segundos") or 0)]
+        btn_later = make_flat_button(btns, "Not now", fg="#E2E8F0", bg="#262835", hover_bg="#323546",
+                                     font=("Sans", 10, "bold"), padx=10, pady=7,
+                                     command=lambda: None if rem[0] > 0 else self.close_promo_toast())
+
+        act_url = (promo.get("action_url") or "").strip()
+        if act_url:
+            if "{machine_id}" in act_url:
+                act_url = act_url.replace("{machine_id}", get_machine_id())
+            act_label = (promo.get("action_label") or "View Details").strip() or "View Details"
+            btn_later.pack(side="left", fill="x", expand=True, padx=(0, 5))
+            btn_act = make_flat_button(btns, act_label, fg="#FFFFFF", bg="#4F46E5", hover_bg="#6366F1",
+                                       font=("Sans", 10, "bold"), padx=10, pady=7,
+                                       command=lambda u=act_url: (webbrowser.open(u), self.close_promo_toast()))
+            btn_act.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        else:
+            btn_later.pack(fill="x", expand=True)
+
+        if rem[0] > 0:
+            btn_later.config(state="disabled", text=f"Not now ({rem[0]}s)")
+            def tick():
+                if not (self.promo_window and self.promo_window.winfo_exists()):
+                    return
+                rem[0] -= 1
+                if rem[0] <= 0:
+                    btn_later.config(state="normal", text="Not now")
+                else:
+                    btn_later.config(text=f"Not now ({rem[0]}s)")
+                    self.promo_countdown_job = self.root.after(1000, tick)
+            self.promo_countdown_job = self.root.after(1000, tick)
+
+        def position_toast():
+            if not (self.promo_window and self.promo_window.winfo_exists()):
+                return
+            win.update_idletasks()
+            tw = 382
+            th = max(win.winfo_reqheight(), 190)
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            px = max(16, sw - tw - 18)
+            py = max(16, sh - th - 48)
+            win.geometry(f"{tw}x{th}+{px}+{py}")
+            win.lift()
+            win.attributes("-topmost", True)
+
+        position_toast()
+
+        img_url = (promo.get("image_url") or "").strip()
+        if img_url:
+            def fetch_img():
+                payload = self._download_promo_image_payload(img_url)
+                if not payload:
+                    return
+                def apply_img():
+                    kind, obj, cleanup_path = payload
+                    try:
+                        if not (self.promo_window and self.promo_window.winfo_exists()):
+                            return
+                        if kind == "pil":
+                            from PIL import ImageTk
+                            photo = ImageTk.PhotoImage(obj)
+                        else:
+                            photo = tk.PhotoImage(file=obj)
+                        self.promo_photo = photo
+                        lbl_img = tk.Label(media_holder, image=photo, bg="#0E1015", bd=0)
+                        lbl_img.pack(pady=(10, 0))
+                        position_toast()
+                    except Exception:
+                        pass
+                    finally:
+                        if cleanup_path and os.path.exists(cleanup_path):
+                            try:
+                                os.remove(cleanup_path)
+                            except Exception:
+                                pass
+                try:
+                    self.root.after(0, apply_img)
+                except Exception:
+                    pass
+            threading.Thread(target=fetch_img, daemon=True).start()
 
     def toggle_mode(self):
         self.mode = "hud" if self.mode == "full" else "full"
@@ -445,11 +996,14 @@ class QuotaHubAppLinux:
         cfg = load_config()
         pCfg = cfg.get("providers", {})
         hidden_set = set(cfg.get("hidden_hud_gauges", []))
+        saved_colors = dict(cfg.get("section_colors", {}))
+        sec_colors_state = {k: saved_colors.get(k, PASTEL_DEFAULTS[k]) for k in PASTEL_DEFAULTS}
 
         dlg = tk.Toplevel(self.root)
         self.settings_dlg = dlg
-        dlg.title("Configure AI Providers - AI Gauge")
-        dlg.geometry("520x600")
+        dlg.option_add("*highlightThickness", 0)
+        dlg.title("Settings - AI Gauge")
+        dlg.geometry("520x640")
         dlg.configure(bg="#181818")
         dlg.transient(self.root)
         dlg.grab_set()
@@ -462,218 +1016,406 @@ class QuotaHubAppLinux:
                 pass
         dlg.protocol("WM_DELETE_WINDOW", close_dlg)
 
-        header = tk.Label(dlg, text="⚙️ AI Providers & Gauge Selection", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818")
-        header.pack(fill="x", pady=(14, 4), padx=16)
+        header = tk.Label(dlg, text="Settings - AI Providers & Gauges", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818", anchor="w")
+        header.pack(fill="x", pady=(14, 2), padx=18)
 
-        sub = tk.Label(dlg, text="Enable your providers and select the gauges for your HUD side panel:", font=("Sans", 8), fg="#999999", bg="#181818")
-        sub.pack(fill="x", padx=16, pady=(0, 10))
+        sub = tk.Label(dlg, text="Enable providers, verify API keys and customize section colors:", font=("Sans", 8), fg="#8C8C96", bg="#181818", anchor="w")
+        sub.pack(fill="x", padx=18, pady=(0, 10))
+
+        tk.Frame(dlg, bg="#28282E", height=1).pack(fill="x", padx=18)
 
         # Bottom buttons bar (packed first with side="bottom" to guarantee visibility)
-        f_btns = tk.Frame(dlg, bg="#181818", padx=16, pady=12)
+        f_btns = tk.Frame(dlg, bg="#181818", padx=18, pady=12)
         f_btns.pack(fill="x", side="bottom")
 
         # Canvas with scrollbar for cards
         c_frame = tk.Frame(dlg, bg="#181818")
-        c_frame.pack(fill="both", expand=True, padx=12, pady=4)
-        c_canvas = tk.Canvas(c_frame, bg="#181818", highlightthickness=0)
-        c_scrollbar = tk.Scrollbar(c_frame, orient="vertical", command=c_canvas.yview)
+        c_frame.pack(fill="both", expand=True, padx=14, pady=6)
+        c_canvas = tk.Canvas(c_frame, bg="#181818", highlightthickness=0, bd=0)
+        c_scrollbar = tk.Scrollbar(c_frame, orient="vertical", command=c_canvas.yview, bg="#202026", troughcolor="#141418", bd=0, highlightthickness=0)
         cards_box = tk.Frame(c_canvas, bg="#181818")
         cards_box.bind("<Configure>", lambda e: c_canvas.configure(scrollregion=c_canvas.bbox("all")))
-        c_canvas.create_window((0, 0), window=cards_box, anchor="nw", width=480)
+        c_canvas.create_window((0, 0), window=cards_box, anchor="nw", width=472)
         c_canvas.configure(yscrollcommand=c_scrollbar.set)
         c_canvas.pack(side="left", fill="both", expand=True)
         c_scrollbar.pack(side="right", fill="y")
+        bind_mousewheel_scroll(dlg, c_canvas)
 
-        def _on_mousewheel(event):
-            if event.num == 4:
-                c_canvas.yview_scroll(-1, "units")
-            elif event.num == 5:
-                c_canvas.yview_scroll(1, "units")
-            elif event.delta:
-                c_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        c_canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        c_canvas.bind_all("<Button-4>", _on_mousewheel)
-        c_canvas.bind_all("<Button-5>", _on_mousewheel)
+        def make_card(border_col="#2C2C30"):
+            card = tk.Frame(cards_box, bg="#1E1E22", padx=12, pady=10, highlightbackground=border_col, highlightthickness=1, bd=0)
+            card.pack(fill="x", pady=5)
+            return card
+
+        def make_dark_entry(parent, value="", show="•"):
+            wrap = tk.Frame(parent, bg="#141418", highlightbackground="#2E2E38", highlightthickness=1, bd=0, padx=6, pady=4)
+            ent = tk.Entry(wrap, font=("Sans", 8), bg="#141418", fg="#FFFFFF", insertbackground="#FFFFFF",
+                           bd=0, highlightthickness=0, relief="flat", show=show)
+            if value:
+                ent.insert(0, value)
+            ent.pack(fill="x", expand=True)
+            return wrap, ent
+
+        def add_card_header(parent, title, var_chk, prov_key, title_col="#FFFFFF"):
+            row = tk.Frame(parent, bg="#1E1E22")
+            row.pack(fill="x")
+            ModernCheckbox(row, text=title, variable=var_chk, fg=title_col, bg="#1E1E22", font=("Sans", 9, "bold")).pack(side="left")
+            swatch_bar = tk.Frame(row, bg="#1E1E22")
+            swatch_bar.pack(side="right")
+            swatch_canvases = []
+
+            def redraw_swatches():
+                active = (sec_colors_state.get(prov_key) or PASTEL_DEFAULTS[prov_key]).upper()
+                for sc, shex in swatch_canvases:
+                    sc.delete("all")
+                    is_sel = (shex.upper() == active)
+                    sc.create_oval(2, 2, 13, 13, fill=shex, outline="#FFFFFF" if is_sel else "#2E2E38", width=2 if is_sel else 1)
+
+            for _sname, shex in PASTEL_PALETTE:
+                sc = tk.Canvas(swatch_bar, width=15, height=15, bg="#1E1E22", bd=0, highlightthickness=0, cursor="hand2")
+                sc.pack(side="left", padx=2)
+                sc.bind("<Button-1>", lambda _e, pk=prov_key, hx=shex: (sec_colors_state.__setitem__(pk, hx), redraw_swatches()))
+                swatch_canvases.append((sc, shex))
+            redraw_swatches()
 
         hud_vars = {}
         def add_hud_cb(parent, gid, label):
             v = tk.BooleanVar(value=(gid not in hidden_set))
             hud_vars[gid] = v
-            cb = tk.Checkbutton(parent, text=label, variable=v, font=("Sans", 8), fg="#CCCCCC", bg="#1F1F1F",
-                                selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
-            cb.pack(side="left", padx=4)
+            cb = ModernCheckbox(parent, text=label, variable=v, fg="#CBD5E1", bg="#1E1E22", font=("Sans", 8))
+            cb.pack(side="left", padx=(0, 12))
 
         # 1. Antigravity Card
-        f_anti = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_anti.pack(fill="x", pady=5)
+        f_anti = make_card()
         var_anti = tk.BooleanVar(value=pCfg.get("antigravity", {}).get("enabled", True))
-        cb_anti = tk.Checkbutton(f_anti, text="Antigravity IDE (Live & Headless Standalone)", variable=var_anti,
-                                 font=("Sans", 9, "bold"), fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
-        cb_anti.pack(anchor="w")
-        tk.Label(f_anti, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#888888", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
-        r_anti1 = tk.Frame(f_anti, bg="#1F1F1F")
+        add_card_header(f_anti, "Antigravity IDE", var_anti, "antigravity")
+        tk.Label(f_anti, text="Detects quotas from running IDE or headless probe.", font=("Sans", 7), fg="#8C8C96", bg="#1E1E22").pack(anchor="w", pady=(3, 0))
+        tk.Label(f_anti, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#8C8C96", bg="#1E1E22").pack(anchor="w", pady=(5, 3))
+        r_anti1 = tk.Frame(f_anti, bg="#1E1E22")
         r_anti1.pack(anchor="w")
         add_hud_cb(r_anti1, "gemini-weekly", "Gemini Weekly")
         add_hud_cb(r_anti1, "gemini-5h", "Gemini (5h)")
         add_hud_cb(r_anti1, "gemini-argon-wtu-weekly", "Argon")
-        r_anti2 = tk.Frame(f_anti, bg="#1F1F1F")
-        r_anti2.pack(anchor="w", pady=(2, 0))
+        r_anti2 = tk.Frame(f_anti, bg="#1E1E22")
+        r_anti2.pack(anchor="w", pady=(4, 0))
         add_hud_cb(r_anti2, "3p-weekly", "Claude/GPT Weekly")
         add_hud_cb(r_anti2, "3p-5h", "Claude/GPT (5h)")
 
-        # 2. Claude Pro Card (#D78C68)
+        # 2. Claude Pro Card
         cpro_cfg = pCfg.get("claude_pro", {})
-        f_cpro = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#D78C68", highlightthickness=1)
-        f_cpro.pack(fill="x", pady=5)
+        f_cpro = make_card()
         var_claude_pro = tk.BooleanVar(value=cpro_cfg.get("enabled", True))
-        cb_cpro = tk.Checkbutton(f_cpro, text="Claude (Session & Limits)", variable=var_claude_pro,
-                                 font=("Sans", 9, "bold"), fg="#D78C68", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#D78C68")
-        cb_cpro.pack(anchor="w")
-        ent_claude_token = tk.Entry(f_cpro, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
-        ent_claude_token.insert(0, cpro_cfg.get("token", ""))
-        ent_claude_token.pack(fill="x", pady=2)
-        tk.Label(f_cpro, text="💡 Optional OAuth token (auto-detected if a session exists)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_cpro, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#D78C68", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
-        r_cpro = tk.Frame(f_cpro, bg="#1F1F1F")
+        add_card_header(f_cpro, "Claude (Pro / Code)", var_claude_pro, "claude_pro", title_col="#D78C68")
+        wrap_cpro, ent_claude_token = make_dark_entry(f_cpro, cpro_cfg.get("token", ""))
+        wrap_cpro.pack(fill="x", pady=(6, 3))
+        tk.Label(f_cpro, text="Optional OAuth token (auto-detected if signed in)", font=("Sans", 7), fg="#8C8C96", bg="#1E1E22").pack(anchor="w")
+        tk.Label(f_cpro, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#D78C68", bg="#1E1E22").pack(anchor="w", pady=(5, 3))
+        r_cpro = tk.Frame(f_cpro, bg="#1E1E22")
         r_cpro.pack(anchor="w")
-        add_hud_cb(r_cpro, "claude-pro-5h", "Janela de 5h")
-        add_hud_cb(r_cpro, "claude-pro-7d", "Weekly Quota (7d)")
+        add_hud_cb(r_cpro, "claude-pro-5h", "5h Window")
+        add_hud_cb(r_cpro, "claude-pro-7d", "Weekly (7d)")
 
         # 3. ChatGPT Card
         gpt_cfg = pCfg.get("chatgpt_subscription", {})
-        f_gpt = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_gpt.pack(fill="x", pady=5)
+        f_gpt = make_card()
         var_chatgpt = tk.BooleanVar(value=gpt_cfg.get("enabled", True))
-        cb_gpt = tk.Checkbutton(f_gpt, text="ChatGPT", variable=var_chatgpt,
-                                font=("Sans", 9, "bold"), fg="#8AE39A", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#8AE39A")
-        cb_gpt.pack(anchor="w")
-        ent_chatgpt_token = tk.Entry(f_gpt, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
-        ent_chatgpt_token.insert(0, gpt_cfg.get("token", ""))
-        ent_chatgpt_token.pack(fill="x", pady=2)
-        tk.Label(f_gpt, text="💡 ChatGPT Access / Session Token (3h window and o1 quota)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_gpt, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#8AE39A", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
-        r_gpt = tk.Frame(f_gpt, bg="#1F1F1F")
+        add_card_header(f_gpt, "ChatGPT", var_chatgpt, "chatgpt_subscription", title_col="#8AE39A")
+        wrap_gpt, ent_chatgpt_token = make_dark_entry(f_gpt, gpt_cfg.get("token", ""))
+        wrap_gpt.pack(fill="x", pady=(6, 3))
+        tk.Label(f_gpt, text="Access / Session token (3h window & weekly o1 quota)", font=("Sans", 7), fg="#8C8C96", bg="#1E1E22").pack(anchor="w")
+        tk.Label(f_gpt, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#8AE39A", bg="#1E1E22").pack(anchor="w", pady=(5, 3))
+        r_gpt = tk.Frame(f_gpt, bg="#1E1E22")
         r_gpt.pack(anchor="w")
         add_hud_cb(r_gpt, "chatgpt-4o-3h", "GPT-4o (3h)")
         add_hud_cb(r_gpt, "chatgpt-o1-weekly", "o1 Weekly")
 
         # 4. Cursor Card
         cur_cfg = pCfg.get("cursor", {})
-        f_cur = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_cur.pack(fill="x", pady=5)
+        f_cur = make_card()
         var_cursor = tk.BooleanVar(value=cur_cfg.get("enabled", True))
-        cb_cur = tk.Checkbutton(f_cur, text="Cursor", variable=var_cursor,
-                                font=("Sans", 9, "bold"), fg="#C084FC", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#C084FC")
-        cb_cur.pack(anchor="w")
-        ent_cursor_token = tk.Entry(f_cur, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
-        ent_cursor_token.insert(0, cur_cfg.get("token", ""))
-        ent_cursor_token.pack(fill="x", pady=2)
-        tk.Label(f_cur, text="💡 Cursor Session Token (optional if signed in to Cursor)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_cur, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#C084FC", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
-        r_cur = tk.Frame(f_cur, bg="#1F1F1F")
+        add_card_header(f_cur, "Cursor", var_cursor, "cursor", title_col="#C084FC")
+        wrap_cur, ent_cursor_token = make_dark_entry(f_cur, cur_cfg.get("token", ""))
+        wrap_cur.pack(fill="x", pady=(6, 3))
+        tk.Label(f_cur, text="Cursor session token (optional if signed in to Cursor)", font=("Sans", 7), fg="#8C8C96", bg="#1E1E22").pack(anchor="w")
+        tk.Label(f_cur, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#C084FC", bg="#1E1E22").pack(anchor="w", pady=(5, 3))
+        r_cur = tk.Frame(f_cur, bg="#1E1E22")
         r_cur.pack(anchor="w")
         add_hud_cb(r_cur, "cursor-fast-requests", "Fast Requests")
         add_hud_cb(r_cur, "cursor-monthly-cycle", "Monthly Cycle")
 
         # 5. Copilot Card
         cop_cfg = pCfg.get("github_copilot", {})
-        f_cop = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_cop.pack(fill="x", pady=5)
+        f_cop = make_card()
         var_copilot = tk.BooleanVar(value=cop_cfg.get("enabled", True))
-        cb_cop = tk.Checkbutton(f_cop, text="Copilot", variable=var_copilot,
-                                font=("Sans", 9, "bold"), fg="#FF5265", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FF5265")
-        cb_cop.pack(anchor="w")
-        ent_copilot_token = tk.Entry(f_cop, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
-        ent_copilot_token.insert(0, cop_cfg.get("token", ""))
-        ent_copilot_token.pack(fill="x", pady=2)
-        tk.Label(f_cop, text="💡 GitHub Personal Access Token for Copilot (optional)", font=("Sans", 7), fg="#888888", bg="#1F1F1F").pack(anchor="w")
-        tk.Label(f_cop, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#FF5265", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
-        r_cop = tk.Frame(f_cop, bg="#1F1F1F")
+        add_card_header(f_cop, "Copilot", var_copilot, "github_copilot", title_col="#FF5265")
+        wrap_cop, ent_copilot_token = make_dark_entry(f_cop, cop_cfg.get("token", ""))
+        wrap_cop.pack(fill="x", pady=(6, 3))
+        tk.Label(f_cop, text="GitHub Personal Access Token for Copilot (optional)", font=("Sans", 7), fg="#8C8C96", bg="#1E1E22").pack(anchor="w")
+        tk.Label(f_cop, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#FF5265", bg="#1E1E22").pack(anchor="w", pady=(5, 3))
+        r_cop = tk.Frame(f_cop, bg="#1E1E22")
         r_cop.pack(anchor="w")
         add_hud_cb(r_cop, "copilot-chat-limit", "Chat Limits")
         add_hud_cb(r_cop, "copilot-completions-rate", "Completions Rate")
 
-        # 4. Gemini Card
         gem_cfg = pCfg.get("gemini", {})
+        oa_cfg = pCfg.get("openai", {})
+        ant_cfg = pCfg.get("anthropic", {})
+
+        api_ok_state = {
+            "gemini": bool(gem_cfg.get("api_key_ok") and gem_cfg.get("api_key")),
+            "openai": bool(oa_cfg.get("api_key_ok") and oa_cfg.get("api_key")),
+            "anthropic": bool(ant_cfg.get("api_key_ok") and ant_cfg.get("api_key")),
+        }
+        tested_value = {
+            "gemini": gem_cfg.get("api_key", "").strip() if api_ok_state["gemini"] else "",
+            "openai": oa_cfg.get("api_key", "").strip() if api_ok_state["openai"] else "",
+            "anthropic": ant_cfg.get("api_key", "").strip() if api_ok_state["anthropic"] else "",
+        }
+        api_controls = {}
+
+        def attach_api_test_controls(row_parent, card_parent, prov_key, var_chk, ent_widget):
+            status_lbl = tk.Label(
+                card_parent,
+                text="✓ OK — Valid API Key" if api_ok_state[prov_key] else "",
+                font=("Sans", 8, "bold"),
+                fg="#00E699",
+                bg="#1E1E22",
+                anchor="w"
+            )
+            btn_test = make_flat_button(
+                row_parent,
+                text="✓ OK" if api_ok_state[prov_key] else "Test",
+                fg="#00E699" if api_ok_state[prov_key] else "#E5E7EB",
+                bg="#103A2A" if api_ok_state[prov_key] else "#282832",
+                hover_bg="#164D38" if api_ok_state[prov_key] else "#353544",
+                font=("Sans", 8, "bold"),
+                padx=12,
+                pady=4,
+            )
+
+            def on_key_release(_evt=None):
+                cur = ent_widget.get().strip()
+                if cur != tested_value[prov_key]:
+                    api_ok_state[prov_key] = False
+                    status_lbl.config(text="", fg="#888888")
+                    btn_test.config(text="Test", fg="#E5E7EB", bg="#282832")
+
+            ent_widget.bind("<KeyRelease>", on_key_release)
+
+            def run_single_test():
+                key = ent_widget.get().strip()
+                if not key:
+                    status_lbl.config(text="⚠️ Enter an API key first", fg="#F5A623")
+                    return
+                btn_test.config(state="disabled", text="...")
+                status_lbl.config(text="Testing key...", fg="#94A3B8")
+
+                def worker():
+                    res = test_api_key_sync(prov_key, key)
+                    def finish():
+                        if not (self.settings_dlg and self.settings_dlg.winfo_exists()):
+                            return
+                        btn_test.config(state="normal")
+                        if res.get("ok"):
+                            api_ok_state[prov_key] = True
+                            tested_value[prov_key] = key
+                            var_chk.set(True)
+                            btn_test.config(text="✓ OK", fg="#00E699", bg="#103A2A")
+                            status_lbl.config(text="✓ OK — Valid API Key", fg="#00E699")
+                        else:
+                            api_ok_state[prov_key] = False
+                            tested_value[prov_key] = ""
+                            btn_test.config(text="Test", fg="#E5E7EB", bg="#282832")
+                            status_lbl.config(text="✕ Invalid API Key", fg="#FF4D4F")
+                    dlg.after(0, finish)
+
+                threading.Thread(target=worker, daemon=True).start()
+
+            btn_test.config(command=run_single_test)
+            api_controls[prov_key] = {
+                "var": var_chk,
+                "ent": ent_widget,
+                "lbl": status_lbl,
+                "btn": btn_test,
+            }
+            return btn_test, status_lbl
+
+        # 6. Gemini Card
         var_gem = tk.BooleanVar(value=gem_cfg.get("enabled", False))
-        f_gem = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_gem.pack(fill="x", pady=5)
-        cb_gem = tk.Checkbutton(f_gem, text="Google Gemini API (AI Studio)", variable=var_gem, font=("Sans", 9, "bold"),
-                                fg="#38BDF8", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#38BDF8")
-        cb_gem.pack(anchor="w")
-        ent_gem = tk.Entry(f_gem, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
-        ent_gem.insert(0, gem_cfg.get("api_key", ""))
-        ent_gem.pack(fill="x", pady=2)
-        link_gem = tk.Label(f_gem, text="🔗 Get a free key at Google AI Studio", font=("Sans", 7), fg="#4DA3FF", bg="#1F1F1F", cursor="hand2")
+        f_gem = make_card()
+        add_card_header(f_gem, "Google Gemini API (AI Studio)", var_gem, "gemini", title_col="#67E8F9")
+        gem_row = tk.Frame(f_gem, bg="#1E1E22")
+        gem_row.pack(fill="x", pady=(6, 2))
+        wrap_gem, ent_gem = make_dark_entry(gem_row, gem_cfg.get("api_key", ""))
+        wrap_gem.pack(side="left", fill="x", expand=True)
+        gem_btn, gem_status = attach_api_test_controls(gem_row, f_gem, "gemini", var_gem, ent_gem)
+        gem_btn.pack(side="right", padx=(6, 0))
+        gem_status.pack(anchor="w", pady=(2, 2))
+        link_gem = tk.Label(f_gem, text="Get a free key at Google AI Studio (aistudio.google.com) ↗", font=("Sans", 7), fg="#38BDF8", bg="#1E1E22", cursor="hand2")
         link_gem.pack(anchor="w")
-        link_gem.bind("<Button-1>", lambda e: webbrowser.open("https://aistudio.google.com/app/apikey"))
-        tk.Label(f_gem, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#38BDF8", bg="#1F1F1F").pack(anchor="w", pady=(4, 2))
-        r_gem = tk.Frame(f_gem, bg="#1F1F1F")
+        link_gem.bind("<Button-1>", lambda _e: webbrowser.open("https://aistudio.google.com/app/apikey"))
+        tk.Label(f_gem, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#67E8F9", bg="#1E1E22").pack(anchor="w", pady=(5, 3))
+        r_gem = tk.Frame(f_gem, bg="#1E1E22")
         r_gem.pack(anchor="w")
         add_hud_cb(r_gem, "gemini-flash-rpm", "Flash RPM")
         add_hud_cb(r_gem, "gemini-pro-rpm", "Pro RPM")
         add_hud_cb(r_gem, "gemini-key-status", "Key Status")
 
-        # 4. OpenAI Card
-        oa_cfg = pCfg.get("openai", {})
+        # 7. OpenAI Card
         var_oa = tk.BooleanVar(value=oa_cfg.get("enabled", False))
-        f_oa = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_oa.pack(fill="x", pady=5)
-        cb_oa = tk.Checkbutton(f_oa, text="OpenAI API (sk-...)", variable=var_oa, font=("Sans", 9, "bold"),
-                               fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
-        cb_oa.pack(anchor="w")
-        ent_oa = tk.Entry(f_oa, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
-        ent_oa.insert(0, oa_cfg.get("api_key", ""))
-        ent_oa.pack(fill="x", pady=2)
+        f_oa = make_card()
+        add_card_header(f_oa, "OpenAI API (sk-...)", var_oa, "openai")
+        oa_row = tk.Frame(f_oa, bg="#1E1E22")
+        oa_row.pack(fill="x", pady=(6, 2))
+        wrap_oa, ent_oa = make_dark_entry(oa_row, oa_cfg.get("api_key", ""))
+        wrap_oa.pack(side="left", fill="x", expand=True)
+        oa_btn, oa_status = attach_api_test_controls(oa_row, f_oa, "openai", var_oa, ent_oa)
+        oa_btn.pack(side="right", padx=(6, 0))
+        oa_status.pack(anchor="w", pady=(2, 2))
+        link_oa = tk.Label(f_oa, text="Get an OpenAI API Key (platform.openai.com/api-keys) ↗", font=("Sans", 7), fg="#38BDF8", bg="#1E1E22", cursor="hand2")
+        link_oa.pack(anchor="w")
+        link_oa.bind("<Button-1>", lambda _e: webbrowser.open("https://platform.openai.com/api-keys"))
 
-        # 5. Anthropic Claude API Card
-        ant_cfg = pCfg.get("anthropic", {})
+        # 8. Anthropic Claude API Card
         var_ant = tk.BooleanVar(value=ant_cfg.get("enabled", False))
-        f_ant = tk.Frame(cards_box, bg="#1F1F1F", padx=10, pady=8, highlightbackground="#2A2A2A", highlightthickness=1)
-        f_ant.pack(fill="x", pady=5)
-        cb_ant = tk.Checkbutton(f_ant, text="Anthropic Claude API (sk-ant-...)", variable=var_ant, font=("Sans", 9, "bold"),
-                                fg="#FFFFFF", bg="#1F1F1F", selectcolor="#2A2A2A", activebackground="#1F1F1F", activeforeground="#FFFFFF")
-        cb_ant.pack(anchor="w")
-        ent_ant = tk.Entry(f_ant, font=("Sans", 8), bg="#141414", fg="#FFFFFF", insertbackground="white", show="•")
-        ent_ant.insert(0, ant_cfg.get("api_key", ""))
-        ent_ant.pack(fill="x", pady=2)
+        f_ant = make_card()
+        add_card_header(f_ant, "Anthropic Claude API (sk-ant-...)", var_ant, "anthropic")
+        ant_row = tk.Frame(f_ant, bg="#1E1E22")
+        ant_row.pack(fill="x", pady=(6, 2))
+        wrap_ant, ent_ant = make_dark_entry(ant_row, ant_cfg.get("api_key", ""))
+        wrap_ant.pack(side="left", fill="x", expand=True)
+        ant_btn, ant_status = attach_api_test_controls(ant_row, f_ant, "anthropic", var_ant, ent_ant)
+        ant_btn.pack(side="right", padx=(6, 0))
+        ant_status.pack(anchor="w", pady=(2, 2))
+        link_ant = tk.Label(f_ant, text="Get an Anthropic API Key (console.anthropic.com) ↗", font=("Sans", 7), fg="#38BDF8", bg="#1E1E22", cursor="hand2")
+        link_ant.pack(anchor="w")
+        link_ant.bind("<Button-1>", lambda _e: webbrowser.open("https://console.anthropic.com/settings/keys"))
 
-        # Save Action
-        def do_save():
+        # Save Action (auto-tests new/unverified API keys and marks OK)
+        def write_and_close():
             hidden_list = []
             for gid, v in hud_vars.items():
                 if not v.get():
                     hidden_list.append(gid)
 
-            new_cfg = {
-                "providers": {
-                    "antigravity": {"enabled": var_anti.get()},
-                    "claude_pro": {"enabled": var_claude_pro.get(), "token": ent_claude_token.get().strip()},
-                    "chatgpt_subscription": {"enabled": var_chatgpt.get(), "token": ent_chatgpt_token.get().strip()},
-                    "cursor": {"enabled": var_cursor.get(), "token": ent_cursor_token.get().strip()},
-                    "github_copilot": {"enabled": var_copilot.get(), "token": ent_copilot_token.get().strip()},
-                    "gemini": {"enabled": var_gem.get() or bool(ent_gem.get().strip()), "api_key": ent_gem.get().strip()},
-                    "openai": {"enabled": var_oa.get() or bool(ent_oa.get().strip()), "api_key": ent_oa.get().strip()},
-                    "anthropic": {"enabled": var_ant.get() or bool(ent_ant.get().strip()), "api_key": ent_ant.get().strip()}
+            new_cfg = dict(cfg)
+            new_cfg["providers"] = {
+                "antigravity": {"enabled": var_anti.get()},
+                "claude_pro": {"enabled": var_claude_pro.get(), "token": ent_claude_token.get().strip()},
+                "chatgpt_subscription": {"enabled": var_chatgpt.get(), "token": ent_chatgpt_token.get().strip()},
+                "cursor": {"enabled": var_cursor.get(), "token": ent_cursor_token.get().strip()},
+                "github_copilot": {"enabled": var_copilot.get(), "token": ent_copilot_token.get().strip()},
+                "gemini": {
+                    "enabled": var_gem.get() or bool(ent_gem.get().strip()),
+                    "api_key": ent_gem.get().strip(),
+                    "api_key_ok": bool(api_ok_state["gemini"] and ent_gem.get().strip())
                 },
-                "refresh_interval_seconds": 30,
-                "hidden_hud_gauges": hidden_list
+                "openai": {
+                    "enabled": var_oa.get() or bool(ent_oa.get().strip()),
+                    "api_key": ent_oa.get().strip(),
+                    "api_key_ok": bool(api_ok_state["openai"] and ent_oa.get().strip())
+                },
+                "anthropic": {
+                    "enabled": var_ant.get() or bool(ent_ant.get().strip()),
+                    "api_key": ent_ant.get().strip(),
+                    "api_key_ok": bool(api_ok_state["anthropic"] and ent_ant.get().strip())
+                }
             }
+            new_cfg["section_colors"] = dict(sec_colors_state)
+            new_cfg["refresh_interval_seconds"] = 30
+            new_cfg["hidden_hud_gauges"] = hidden_list
             save_config(new_cfg)
             close_dlg()
+            self.setup_ui()
             self.refresh(True)
 
-        btn_save = tk.Button(f_btns, text="Save & Refresh", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699",
-                             activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=14, pady=6, cursor="hand2", command=do_save)
+        def do_save():
+            pending = []
+            for pk, ctrl in api_controls.items():
+                k = ctrl["ent"].get().strip()
+                if k and (not api_ok_state[pk] or k != tested_value[pk]):
+                    pending.append((pk, k))
+
+            if not pending:
+                write_and_close()
+                return
+
+            btn_save.config(state="disabled", text="Testing keys...")
+            for pk, _ in pending:
+                api_controls[pk]["lbl"].config(text="Testing key...", fg="#94A3B8")
+
+            def verify_worker():
+                results = {}
+                for pk, k in pending:
+                    results[pk] = test_api_key_sync(pk, k)
+
+                def apply_results():
+                    if not (self.settings_dlg and self.settings_dlg.winfo_exists()):
+                        return
+                    any_ok = False
+                    for pk, k in pending:
+                        res = results.get(pk, {})
+                        ctrl = api_controls[pk]
+                        if res.get("ok"):
+                            any_ok = True
+                            api_ok_state[pk] = True
+                            tested_value[pk] = k
+                            ctrl["var"].set(True)
+                            ctrl["btn"].config(text="✓ OK", fg="#00E699", bg="#103A2A")
+                            ctrl["lbl"].config(text="✓ OK — Valid API Key", fg="#00E699")
+                        else:
+                            api_ok_state[pk] = False
+                            tested_value[pk] = ""
+                            ctrl["btn"].config(text="Test", fg="#E5E7EB", bg="#282832")
+                            ctrl["lbl"].config(text="✕ Invalid API Key", fg="#FF4D4F")
+                    btn_save.config(state="normal", text="✓ OK" if any_ok else "Save & Refresh")
+                    dlg.after(500 if any_ok else 700, write_and_close)
+
+                dlg.after(0, apply_results)
+
+            threading.Thread(target=verify_worker, daemon=True).start()
+
+        btn_save = make_flat_button(f_btns, "Save & Refresh", fg="#121214", bg="#00E699", hover_bg="#2BFFB5",
+                                    font=("Sans", 9, "bold"), padx=16, pady=7, command=do_save)
         btn_save.pack(side="left")
 
-        btn_cancel = tk.Button(f_btns, text="Cancel", font=("Sans", 9), fg="#CCCCCC", bg="#2A2A2A",
-                               activebackground="#3A3A3A", activeforeground="#FFFFFF", relief="flat", padx=12, pady=6, cursor="hand2", command=close_dlg)
+        btn_cancel = make_flat_button(f_btns, "Cancel", fg="#E5E7EB", bg="#282830", hover_bg="#343440",
+                                      font=("Sans", 9, "bold"), padx=14, pady=7, command=close_dlg)
         btn_cancel.pack(side="right")
 
     def setup_ui(self):
+        self._active_scroll_canvas = None
+        if not getattr(self, "_wheel_bound", False):
+            self._wheel_bound = True
+            def _dispatch_wheel(event):
+                c = self._active_scroll_canvas
+                if c is None:
+                    return
+                try:
+                    if not c.winfo_exists():
+                        return
+                    if self.mode == "hud" and self.orientation == "horizontal":
+                        if getattr(event, "num", None) == 4:
+                            c.xview_scroll(-1, "units")
+                        elif getattr(event, "num", None) == 5:
+                            c.xview_scroll(1, "units")
+                        elif getattr(event, "delta", 0):
+                            c.xview_scroll(int(-1 * (event.delta / 120)), "units")
+                    else:
+                        if getattr(event, "num", None) == 4:
+                            c.yview_scroll(-1, "units")
+                        elif getattr(event, "num", None) == 5:
+                            c.yview_scroll(1, "units")
+                        elif getattr(event, "delta", 0):
+                            c.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                except Exception:
+                    pass
+            for ev in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                self.root.bind(ev, _dispatch_wheel, add="+")
+
         for widget in self.root.winfo_children():
             if self.settings_dlg and widget == self.settings_dlg:
+                continue
+            if self.promo_window and widget == self.promo_window:
                 continue
             widget.destroy()
 
@@ -682,9 +1424,10 @@ class QuotaHubAppLinux:
         else:
             self.setup_hud_ui()
 
+        self.check_and_schedule_promo()
+
     def setup_full_ui(self):
-        self.root.overrideredirect(False)
-        self.root.attributes("-topmost", False)
+        self._apply_window_chrome(borderless=False, topmost=False)
         self.root.resizable(False, False)
         self.root.configure(bg="#181818")
 
@@ -693,290 +1436,514 @@ class QuotaHubAppLinux:
         app_ver = get_app_version(quota)
         self.root.title(f"AI Gauge v{app_ver} - Universal AI Quota Cockpit")
 
-        w = 500
-        total_cards_h = sum(36 + len(g.get("buckets", [])) * 48 for g in groups)
-        if total_cards_h == 0:
-            h = 450
-        else:
-            h = max(390, min(120 + total_cards_h + 80, 720))
-        self.root.geometry(f"{w}x{h}")
+        update_info = quota.get("update", {})
+        announcement = quota.get("announcement")
+        ann_type = (announcement.get("type") or "").lower() if isinstance(announcement, dict) else ""
+        ann_title_low = (announcement.get("title") or "").strip().lower() if isinstance(announcement, dict) else ""
+        show_inline_ann = (
+            isinstance(announcement, dict)
+            and ann_type != "publicidade"
+            and bool(announcement.get("message"))
+            and ann_title_low != "help ai gauge developers team"
+        )
+        tier_name = (quota.get("tier") or "free").lower()
+        show_free_banner = tier_name not in ("pro", "enterprise")
 
-        # Footer packed first with side="bottom" to guarantee it never gets cut off
-        footer = tk.Frame(self.root, bg="#181818", padx=20, pady=12)
+        self.root.update_idletasks()
+        sw = max(640, self.root.winfo_screenwidth())
+        sh = max(480, self.root.winfo_screenheight())
+        w = 468
+        h = min(650, sh - 64)
+        wx = max(0, (sw - w) // 2)
+        wy = max(0, (sh - h) // 2)
+        if self._wm_overrideredirect is not None and not getattr(self, "_full_positioned", False):
+            self.root.geometry(f"{w}x{h}+{wx}+{wy}")
+            self._full_positioned = True
+        else:
+            self.root.geometry(f"{w}x{h}")
+
+        # 1. Fixed Header
+        header_box = tk.Frame(self.root, bg="#181818", padx=18, pady=12)
+        header_box.pack(fill="x", side="top")
+
+        title_row = tk.Frame(header_box, bg="#181818")
+        title_row.pack(fill="x")
+        tk.Label(title_row, text="⚡ AI Gauge", font=("Sans", 13, "bold"), fg="#FFFFFF", bg="#181818").pack(side="left")
+        tk.Label(title_row, text=f"v{app_ver}", font=("Sans", 9, "bold"), fg="#8C8C96", bg="#181818").pack(side="left", padx=6, pady=(2, 0))
+
+        acc_text = f"{quota.get('account', 'Multi-Provider')}  •  Plan {quota.get('plan', 'Universal')}"
+        tk.Label(header_box, text=acc_text, font=("Sans", 10), fg="#D9D9E0", bg="#181818", anchor="w").pack(fill="x", pady=(3, 0))
+
+        time_status = "(Live)" if not quota.get("from_cache") else f"(Cache {quota.get('cache_age_seconds', 0)}s)"
+        time_text = f"Updated at {quota.get('updated_at', 'now')} {time_status}"
+        tk.Label(header_box, text=time_text, font=("Sans", 8), fg="#8C8C96", bg="#181818", anchor="w").pack(fill="x", pady=(1, 8))
+        tk.Frame(header_box, bg="#28282E", height=1).pack(fill="x")
+
+        # 2. Fixed Equal-Width 4-Button Footer (packed before center scroll area)
+        footer = tk.Frame(self.root, bg="#181818", padx=18, pady=12)
         footer.pack(fill="x", side="bottom")
 
         btn_row = tk.Frame(footer, bg="#181818")
         btn_row.pack(fill="x")
+        for col_idx in range(4):
+            btn_row.grid_columnconfigure(col_idx, weight=1, uniform="fbtn")
 
-        self.refresh_btn = tk.Button(btn_row, text="↻ Refresh", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                                     activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
-                                     command=lambda: self.refresh(True))
-        self.refresh_btn.pack(side="left")
+        self.refresh_btn = make_flat_button(btn_row, "↻ Refresh", fg="#181818", bg="#EEEEF0", hover_bg="#FFFFFF",
+                                            font=("Sans", 9, "bold"), padx=4, pady=6, command=lambda: self.refresh(True))
+        self.refresh_btn.grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
-        hud_btn = tk.Button(btn_row, text="⤢ HUD Bar", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                            activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
-                            command=self.toggle_mode)
-        hud_btn.pack(side="left", padx=8)
+        hud_btn = make_flat_button(btn_row, "⤢ HUD Bar", fg="#181818", bg="#EEEEF0", hover_bg="#FFFFFF",
+                                   font=("Sans", 9, "bold"), padx=4, pady=6, command=self.toggle_mode)
+        hud_btn.grid(row=0, column=1, sticky="ew", padx=(0, 6))
 
-        cfg_btn = tk.Button(btn_row, text="⚙ Settings", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                            activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
-                            command=self.open_settings)
-        cfg_btn.pack(side="left", padx=2)
+        cfg_btn = make_flat_button(btn_row, "⚙ Settings", fg="#181818", bg="#EEEEF0", hover_bg="#FFFFFF",
+                                   font=("Sans", 9, "bold"), padx=4, pady=6, command=self.open_settings)
+        cfg_btn.grid(row=0, column=2, sticky="ew", padx=(0, 6))
 
-        close_btn = tk.Button(btn_row, text="✕ Close", font=("Sans", 9, "bold"), fg="#181818", bg="#EEEEF0",
-                              activebackground="#FFFFFF", relief="flat", padx=12, pady=5, cursor="hand2",
-                              command=self.root.destroy)
-        close_btn.pack(side="right")
-
-        main_frame = tk.Frame(self.root, bg="#181818", padx=20, pady=16)
-        main_frame.pack(fill="both", expand=True)
-
-        title_row = tk.Frame(main_frame, bg="#181818")
-        title_row.pack(fill="x")
-        tk.Label(title_row, text="⚡ AI Gauge", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#181818").pack(side="left")
-        tk.Label(title_row, text=f"v{app_ver}", font=("Sans", 9), fg="#888888", bg="#181818").pack(side="left", padx=6, pady=(1, 0))
-
-        acc_text = f"{quota.get('account', 'Multi-Provider')} • Plan {quota.get('plan', 'Universal')}"
-        lbl_acc = tk.Label(main_frame, text=acc_text, font=("Sans", 10), fg="#CCCCCC", bg="#181818", anchor="w")
-        lbl_acc.pack(fill="x", pady=(2, 0))
-
-        time_status = "(Live)" if not quota.get("from_cache") else f"(Cache {quota.get('cache_age_seconds', 0)}s)"
-        time_text = f"Updated at {quota.get('updated_at', 'now')} {time_status}"
-        lbl_time = tk.Label(main_frame, text=time_text, font=("Sans", 8), fg="#777777", bg="#181818", anchor="w")
-        lbl_time.pack(fill="x", pady=(1, 8))
-
-        # Update Available Banner
-        update_info = quota.get("update", {})
-        if update_info.get("update_available"):
-            up_box = tk.Frame(main_frame, bg="#00E699", padx=12, pady=7)
-            up_box.pack(fill="x", pady=(0, 10))
-            new_v = update_info.get("latest_version", "")
-            up_lbl = tk.Label(up_box, text=f"New release v{new_v} available", font=("Sans", 9, "bold"), fg="#121212", bg="#00E699")
-            up_lbl.pack(side="left")
-            d_url = update_info.get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
-            btn_up = tk.Button(up_box, text="Download", font=("Sans", 8, "bold"), fg="#121212", bg="#FFFFFF",
-                               activebackground="#EEEEEE", activeforeground="#121212", relief="flat", padx=10, pady=2, cursor="hand2", command=lambda: webbrowser.open(d_url))
-            btn_up.pack(side="right")
-
-        # Announcement / Free vs PRO Notice Banner (only shown if an announcement message exists)
-        announcement = quota.get("announcement")
-        if announcement and announcement.get("message"):
-            ann_type = announcement.get("type", "info")
-            ann_bg = "#1F2937" if ann_type == "info" else "#2D2418"
-            ann_border = "#3B82F6" if ann_type == "info" else "#F59E0B"
-            ann_badge_col = "#60A5FA" if ann_type == "info" else "#FBBF24"
-
-            ann_box = tk.Frame(main_frame, bg=ann_bg, padx=12, pady=8, highlightbackground=ann_border, highlightthickness=1)
-            ann_box.pack(fill="x", pady=(0, 10))
-            
-            top_row = tk.Frame(ann_box, bg=ann_bg)
-            top_row.pack(fill="x")
-            
-            badge_text = announcement.get("badge", "AVISO")
-            lbl_badge = tk.Label(top_row, text=f"[{badge_text}]", font=("Sans", 8, "bold"), fg=ann_badge_col, bg=ann_bg)
-            lbl_badge.pack(side="left")
-            
-            lbl_title = tk.Label(top_row, text=announcement.get("title", ""), font=("Sans", 8, "bold"), fg="#FFFFFF", bg=ann_bg)
-            lbl_title.pack(side="left", padx=6)
-            
-            lbl_msg = tk.Label(ann_box, text=announcement.get("message", ""), font=("Sans", 8), fg="#D1D5DB", bg=ann_bg, anchor="w", justify="left", wraplength=440)
-            lbl_msg.pack(fill="x", pady=(4, 6))
-            
-            if announcement.get("action_label") and announcement.get("action_url"):
-                a_url = announcement.get("action_url")
-                act_label = announcement.get("action_label", "")
-                btn_text = act_label if (act_label.endswith("!") or "→" in act_label) else f"{act_label} →"
-                btn_act = tk.Button(ann_box, text=btn_text, font=("Sans", 8, "bold"), fg="#121212", bg=ann_badge_col,
-                                    relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: webbrowser.open(a_url))
-                btn_act.pack(anchor="center", pady=(2, 4))
-
-        if not groups:
-            empty_frame = tk.Frame(main_frame, bg="#1F1F1F", padx=20, pady=18, highlightbackground="#2A2A2A", highlightthickness=1)
-            empty_frame.pack(fill="both", expand=True, pady=6)
-            tk.Label(empty_frame, text="⚡ Welcome to AI Gauge", font=("Sans", 12, "bold"), fg="#FFFFFF", bg="#1F1F1F").pack(pady=(4, 2))
-            tk.Label(empty_frame, text=f"Installed Version: v{app_ver}", font=("Sans", 9, "bold"), fg="#00E699", bg="#1F1F1F").pack(pady=(0, 8))
-            tk.Label(empty_frame, text="No active local sessions were found (Antigravity, Claude, ChatGPT, Cursor, Copilot).\nConfigure an API key (Gemini, OpenAI, Anthropic) or session token:", font=("Sans", 9), fg="#AAAAAA", bg="#1F1F1F", justify="center").pack(pady=(0, 12))
-            tk.Button(empty_frame, text="⚙️ Configure Providers and Keys", font=("Sans", 10, "bold"), fg="#121212", bg="#00E699",
-                      activebackground="#33FFB5", activeforeground="#121212", relief="flat", padx=16, pady=6, cursor="hand2", command=self.open_settings).pack(pady=(0, 6))
-            tk.Button(empty_frame, text="🔗 Get a Free Key at Google AI Studio (aistudio.google.com) →", font=("Sans", 8), fg="#38BDF8", bg="#18181C",
-                      activebackground="#252530", activeforeground="#38BDF8", relief="flat", padx=10, pady=4, cursor="hand2", command=lambda: webbrowser.open("https://aistudio.google.com/app/apikey")).pack()
-
-        cfg = load_config()
-        sec_colors = cfg.get("section_colors", {})
-        for g in groups:
-            prov = f" [{g.get('provider')}]" if g.get('provider') else ""
-            gname_lower = g.get("name", "").lower()
-            prov_lower = g.get("provider", "").lower()
-            
-            if "cursor" in gname_lower or "cursor" in prov_lower:
-                accent_col = sec_colors.get("cursor", "#C084FC")
-            elif "copilot" in gname_lower or "copilot" in prov_lower or "github" in prov_lower:
-                accent_col = sec_colors.get("github_copilot", "#FF5265")
-            elif ("claude" in gname_lower or "claude" in prov_lower) and "claude and gpt" not in gname_lower:
-                accent_col = sec_colors.get("claude_pro", "#D78C68")
-            elif "chatgpt" in gname_lower or "chatgpt" in prov_lower:
-                accent_col = sec_colors.get("chatgpt_subscription", "#8AE39A")
-            elif "studio" in prov_lower or "gemini api" in gname_lower or "gemini" in prov_lower:
-                accent_col = sec_colors.get("gemini", "#67E8F9")
-            else:
-                accent_col = sec_colors.get("antigravity", "#8FBCFF")
-
-            lbl_g = tk.Label(main_frame, text=(g.get("name", "Modelos") + prov).upper(), font=("Sans", 8, "bold"), fg=accent_col, bg="#181818", anchor="w")
-            lbl_g.pack(fill="x", pady=(4, 2))
-
-            card = tk.Frame(main_frame, bg="#1F1F1F", bd=1, relief="solid", padx=14, pady=10)
-            card.configure(highlightbackground="#2C2C2C", highlightthickness=1)
-            card.pack(fill="x", pady=(0, 10))
-
-            for idx, b in enumerate(g.get("buckets", [])):
-                if idx > 0:
-                    sep = tk.Frame(card, bg="#282828", height=1)
-                    sep.pack(fill="x", pady=6)
-
-                row1 = tk.Frame(card, bg="#1F1F1F")
-                row1.pack(fill="x")
-
-                bname = tk.Label(row1, text=b.get("name", ""), font=("Sans", 9), fg="#FFFFFF", bg="#1F1F1F")
-                bname.pack(side="left")
-
-                is_outdated = (b.get("reset_in") == "Outdated")
-                pct = 0 if is_outdated else b.get("remaining_pct", 100)
-                reset_str = " • Outdated · sign in again" if is_outdated else (f" • {b.get('reset_in')}" if b.get("reset_in") else "")
-                val_text = f"--%{reset_str}" if is_outdated else f"{pct}%{reset_str}"
-                val_col = "#F5A623" if is_outdated else status_color(pct, accent_col)
-                bval = tk.Label(row1, text=val_text, font=("Monospace", 9, "bold"), fg=val_col, bg="#1F1F1F")
-                bval.pack(side="right")
-
-                bar_canvas = tk.Canvas(card, bg="#2D2D2D", height=6, highlightthickness=0, bd=0)
-                bar_canvas.pack(fill="x", pady=(4, 2))
-                bar_w = 500 - 40 - 28
-                fill_w = max(4, int(bar_w * (pct / 100.0)))
-                bar_canvas.create_rectangle(0, 0, fill_w, 6, fill=val_col, outline="")
+        close_btn = make_flat_button(btn_row, "✕ Close", fg="#181818", bg="#EEEEF0", hover_bg="#FFFFFF",
+                                     font=("Sans", 9, "bold"), padx=4, pady=6, command=self.root.destroy)
+        close_btn.grid(row=0, column=3, sticky="ew")
 
         mid = get_machine_id()
         donate_url = f"https://ai-gauge.vh2c.com.br/donate?mid={mid}" if mid else "https://ai-gauge.vh2c.com.br/donate"
-        brand_lbl = tk.Label(footer, text=f"⚡ AI Gauge v{app_ver}  •  Developed by vh2c.com.br", font=("Sans", 8),
-                             fg="#9CA3AF", bg="#181818", cursor="hand2")
-        brand_lbl.pack(pady=(8, 2))
-        brand_lbl.bind("<Button-1>", lambda e: webbrowser.open(donate_url))
+        brand_lbl = tk.Label(footer, text=f"Developed by vh2c.com.br", font=("Sans", 8, "bold"),
+                             fg="#8C8C96", bg="#181818", cursor="hand2")
+        brand_lbl.pack(pady=(8, 0))
+        brand_lbl.bind("<Button-1>", lambda _e: webbrowser.open(donate_url))
+
+        # 3. Scrollable Center Content Area
+        body_wrap = tk.Frame(self.root, bg="#181818")
+        body_wrap.pack(fill="both", expand=True, padx=14)
+
+        body_canvas = tk.Canvas(body_wrap, bg="#181818", bd=0, highlightthickness=0)
+        body_scroll = tk.Scrollbar(body_wrap, orient="vertical", command=body_canvas.yview,
+                                   bg="#202026", troughcolor="#141418", bd=0, highlightthickness=0, width=8)
+        main_frame = tk.Frame(body_canvas, bg="#181818", padx=4, pady=4)
+        body_canvas.configure(yscrollcommand=body_scroll.set)
+        win_id = body_canvas.create_window((0, 0), window=main_frame, anchor="nw")
+
+        def _sync_scroll(_evt=None):
+            try:
+                body_canvas.configure(scrollregion=body_canvas.bbox("all"))
+                cw = body_canvas.winfo_width()
+                if cw > 40:
+                    body_canvas.itemconfigure(win_id, width=cw)
+            except Exception:
+                pass
+
+        main_frame.bind("<Configure>", _sync_scroll)
+        body_canvas.bind("<Configure>", _sync_scroll)
+        body_canvas.pack(side="left", fill="both", expand=True)
+        body_scroll.pack(side="right", fill="y")
+        self._active_scroll_canvas = body_canvas
+
+        # Update Available Banner (emerald compact strip)
+        if update_info.get("update_available") and ann_type != "versao":
+            up_box = tk.Frame(main_frame, bg="#062A1E", padx=12, pady=8, highlightbackground="#10B981", highlightthickness=1)
+            up_box.pack(fill="x", pady=(2, 10))
+            new_v = update_info.get("latest_version", "")
+            tk.Label(up_box, text=f"New release v{new_v} available", font=("Sans", 9, "bold"), fg="#34D399", bg="#062A1E").pack(side="left")
+            d_url = update_info.get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
+            make_flat_button(up_box, "Update", fg="#121214", bg="#00E699", hover_bg="#2BFFB5",
+                             font=("Sans", 8, "bold"), padx=12, pady=3, command=lambda u=d_url: webbrowser.open(u)).pack(side="right")
+
+        # Announcement Notice Banner (versao = green strip, info = amber; ads NEVER render inline)
+        if show_inline_ann:
+            is_versao = (ann_type == "versao")
+            if is_versao:
+                ann_bg, ann_border, ann_title_col, btn_fg, btn_bg, btn_hover = "#062A1E", "#10B981", "#34D399", "#121214", "#00E699", "#2BFFB5"
+            else:
+                ann_bg, ann_border, ann_title_col, btn_fg, btn_bg, btn_hover = "#2D2418", "#F59E0B", "#FBBF24", "#121214", "#FBBF24", "#FCD34D"
+
+            ann_box = tk.Frame(main_frame, bg=ann_bg, padx=12, pady=9, highlightbackground=ann_border, highlightthickness=1)
+            ann_box.pack(fill="x", pady=(2, 10))
+
+            if is_versao:
+                row_v = tk.Frame(ann_box, bg=ann_bg)
+                row_v.pack(fill="x")
+                left_v = tk.Frame(row_v, bg=ann_bg)
+                left_v.pack(side="left", fill="x", expand=True)
+                tk.Label(left_v, text=announcement.get("title", "New Version Available"),
+                         font=("Sans", 9, "bold"), fg=ann_title_col, bg=ann_bg, anchor="w").pack(fill="x")
+                tk.Label(left_v, text=announcement.get("message", ""),
+                         font=("Sans", 8), fg="#D1D5DB", bg=ann_bg, anchor="w", justify="left", wraplength=260).pack(fill="x", pady=(2, 0))
+                a_url = announcement.get("action_url") or update_info.get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
+                act_label = (announcement.get("action_label") or "Download Now").strip()
+                make_flat_button(row_v, act_label, fg=btn_fg, bg=btn_bg, hover_bg=btn_hover,
+                                 font=("Sans", 8, "bold"), padx=12, pady=5, command=lambda u=a_url: webbrowser.open(u)).pack(side="right", padx=(8, 0))
+            else:
+                tk.Label(ann_box, text=announcement.get("title", "Notice"), font=("Sans", 9, "bold"), fg=ann_title_col, bg=ann_bg, anchor="w").pack(fill="x")
+                tk.Label(ann_box, text=announcement.get("message", ""), font=("Sans", 8), fg="#D1D5DB", bg=ann_bg,
+                         anchor="w", justify="left", wraplength=396).pack(fill="x", pady=(3, 6))
+                if announcement.get("action_label") and announcement.get("action_url"):
+                    a_url = announcement.get("action_url")
+                    act_label = announcement.get("action_label", "")
+                    btn_text = act_label if (act_label.endswith("!") or "→" in act_label) else f"{act_label} →"
+                    make_flat_button(ann_box, btn_text, fg=btn_fg, bg=btn_bg, hover_bg=btn_hover,
+                                     font=("Sans", 8, "bold"), padx=14, pady=4, command=lambda u=a_url: webbrowser.open(u)).pack(anchor="center", pady=(2, 2))
+
+        # Fixed Donation Banner for FREE users
+        if show_free_banner:
+            mid_f = get_machine_id()
+            donate_url_f = f"https://ai-gauge.vh2c.com.br/donate?mid={mid_f}" if mid_f else "https://ai-gauge.vh2c.com.br/donate"
+            free_box = tk.Frame(main_frame, bg="#2D2418", padx=12, pady=9, highlightbackground="#F59E0B", highlightthickness=1)
+            free_box.pack(fill="x", pady=(0, 10))
+            tk.Label(free_box, text="Help AI GAUGE developers team", font=("Sans", 9, "bold"), fg="#FBBF24", bg="#2D2418", anchor="w").pack(fill="x")
+            tk.Label(free_box, text="AI GAUGE is developed by independent developers. Support this initiative by making a donation of any amount.",
+                     font=("Sans", 8), fg="#D1D5DB", bg="#2D2418", anchor="w", justify="left", wraplength=396).pack(fill="x", pady=(3, 6))
+            make_flat_button(free_box, "MAKE A DONATION!", fg="#121214", bg="#FBBF24", hover_bg="#FCD34D",
+                             font=("Sans", 8, "bold"), padx=14, pady=4, command=lambda u=donate_url_f: webbrowser.open(u)).pack(anchor="center", pady=(2, 2))
+
+        if not groups:
+            empty_frame = tk.Frame(main_frame, bg="#1E1E22", padx=18, pady=16, highlightbackground="#2C2C30", highlightthickness=1)
+            empty_frame.pack(fill="x", pady=6)
+            tk.Label(empty_frame, text="⚡ Welcome to AI Gauge", font=("Sans", 11, "bold"), fg="#FFFFFF", bg="#1E1E22").pack(pady=(2, 2))
+            tk.Label(empty_frame, text=f"Installed Version: v{app_ver}", font=("Sans", 8, "bold"), fg="#00E699", bg="#1E1E22").pack(pady=(0, 8))
+            tk.Label(empty_frame, text="No active local sessions were found (Antigravity, Claude, ChatGPT, Cursor, Copilot).\nConfigure an API key (Gemini, OpenAI, Anthropic) or session token:",
+                     font=("Sans", 8), fg="#AAAAAA", bg="#1E1E22", justify="center", wraplength=380).pack(pady=(0, 12))
+            make_flat_button(empty_frame, "⚙ Configure Providers and Keys", fg="#121214", bg="#00E699", hover_bg="#2BFFB5",
+                             font=("Sans", 9, "bold"), padx=16, pady=6, command=self.open_settings).pack(pady=(0, 6))
+            make_flat_button(empty_frame, "Get a Free Key at Google AI Studio ↗", fg="#38BDF8", bg="#141418", hover_bg="#24242E",
+                             font=("Sans", 8, "bold"), padx=12, pady=4, command=lambda: webbrowser.open("https://aistudio.google.com/app/apikey")).pack()
+
+        cfg = load_config()
+        sec_colors = cfg.get("section_colors", {})
+        prov_labels = {
+            "antigravity": "ANTIGRAVITY",
+            "claude_pro": "CLAUDE",
+            "chatgpt_subscription": "CHATGPT",
+            "cursor": "CURSOR",
+            "github_copilot": "COPILOT",
+            "gemini": "GEMINI",
+            "openai": "OPENAI",
+            "anthropic": "ANTHROPIC",
+        }
+
+        for g in groups:
+            pk = get_provider_key(g.get("name", ""), g.get("provider", ""))
+            accent_col = sec_colors.get(pk) or PASTEL_DEFAULTS.get(pk, "#8FBCFF")
+            card_title = get_section_clean_title(pk, g.get("name", "AI")) if pk != "antigravity" else (g.get("name") or "Antigravity")
+            badge_label = prov_labels.get(pk, pk.upper())
+
+            card = tk.Frame(main_frame, bg="#1E1E22", padx=14, pady=10, highlightbackground="#2C2C30", highlightthickness=1)
+            card.pack(fill="x", pady=(0, 10))
+
+            # Card header INSIDE card
+            hdr = tk.Frame(card, bg="#1E1E22")
+            hdr.pack(fill="x")
+            tk.Label(hdr, text=card_title, font=("Sans", 10, "bold"), fg="#F2F2F4", bg="#1E1E22").pack(side="left")
+            tk.Label(hdr, text=badge_label, font=("Sans", 7, "bold"), fg=accent_col, bg="#1E1E22").pack(side="right")
+
+            tk.Frame(card, bg="#28282E", height=1).pack(fill="x", pady=(7, 7))
+
+            for idx, b in enumerate(g.get("buckets", [])):
+                if idx > 0:
+                    tk.Frame(card, bg="#28282E", height=1).pack(fill="x", pady=7)
+
+                row1 = tk.Frame(card, bg="#1E1E22")
+                row1.pack(fill="x")
+
+                tk.Label(row1, text=b.get("name", ""), font=("Sans", 9), fg="#FFFFFF", bg="#1E1E22").pack(side="left")
+
+                is_outdated = (b.get("reset_in") == "Outdated")
+                pct = 0 if is_outdated else b.get("remaining_pct", 100)
+                val_col = "#F5A623" if is_outdated else status_color(pct, accent_col)
+                val_str = "--%" if is_outdated else f"{pct}%"
+
+                tk.Label(row1, text=val_str, font=("Monospace", 10, "bold"), fg=val_col, bg="#1E1E22", width=4, anchor="e").pack(side="right")
+
+                rt = b.get("reset_in") or ""
+                if rt:
+                    if is_outdated:
+                        rt_txt = "Outdated · sign in again"
+                        rt_col = "#F5A623"
+                    elif rt == "Now":
+                        rt_txt = "Renews now"
+                        rt_col = "#8C8C96"
+                    elif rt == "Active":
+                        rt_txt = "Active"
+                        rt_col = "#8C8C96"
+                    else:
+                        rt_txt = f"Renews in {rt}"
+                        rt_col = "#8C8C96"
+                    tk.Label(row1, text=rt_txt, font=("Sans", 8), fg=rt_col, bg="#1E1E22").pack(side="right", padx=(0, 8))
+
+                bar_canvas = tk.Canvas(card, bg="#28282D", height=6, highlightthickness=0, bd=0)
+                bar_canvas.pack(fill="x", pady=(5, 1))
+
+                def _draw_bar(event, cv=bar_canvas, p=pct, col=val_col):
+                    try:
+                        cw = max(10, event.width)
+                        cv.delete("all")
+                        fw = 0 if p <= 0 else max(4, int(cw * (min(100, p) / 100.0)))
+                        if fw > 0:
+                            cv.create_rectangle(0, 0, fw, 6, fill=col, outline="")
+                    except Exception:
+                        pass
+
+                bar_canvas.bind("<Configure>", _draw_bar)
+                bar_canvas.create_rectangle(0, 0, max(4, int(390 * (pct / 100.0))), 6, fill=val_col, outline="")
+
+        _sync_scroll()
+
+    def _show_hud_menu(self, widget_event=None):
+        menu = tk.Menu(self.root, tearoff=0, bg="#1E1E24", fg="#FFFFFF", activebackground="#2E3242", activeforeground="#FFFFFF", bd=0)
+        menu.add_command(label="Open Full Window (Ctrl+M)", command=self.toggle_mode)
+        orient_lbl = "Switch to Horizontal Bar" if self.orientation == "vertical" else "Switch to Vertical Bar"
+        menu.add_command(label=orient_lbl, command=self.toggle_orientation)
+        menu.add_command(label="Refresh Data Now", command=lambda: self.refresh(True))
+        menu.add_command(label="Settings...", command=self.open_settings)
+        menu.add_separator()
+        menu.add_command(label="Quit AI Gauge", command=self.root.destroy)
+        try:
+            rx = widget_event.x_root if widget_event else (self.root.winfo_rootx() + 50)
+            ry = widget_event.y_root if widget_event else (self.root.winfo_rooty() + 26)
+            menu.tk_popup(rx, ry)
+        finally:
+            try:
+                menu.grab_release()
+            except Exception:
+                pass
 
     def setup_hud_ui(self):
-        self.root.overrideredirect(True)
-        self.root.attributes("-topmost", True)
-        self.root.configure(bg="#141414")
+        self._apply_window_chrome(borderless=True, topmost=True)
+        self.root.configure(bg="#181818")
 
         quota = self.quota or {}
-        items = get_gauge_items(quota)
+        sections = get_hud_sections(quota)
         is_vert = (self.orientation == "vertical")
+        total_items = sum(len(s["items"]) for s in sections)
 
+        self.root.update_idletasks()
+        sw = max(640, self.root.winfo_screenwidth())
+        sh = max(480, self.root.winfo_screenheight())
+
+        item_h = 104
         if is_vert:
-            w = 104
-            h = 28 + max(1, len(items)) * 96 + 18
+            w = 118
+            top_h = 26
+            bot_h = 20
+            content_h = 120 if total_items == 0 else sum(22 + len(s["items"]) * item_h + 10 for s in sections) + 8
+            h = min(max(170, top_h + content_h + bot_h), max(220, sh - 64))
         else:
-            w = 28 + max(1, len(items)) * 96 + 10
-            h = 108
+            w_content = 250 if total_items == 0 else sum(max(106, len(s["items"]) * 96 + 14) + 10 for s in sections) + 34
+            w = min(max(260, w_content), max(300, sw - 40))
+            h = 134
 
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        if is_vert:
-            x = sw - w - 24
+        if self._hud_pos is not None:
+            x, y = self._hud_pos
+        elif is_vert:
+            x = sw - w - 20
             y = (sh - h) // 2
         else:
             x = (sw - w) // 2
-            y = sh - h - 36
+            y = sh - h - 40
+        x = max(0, min(x, max(0, sw - w)))
+        y = max(0, min(y, max(0, sh - h)))
+        self._hud_pos = (x, y)
         self.root.geometry(f"{w}x{h}+{x}+{y}")
 
         self._drag_data = {"x": 0, "y": 0}
         def start_drag(event):
-            self._drag_data["x"] = event.x
-            self._drag_data["y"] = event.y
+            self._drag_data["x"] = event.x_root - self.root.winfo_rootx()
+            self._drag_data["y"] = event.y_root - self.root.winfo_rooty()
         def do_drag(event):
-            dx = event.x - self._drag_data["x"]
-            dy = event.y - self._drag_data["y"]
-            nx = self.root.winfo_x() + dx
-            ny = self.root.winfo_y() + dy
-            self.root.geometry(f"+{nx}+{ny}")
+            nx = max(0, min(event.x_root - self._drag_data["x"], max(0, sw - w)))
+            ny = max(0, min(event.y_root - self._drag_data["y"], max(0, sh - h)))
+            self._hud_pos = (nx, ny)
+            try:
+                self.root.geometry(f"+{nx}+{ny}")
+            except Exception:
+                pass
 
-        canvas = tk.Canvas(self.root, bg="#141414", highlightbackground="#2A2A2A", highlightthickness=1, bd=0)
-        canvas.pack(fill="both", expand=True)
-        canvas.bind("<Button-1>", start_drag)
-        canvas.bind("<B1-Motion>", do_drag)
-        canvas.bind("<Double-Button-1>", lambda e: self.toggle_mode())
-
-        def make_icon(x, y, txt, tip, action):
-            t = canvas.create_text(x, y, text=txt, font=("Sans", 9, "bold"), fill="#999999", tags="btn")
-            canvas.tag_bind(t, "<Button-1>", lambda e: action())
-            canvas.tag_bind(t, "<Enter>", lambda e: canvas.itemconfig(t, fill="#FFFFFF"))
-            canvas.tag_bind(t, "<Leave>", lambda e: canvas.itemconfig(t, fill="#999999"))
+        outer = tk.Frame(self.root, bg="#181818", highlightbackground="#2A2A2E", highlightthickness=1, bd=0)
+        outer.pack(fill="both", expand=True)
 
         if is_vert:
-            make_icon(14, 14, "✕", "Close", self.root.destroy)
-            make_icon(34, 14, "⇄", "Toggle Orientation", self.toggle_orientation)
-            make_icon(54, 14, "⊞", "Modo Completo", self.toggle_mode)
-            make_icon(74, 14, "⚙", "Settings", self.open_settings)
-            make_icon(92, 14, "↻", "Atualizar", lambda: self.refresh(True))
-        else:
-            make_icon(14, 14, "✕", "Close", self.root.destroy)
-            make_icon(14, 34, "⇄", "Toggle Orientation", self.toggle_orientation)
-            make_icon(14, 54, "⊞", "Modo Completo", self.toggle_mode)
-            make_icon(14, 74, "⚙", "Settings", self.open_settings)
-            make_icon(14, 94, "↻", "Atualizar", lambda: self.refresh(True))
+            # Top Control Bar (matches macOS & Windows: ⤢  ⋯  ✕)
+            top_bar = tk.Frame(outer, bg="#181818", height=24)
+            top_bar.pack(fill="x", side="top", padx=4, pady=(4, 2))
+            top_bar.bind("<Button-1>", start_drag)
+            top_bar.bind("<B1-Motion>", do_drag)
 
-        if is_vert:
-            cur_y = 30
-            for item in items:
-                self.draw_gauge(canvas, 52, cur_y + 44, item)
-                cur_y += 96
+            b_cockpit = make_flat_button(top_bar, "⤢", fg="#A6A6AE", bg="#181818", hover_bg="#26262E", font=("Sans", 10, "bold"), padx=4, pady=0, command=self.toggle_mode)
+            b_cockpit.pack(side="left")
+            b_menu = tk.Label(top_bar, text="⋯", font=("Sans", 11, "bold"), fg="#A6A6AE", bg="#181818", cursor="hand2", padx=4)
+            b_menu.pack(side="left", expand=True)
+            b_menu.bind("<Button-1>", self._show_hud_menu)
+            b_menu.bind("<Enter>", lambda _e: b_menu.config(fg="#FFFFFF"))
+            b_menu.bind("<Leave>", lambda _e: b_menu.config(fg="#A6A6AE"))
+            b_close = make_flat_button(top_bar, "✕", fg="#A6A6AE", bg="#181818", hover_bg="#26262E", font=("Sans", 9, "bold"), padx=4, pady=0, command=self.root.destroy)
+            b_close.pack(side="right")
+
+            # Bottom Brand / Update Strip
+            bot_bar = tk.Frame(outer, bg="#181818", height=18)
+            bot_bar.pack(fill="x", side="bottom", pady=(2, 4))
+            bot_bar.bind("<Button-1>", start_drag)
+            bot_bar.bind("<B1-Motion>", do_drag)
             if quota.get("update", {}).get("update_available"):
-                t_id = canvas.create_text(52, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#8AE39A")
                 d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
-                canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
+                lbl_up = tk.Label(bot_bar, text="● NEW VERSION", font=("Sans", 7, "bold"), fg="#00E699", bg="#181818", cursor="hand2")
+                lbl_up.pack()
+                lbl_up.bind("<Button-1>", lambda _e, u=d_url: webbrowser.open(u))
             else:
                 mid = get_machine_id()
                 donate_url = f"https://ai-gauge.vh2c.com.br/donate?mid={mid}" if mid else "https://ai-gauge.vh2c.com.br/donate"
-                t_brand = canvas.create_text(52, h - 8, text="vh2c.com.br", font=("Sans", 7), fill="#555555")
-                canvas.tag_bind(t_brand, "<Button-1>", lambda e: webbrowser.open(donate_url))
+                lbl_b = tk.Label(bot_bar, text="vh2c.com.br", font=("Sans", 7), fg="#73737D", bg="#181818", cursor="hand2")
+                lbl_b.pack()
+                lbl_b.bind("<Button-1>", lambda _e, u=donate_url: webbrowser.open(u))
+
+            # Scrollable Tachometer Sections Canvas
+            hud_canvas = tk.Canvas(outer, bg="#181818", bd=0, highlightthickness=0)
+            hud_canvas.pack(fill="both", expand=True)
+            self._active_scroll_canvas = hud_canvas
+            hud_canvas.bind("<Button-1>", start_drag)
+            hud_canvas.bind("<B1-Motion>", do_drag)
+            hud_canvas.bind("<Double-Button-1>", lambda _e: self.toggle_mode())
+
+            if total_items == 0:
+                self.draw_section_frame(hud_canvas, 8, 10, 100, 102, "No Quotas", "#8FBCFF")
+                t_cfg = hud_canvas.create_text(58, 56, text="Click to\nConfigure", font=("Sans", 8, "bold"), fill="#8FBCFF", justify="center")
+                hud_canvas.tag_bind(t_cfg, "<Button-1>", lambda _e: self.open_settings())
+                hud_canvas.configure(scrollregion=(0, 0, w, 120))
+            else:
+                cur_y = 6
+                for sec in sections:
+                    sec_h = 20 + len(sec["items"]) * item_h
+                    self.draw_section_frame(hud_canvas, 6, cur_y, 104, sec_h, sec["title"], sec["accent"])
+                    gy = cur_y + 16
+                    for item in sec["items"]:
+                        self.draw_tachometer_gauge(hud_canvas, 58, gy + 44, item)
+                        gy += item_h
+                    cur_y += sec_h + 10
+                hud_canvas.configure(scrollregion=(0, 0, w, cur_y + 4))
         else:
-            cur_x = 28
-            for item in items:
-                self.draw_gauge(canvas, cur_x + 48, 54, item)
-                cur_x += 96
-            if quota.get("update", {}).get("update_available"):
-                t_id = canvas.create_text(w - 44, h - 8, text="● NEW RELEASE", font=("Sans", 7, "bold"), fill="#8AE39A")
-                d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
-                canvas.tag_bind(t_id, "<Button-1>", lambda e: webbrowser.open(d_url))
+            # Horizontal Bar with right-edge control strip matching macOS Horizontal HUD
+            ctrl_col = tk.Frame(outer, bg="#181818", width=26)
+            ctrl_col.pack(fill="y", side="right", padx=(2, 4), pady=6)
+            make_flat_button(ctrl_col, "✕", fg="#A6A6AE", bg="#181818", hover_bg="#26262E", font=("Sans", 9, "bold"), padx=4, pady=2, command=self.root.destroy).pack(side="top")
+            make_flat_button(ctrl_col, "⤢", fg="#A6A6AE", bg="#181818", hover_bg="#26262E", font=("Sans", 10, "bold"), padx=4, pady=2, command=self.toggle_mode).pack(side="top", expand=True)
+            b_hm = tk.Label(ctrl_col, text="⋯", font=("Sans", 11, "bold"), fg="#A6A6AE", bg="#181818", cursor="hand2")
+            b_hm.pack(side="bottom")
+            b_hm.bind("<Button-1>", self._show_hud_menu)
 
-    def draw_gauge(self, canvas, cx, cy, item):
-        pct = item.get("pct", 100)
-        col = status_color(pct, item.get("accent"))
-        inactive_col = "#333333"
+            hud_canvas = tk.Canvas(outer, bg="#181818", bd=0, highlightthickness=0)
+            hud_canvas.pack(fill="both", expand=True)
+            self._active_scroll_canvas = hud_canvas
+            hud_canvas.bind("<Button-1>", start_drag)
+            hud_canvas.bind("<B1-Motion>", do_drag)
+            hud_canvas.bind("<Double-Button-1>", lambda _e: self.toggle_mode())
 
-        r_outer = 27
-        r_inner = 20.5
-        r_center = 18
-        total_ticks = 36
-        active_ticks = int(round(total_ticks * max(0, min(100, pct)) / 100.0))
+            if total_items == 0:
+                hud_canvas.create_text(120, 56, text="No active quotas · Open Settings", font=("Sans", 9, "bold"), fill="#8FBCFF")
+                hud_canvas.configure(scrollregion=(0, 0, 240, h))
+            else:
+                cur_x = 10
+                for sec in sections:
+                    n = len(sec["items"])
+                    sec_w = 12 + n * 96 + 6
+                    self.draw_section_frame(hud_canvas, cur_x, 8, sec_w, 114, sec["title"], sec["accent"])
+                    gx = cur_x + 56
+                    for item in sec["items"]:
+                        self.draw_tachometer_gauge(hud_canvas, gx, 58, item)
+                        gx += 96
+                    cur_x += sec_w + 10
+                hud_canvas.configure(scrollregion=(0, 0, cur_x + 8, h))
 
-        for i in range(total_ticks):
-            frac = i / float(total_ticks)
-            angle = -math.pi / 2.0 + frac * 2.0 * math.pi
-            x1 = cx + math.cos(angle) * r_inner
-            y1 = cy + math.sin(angle) * r_inner
-            x2 = cx + math.cos(angle) * r_outer
-            y2 = cy + math.sin(angle) * r_outer
-            c = col if i < active_ticks else inactive_col
-            canvas.create_line(x1, y1, x2, y2, fill=c, width=2, capstyle="round")
+    def draw_section_frame(self, canvas, x, y, w, h, title, accent_color):
+        r = 11
+        title_str = title or "AI"
+        gap_half = min((w / 2.0) - r - 2, max(20.0, len(title_str) * 3.8 + 6.0))
+        cx = x + w / 2.0
 
-        canvas.create_oval(cx - r_center, cy - r_center, cx + r_center, cy + r_center, fill=col, outline="")
+        # Rounded border with clean top opening for the centered title
+        canvas.create_arc(x, y, x + 2 * r, y + 2 * r, start=90, extent=90, style="arc", outline=accent_color, width=1.6)
+        canvas.create_arc(x + w - 2 * r, y, x + w, y + 2 * r, start=0, extent=90, style="arc", outline=accent_color, width=1.6)
+        canvas.create_arc(x + w - 2 * r, y + h - 2 * r, x + w, y + h, start=270, extent=90, style="arc", outline=accent_color, width=1.6)
+        canvas.create_arc(x, y + h - 2 * r, x + 2 * r, y + h, start=180, extent=90, style="arc", outline=accent_color, width=1.6)
 
-        font_sz = 9 if pct >= 100 else 10
-        canvas.create_text(cx, cy, text=f"{pct}%", font=("Monospace", font_sz, "bold"), fill="#FFFFFF")
-        canvas.create_text(cx, cy - r_outer - 7, text=item.get("title", ""), font=("Sans", 8, "bold"), fill="#FFFFFF")
-        canvas.create_text(cx, cy + r_outer + 8, text=item.get("model", ""), font=("Sans", 9, "bold"), fill="#FFFFFF")
+        if cx - gap_half > x + r:
+            canvas.create_line(x + r, y, cx - gap_half, y, fill=accent_color, width=1.6, capstyle="round")
+        if x + w - r > cx + gap_half:
+            canvas.create_line(cx + gap_half, y, x + w - r, y, fill=accent_color, width=1.6, capstyle="round")
+        canvas.create_line(x + w, y + r, x + w, y + h - r, fill=accent_color, width=1.6, capstyle="round")
+        canvas.create_line(x + r, y + h, x + w - r, y + h, fill=accent_color, width=1.6, capstyle="round")
+        canvas.create_line(x, y + r, x, y + h - r, fill=accent_color, width=1.6, capstyle="round")
 
-        rt = item.get("reset_in", "")
-        if rt:
-            canvas.create_text(cx, cy + r_outer + 19, text=rt, font=("Sans", 8), fill="#999999")
+        canvas.create_text(cx, y, text=title_str, font=("Sans", 8, "bold"), fill=accent_color)
+
+    def draw_tachometer_gauge(self, canvas, cx, cy, item):
+        is_outdated = (item.get("reset_in") == "Outdated")
+        pct = 0 if is_outdated else max(0, min(100, int(item.get("pct", 100))))
+        col = "#F5A623" if is_outdated else status_color(pct, item.get("accent"))
+
+        r_arc = 30.0
+        start_deg = 220.0
+        total_sweep = 260.0
+
+        # Top limit label cleanly centered above arc
+        canvas.create_text(cx, cy - r_arc - 9, text=item.get("title", ""), font=("Sans", 6, "bold"), fill="#A8A8B4")
+
+        # Dark circular dial background
+        r_bg = 28.0
+        canvas.create_oval(cx - r_bg, cy - r_bg, cx + r_bg, cy + r_bg, fill="#141416", outline="")
+
+        # Track arc (260 degrees from bottom-left 220° clockwise across top to bottom-right -40°)
+        canvas.create_arc(
+            cx - r_arc, cy - r_arc, cx + r_arc, cy + r_arc,
+            start=start_deg, extent=-total_sweep, style="arc", outline="#2A2A2D", width=5
+        )
+
+        # 24 radial graduation tick marks matching macOS TachometerGaugeView
+        num_ticks = 24
+        for i in range(num_ticks + 1):
+            frac = i / float(num_ticks)
+            ang_deg = start_deg - frac * total_sweep
+            rad = math.radians(ang_deg)
+            is_major = (i % 6 == 0)
+            r_in = r_arc - 3.5
+            r_out = r_in - (4.2 if is_major else 2.5)
+            x1 = cx + math.cos(rad) * r_in
+            y1 = cy - math.sin(rad) * r_in
+            x2 = cx + math.cos(rad) * r_out
+            y2 = cy - math.sin(rad) * r_out
+            canvas.create_line(x1, y1, x2, y2, fill="#8C8C94" if is_major else "#54545C", width=1.2 if is_major else 0.8)
+
+        # Active progress arc
+        sweep = (pct / 100.0) * total_sweep
+        if sweep >= 1.0:
+            canvas.create_arc(
+                cx - r_arc, cy - r_arc, cx + r_arc, cy + r_arc,
+                start=start_deg, extent=-min(259.8, sweep), style="arc", outline=col, width=5
+            )
+
+        # Tachometer needle pointer
+        cur_deg = start_deg - sweep
+        n_rad = math.radians(cur_deg)
+        n_len = r_arc - 6.0
+        tip_x = cx + math.cos(n_rad) * n_len
+        tip_y = cy - math.sin(n_rad) * n_len
+        base_r = 2.2
+        b1_rad = n_rad + math.pi / 2.0
+        b2_rad = n_rad - math.pi / 2.0
+        b1x = cx + math.cos(b1_rad) * base_r
+        b1y = cy - math.sin(b1_rad) * base_r
+        b2x = cx + math.cos(b2_rad) * base_r
+        b2y = cy - math.sin(b2_rad) * base_r
+        canvas.create_polygon(b1x, b1y, tip_x, tip_y, b2x, b2y, fill="#F5F5FA", outline="")
+
+        # Center hub pin
+        hub_r = 3.5
+        canvas.create_oval(cx - hub_r, cy - hub_r, cx + hub_r, cy + hub_r, fill="#26262B", outline=col, width=1.3)
+
+        # Bottom-center percentage readout
+        pct_text = "--%" if is_outdated else f"{pct}%"
+        canvas.create_text(cx, cy + 16, text=pct_text, font=("Monospace", 9, "bold"), fill=col if is_outdated else "#FFFFFF")
+
+        # Model name and reset countdown underneath
+        canvas.create_text(cx, cy + 36, text=item.get("model", ""), font=("Sans", 8, "bold"), fill="#D0D5DD")
+        rt = item.get("reset_in", "") or "Active"
+        canvas.create_text(cx, cy + 48, text=rt, font=("Sans", 7), fill="#F5A623" if is_outdated else "#8E8E98")
 
 def main():
     has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))

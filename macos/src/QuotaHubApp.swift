@@ -133,6 +133,14 @@ struct ProviderConfig: Codable {
     var enabled: Bool?
     var api_key: String?
     var token: String?
+    var api_key_ok: Bool?
+
+    init(enabled: Bool? = nil, api_key: String? = nil, token: String? = nil, api_key_ok: Bool? = nil) {
+        self.enabled = enabled
+        self.api_key = api_key
+        self.token = token
+        self.api_key_ok = api_key_ok
+    }
 }
 
 struct AppConfig: Codable {
@@ -848,7 +856,9 @@ class QuotaManager {
             if task.terminationStatus == 0, let quota = try? JSONDecoder().decode(QuotaData.self, from: data) {
                 startupSent = true
                 if let ad = quota.adPromo {
-                    PromoDockManager.shared.presentIfNeeded(ad)
+                    DispatchQueue.main.async {
+                        PromoDockManager.shared.presentIfNeeded(ad)
+                    }
                 }
                 var qWithTs = quota
                 qWithTs.timestamp = Date().timeIntervalSince1970
@@ -1604,8 +1614,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var copilotTokenField: NSTextField?
     var openaiCheck: NSButton?
     var openaiKeyField: NSTextField?
+    var openaiTestBtn: NSButton?
+    var openaiStatusLabel: NSTextField?
     var anthropicCheck: NSButton?
     var anthropicKeyField: NSTextField?
+    var anthropicTestBtn: NSButton?
+    var anthropicStatusLabel: NSTextField?
+    var settingsSaveBtn: NSButton?
+    var validatedApiKeys: [String: Bool] = [:]
+    var testedApiKeyValues: [String: String] = [:]
     
     var hudGaugeCheckboxes: [String: NSButton] = [:]
     var selectedSectionColors: [String: String] = [:]
@@ -1807,8 +1824,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 win.orderOut(nil)
             } else {
                 renderCurrentMode()
-                fullWindow?.makeKeyAndOrderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)
+                fullWindow?.makeKeyAndOrderFront(nil)
+                fullWindow?.orderFrontRegardless()
             }
         } else {
             if let win = hudWindow, win.isVisible {
@@ -1912,6 +1930,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func renderCurrentMode() {
         guard let quota = latestQuota else { return }
         updateStatusItemTitle()
+        if let ad = quota.adPromo {
+            PromoDockManager.shared.presentIfNeeded(ad)
+        }
         switch currentMode {
         case .full:
             hudWindow?.orderOut(nil)
@@ -1932,6 +1953,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         currentMode = .full
         UserDefaults.standard.set(currentMode.rawValue, forKey: "uaqm_display_mode")
         renderCurrentMode()
+        NSApp.activate(ignoringOtherApps: true)
+        fullWindow?.makeKeyAndOrderFront(nil)
+        fullWindow?.orderFrontRegardless()
     }
     
     @objc func toggleHudOrientation() {
@@ -3037,8 +3061,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         if isFirstLaunch {
             isFirstLaunch = false
-            window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
         } else {
             // Evitar roubar foco da janela de configurações se o usuário estiver nela
             if settingsWindow == nil || settingsWindow?.isVisible == false {
@@ -3489,12 +3514,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         geminiCard.addSubview(testBtn)
         self.geminiTestBtn = testBtn
         
-        let statusLabel = NSTextField(labelWithString: "")
-        statusLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
-        statusLabel.textColor = NSColor(white: 0.60, alpha: 1.0)
+        self.validatedApiKeys["gemini"] = (geminiCfg?.api_key_ok == true) && !(geminiCfg?.api_key ?? "").isEmpty
+        if self.validatedApiKeys["gemini"] == true {
+            self.testedApiKeyValues["gemini"] = geminiCfg?.api_key ?? ""
+        } else {
+            self.testedApiKeyValues["gemini"] = ""
+        }
+
+        let gemOkInit = self.validatedApiKeys["gemini"] == true
+        let statusLabel = NSTextField(labelWithString: gemOkInit ? "✓ OK — Valid API Key" : "")
+        statusLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
+        statusLabel.textColor = gemOkInit
+            ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            : NSColor(white: 0.60, alpha: 1.0)
         statusLabel.frame = NSRect(x: 14, y: 92, width: cardW - 28, height: 16)
         geminiCard.addSubview(statusLabel)
         self.geminiStatusLabel = statusLabel
+        if gemOkInit {
+            testBtn.layer?.backgroundColor = NSColor(srgbRed: 0x10/255.0, green: 0x3A/255.0, blue: 0x2A/255.0, alpha: 1.0).cgColor
+            testBtn.attributedTitle = NSAttributedString(
+                string: "✓ OK",
+                attributes: [
+                    .foregroundColor: NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0),
+                    .font: NSFont.systemFont(ofSize: 11.5, weight: .bold)
+                ]
+            )
+        }
         
         let geminiLink = NSButton(title: "", target: self, action: #selector(openAiStudioLink))
         geminiLink.isBordered = false
@@ -3516,8 +3561,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         cy += geminiCardH + 12
         
-        // 4. OpenAI Card
-        let openCardH: CGFloat = 88
+        // 5. OpenAI Card
+        let openCardH: CGFloat = 148
         let openCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: openCardH))
         openCard.boxType = .custom
         openCard.fillColor = colorCard
@@ -3539,19 +3584,72 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         openCard.addSubview(openBtn)
         self.openaiCheck = openBtn
         addPastelPicker(providerKey: "openai", in: openCard)
+
+        let openHint = NSTextField(labelWithString: "💡 OpenAI API keys start with sk-...")
+        openHint.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+        openHint.textColor = NSColor(white: 0.55, alpha: 1.0)
+        openHint.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
+        openCard.addSubview(openHint)
         
         let openField = makeCenteredDarkSecureField(
-            frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
+            frame: NSRect(x: 14, y: 52, width: fieldW, height: 34),
             placeholder: "OpenAI API Key (sk-...)",
             value: openCfg?.api_key ?? ""
         )
         openCard.addSubview(openField)
         self.openaiKeyField = openField
+
+        self.validatedApiKeys["openai"] = (openCfg?.api_key_ok == true) && !(openCfg?.api_key ?? "").isEmpty
+        if self.validatedApiKeys["openai"] == true {
+            self.testedApiKeyValues["openai"] = openCfg?.api_key ?? ""
+        } else {
+            self.testedApiKeyValues["openai"] = ""
+        }
+        let openOkInit = self.validatedApiKeys["openai"] == true
+
+        let openTestBtn = NSButton(title: openOkInit ? "✓ OK" : "Test", target: self, action: #selector(testOpenAIKeyClicked))
+        openTestBtn.isBordered = false
+        openTestBtn.wantsLayer = true
+        openTestBtn.layer?.backgroundColor = openOkInit
+            ? NSColor(srgbRed: 0x10/255.0, green: 0x3A/255.0, blue: 0x2A/255.0, alpha: 1.0).cgColor
+            : NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x30/255.0, alpha: 1.0).cgColor
+        openTestBtn.layer?.cornerRadius = 6
+        openTestBtn.frame = NSRect(x: 14 + fieldW + 8, y: 52, width: 84, height: 34)
+        openTestBtn.attributedTitle = NSAttributedString(
+            string: openOkInit ? "✓ OK" : "Test",
+            attributes: [
+                .foregroundColor: openOkInit ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0) : NSColor.white,
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+            ]
+        )
+        openCard.addSubview(openTestBtn)
+        self.openaiTestBtn = openTestBtn
+
+        let openStatus = NSTextField(labelWithString: openOkInit ? "✓ OK — Valid API Key" : "")
+        openStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
+        openStatus.textColor = openOkInit
+            ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            : NSColor(white: 0.60, alpha: 1.0)
+        openStatus.frame = NSRect(x: 14, y: 92, width: cardW - 28, height: 16)
+        openCard.addSubview(openStatus)
+        self.openaiStatusLabel = openStatus
+
+        let openLink = NSButton(title: "", target: self, action: #selector(openOpenAILink))
+        openLink.isBordered = false
+        openLink.frame = NSRect(x: 14, y: 114, width: cardW - 28, height: 18)
+        openLink.attributedTitle = NSAttributedString(
+            string: "Get OpenAI API Key (platform.openai.com/api-keys) ↗",
+            attributes: [
+                .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 10.5, weight: .regular)
+            ]
+        )
+        openCard.addSubview(openLink)
         
         cy += openCardH + 12
         
-        // 5. Anthropic Claude API Card
-        let antCardH: CGFloat = 88
+        // 6. Anthropic Claude API Card
+        let antCardH: CGFloat = 148
         let antCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: antCardH))
         antCard.boxType = .custom
         antCard.fillColor = colorCard
@@ -3573,14 +3671,67 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         antCard.addSubview(antBtn)
         self.anthropicCheck = antBtn
         addPastelPicker(providerKey: "anthropic", in: antCard)
+
+        let antHint = NSTextField(labelWithString: "💡 Anthropic API keys start with sk-ant-...")
+        antHint.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
+        antHint.textColor = NSColor(white: 0.55, alpha: 1.0)
+        antHint.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
+        antCard.addSubview(antHint)
         
         let antField = makeCenteredDarkSecureField(
-            frame: NSRect(x: 14, y: 38, width: cardW - 28, height: 34),
+            frame: NSRect(x: 14, y: 52, width: fieldW, height: 34),
             placeholder: "Anthropic API Key (sk-ant-...)",
             value: antCfg?.api_key ?? ""
         )
         antCard.addSubview(antField)
         self.anthropicKeyField = antField
+
+        self.validatedApiKeys["anthropic"] = (antCfg?.api_key_ok == true) && !(antCfg?.api_key ?? "").isEmpty
+        if self.validatedApiKeys["anthropic"] == true {
+            self.testedApiKeyValues["anthropic"] = antCfg?.api_key ?? ""
+        } else {
+            self.testedApiKeyValues["anthropic"] = ""
+        }
+        let antOkInit = self.validatedApiKeys["anthropic"] == true
+
+        let antTestBtn = NSButton(title: antOkInit ? "✓ OK" : "Test", target: self, action: #selector(testAnthropicKeyClicked))
+        antTestBtn.isBordered = false
+        antTestBtn.wantsLayer = true
+        antTestBtn.layer?.backgroundColor = antOkInit
+            ? NSColor(srgbRed: 0x10/255.0, green: 0x3A/255.0, blue: 0x2A/255.0, alpha: 1.0).cgColor
+            : NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x30/255.0, alpha: 1.0).cgColor
+        antTestBtn.layer?.cornerRadius = 6
+        antTestBtn.frame = NSRect(x: 14 + fieldW + 8, y: 52, width: 84, height: 34)
+        antTestBtn.attributedTitle = NSAttributedString(
+            string: antOkInit ? "✓ OK" : "Test",
+            attributes: [
+                .foregroundColor: antOkInit ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0) : NSColor.white,
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+            ]
+        )
+        antCard.addSubview(antTestBtn)
+        self.anthropicTestBtn = antTestBtn
+
+        let antStatus = NSTextField(labelWithString: antOkInit ? "✓ OK — Valid API Key" : "")
+        antStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
+        antStatus.textColor = antOkInit
+            ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            : NSColor(white: 0.60, alpha: 1.0)
+        antStatus.frame = NSRect(x: 14, y: 92, width: cardW - 28, height: 16)
+        antCard.addSubview(antStatus)
+        self.anthropicStatusLabel = antStatus
+
+        let antLink = NSButton(title: "", target: self, action: #selector(openAnthropicLink))
+        antLink.isBordered = false
+        antLink.frame = NSRect(x: 14, y: 114, width: cardW - 28, height: 18)
+        antLink.attributedTitle = NSAttributedString(
+            string: "Get Anthropic API Key (console.anthropic.com) ↗",
+            attributes: [
+                .foregroundColor: NSColor(srgbRed: 0x38/255.0, green: 0xBD/255.0, blue: 0xF8/255.0, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 10.5, weight: .regular)
+            ]
+        )
+        antCard.addSubview(antLink)
         
         cy += antCardH + 16
         
@@ -3610,6 +3761,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .font: NSFont.systemFont(ofSize: 12, weight: .bold)
             ]
         )
+        self.settingsSaveBtn = saveBtn
         footerView.addSubview(saveBtn)
         
         let cancelBtn = NSButton(title: "Cancel", target: self, action: #selector(cancelSettingsClicked))
@@ -3657,68 +3809,139 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         mainView.addSubview(footerView)
     }
     
-    @objc func testGeminiKeyClicked() {
-        let key = geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if key.isEmpty {
-            geminiStatusLabel?.stringValue = "⚠️ Enter an API key to test"
-            geminiStatusLabel?.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+    func setTestBtnLabel(_ button: NSButton?, text: String, isOk: Bool) {
+        guard let btn = button else { return }
+        btn.layer?.backgroundColor = isOk
+            ? NSColor(srgbRed: 0x10/255.0, green: 0x3A/255.0, blue: 0x2A/255.0, alpha: 1.0).cgColor
+            : NSColor(srgbRed: 0x2A/255.0, green: 0x2A/255.0, blue: 0x30/255.0, alpha: 1.0).cgColor
+        btn.attributedTitle = NSAttributedString(
+            string: text,
+            attributes: [
+                .foregroundColor: isOk ? NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0) : NSColor.white,
+                .font: NSFont.systemFont(ofSize: 11.5, weight: isOk ? .bold : .semibold)
+            ]
+        )
+    }
+
+    func runProviderApiKeyTest(
+        provider: String,
+        key: String,
+        button: NSButton?,
+        statusLabel: NSTextField?,
+        checkbox: NSButton?,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanKey.isEmpty {
+            statusLabel?.stringValue = "⚠️ Enter an API key to test"
+            statusLabel?.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+            setTestBtnLabel(button, text: "Test", isOk: false)
+            validatedApiKeys[provider] = false
+            testedApiKeyValues[provider] = ""
+            completion?(false)
             return
         }
-        
-        if key.hasPrefix("AQ.") || key.hasPrefix("ya29.") {
-            geminiStatusLabel?.stringValue = "⚠️ Use a Google AI Studio key (starts with AIzaSy...)"
-            geminiStatusLabel?.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+
+        if provider == "gemini" && (cleanKey.hasPrefix("AQ.") || cleanKey.hasPrefix("ya29.")) {
+            statusLabel?.stringValue = "⚠️ Use a Google AI Studio key (starts with AIzaSy...)"
+            statusLabel?.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+            setTestBtnLabel(button, text: "Test", isOk: false)
+            validatedApiKeys[provider] = false
+            testedApiKeyValues[provider] = ""
+            completion?(false)
             return
         }
-        
-        geminiTestBtn?.isEnabled = false
-        geminiStatusLabel?.stringValue = "Testing connection to Google AI..."
-        geminiStatusLabel?.textColor = NSColor(white: 0.70, alpha: 1.0)
-        
+
+        button?.isEnabled = false
+        setTestBtnLabel(button, text: "...", isOk: false)
+        statusLabel?.stringValue = "Testing API key..."
+        statusLabel?.textColor = NSColor(white: 0.70, alpha: 1.0)
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let nodeBin = QuotaManager.findNodeBinary()
             let task = Process()
             if nodeBin.hasPrefix("/") {
                 task.executableURL = URL(fileURLWithPath: nodeBin)
-                task.arguments = [QuotaManager.engineScript, "--test-gemini", key]
+                task.arguments = [QuotaManager.engineScript, "--test-key", provider, cleanKey]
             } else {
                 task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                task.arguments = ["node", QuotaManager.engineScript, "--test-gemini", key]
+                task.arguments = ["node", QuotaManager.engineScript, "--test-key", provider, cleanKey]
             }
-            
+
             var env = ProcessInfo.processInfo.environment
             env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
             task.environment = env
-            
+
             let pipe = Pipe()
             task.standardOutput = pipe
             task.standardError = Pipe()
-            
+
+            var isOk = false
+            var errMsg: String? = nil
             do {
                 try task.run()
                 task.waitUntilExit()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 let output = String(data: data, encoding: .utf8) ?? ""
-                
-                DispatchQueue.main.async {
-                    self?.geminiTestBtn?.isEnabled = true
-                    if output.contains("\"ok\":true") {
-                        self?.geminiStatusLabel?.stringValue = "✓ Valid key! Gemini models connected."
-                        self?.geminiStatusLabel?.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
-                        self?.geminiCheck?.state = .on
-                    } else {
-                        self?.geminiStatusLabel?.stringValue = "✕ Not authorized. Get a key at aistudio.google.com"
-                        self?.geminiStatusLabel?.textColor = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
-                    }
-                }
+                isOk = output.contains("\"ok\":true")
             } catch {
-                DispatchQueue.main.async {
-                    self?.geminiTestBtn?.isEnabled = true
-                    self?.geminiStatusLabel?.stringValue = "✕ Error: \(error.localizedDescription)"
-                    self?.geminiStatusLabel?.textColor = NSColor.systemRed
+                errMsg = error.localizedDescription
+            }
+
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                button?.isEnabled = true
+                if isOk {
+                    self.validatedApiKeys[provider] = true
+                    self.testedApiKeyValues[provider] = cleanKey
+                    statusLabel?.stringValue = "✓ OK — Valid API Key"
+                    statusLabel?.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+                    self.setTestBtnLabel(button, text: "✓ OK", isOk: true)
+                    checkbox?.state = .on
+                } else {
+                    self.validatedApiKeys[provider] = false
+                    self.testedApiKeyValues[provider] = ""
+                    if let err = errMsg {
+                        statusLabel?.stringValue = "✕ Error: \(err)"
+                    } else {
+                        statusLabel?.stringValue = "✕ Invalid API Key or unauthorized"
+                    }
+                    statusLabel?.textColor = NSColor(srgbRed: 0xFF/255.0, green: 0x4D/255.0, blue: 0x4F/255.0, alpha: 1.0)
+                    self.setTestBtnLabel(button, text: "Test", isOk: false)
                 }
+                completion?(isOk)
             }
         }
+    }
+
+    @objc func testGeminiKeyClicked() {
+        runProviderApiKeyTest(
+            provider: "gemini",
+            key: geminiKeyField?.stringValue ?? "",
+            button: geminiTestBtn,
+            statusLabel: geminiStatusLabel,
+            checkbox: geminiCheck
+        )
+    }
+
+    @objc func testOpenAIKeyClicked() {
+        runProviderApiKeyTest(
+            provider: "openai",
+            key: openaiKeyField?.stringValue ?? "",
+            button: openaiTestBtn,
+            statusLabel: openaiStatusLabel,
+            checkbox: openaiCheck
+        )
+    }
+
+    @objc func testAnthropicKeyClicked() {
+        runProviderApiKeyTest(
+            provider: "anthropic",
+            key: anthropicKeyField?.stringValue ?? "",
+            button: anthropicTestBtn,
+            statusLabel: anthropicStatusLabel,
+            checkbox: anthropicCheck
+        )
     }
     
     @objc func openAiStudioLink() {
@@ -3726,11 +3949,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSWorkspace.shared.open(url)
         }
     }
-    
-    @objc func saveSettingsClicked() {
+
+    @objc func openOpenAILink() {
+        if let url = URL(string: "https://platform.openai.com/api-keys") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc func openAnthropicLink() {
+        if let url = URL(string: "https://console.anthropic.com/settings/keys") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func persistSettingsAndClose() {
         var cfg = QuotaManager.loadConfig()
         if cfg.providers == nil { cfg.providers = [:] }
         
+        let gemKey = geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let openKey = openaiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let antKey = anthropicKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        let gemOk = !gemKey.isEmpty && (validatedApiKeys["gemini"] == true) && (testedApiKeyValues["gemini"] == gemKey)
+        let openOk = !openKey.isEmpty && (validatedApiKeys["openai"] == true) && (testedApiKeyValues["openai"] == openKey)
+        let antOk = !antKey.isEmpty && (validatedApiKeys["anthropic"] == true) && (testedApiKeyValues["anthropic"] == antKey)
+
         cfg.providers?["antigravity"] = ProviderConfig(
             enabled: antigravityCheck?.state == .on,
             api_key: nil,
@@ -3758,18 +4001,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         cfg.providers?["gemini"] = ProviderConfig(
             enabled: geminiCheck?.state == .on,
-            api_key: geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            token: nil
+            api_key: gemKey,
+            token: nil,
+            api_key_ok: gemOk
         )
         cfg.providers?["openai"] = ProviderConfig(
             enabled: openaiCheck?.state == .on,
-            api_key: openaiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            token: nil
+            api_key: openKey,
+            token: nil,
+            api_key_ok: openOk
         )
         cfg.providers?["anthropic"] = ProviderConfig(
             enabled: anthropicCheck?.state == .on,
-            api_key: anthropicKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            token: nil
+            api_key: antKey,
+            token: nil,
+            api_key_ok: antOk
         )
         
         var hiddenList: [String] = []
@@ -3784,6 +4030,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         QuotaManager.saveConfig(cfg)
         settingsWindow?.orderOut(nil)
         performRefresh(animated: true)
+    }
+    
+    @objc func saveSettingsClicked() {
+        let targets: [(String, String, NSButton?, NSTextField?, NSButton?)] = [
+            ("gemini", geminiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "", geminiTestBtn, geminiStatusLabel, geminiCheck),
+            ("openai", openaiKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "", openaiTestBtn, openaiStatusLabel, openaiCheck),
+            ("anthropic", anthropicKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? "", anthropicTestBtn, anthropicStatusLabel, anthropicCheck)
+        ]
+
+        let pending = targets.filter { prov, key, _, _, _ in
+            !key.isEmpty && ((validatedApiKeys[prov] != true) || (testedApiKeyValues[prov] != key))
+        }
+
+        if pending.isEmpty {
+            persistSettingsAndClose()
+            return
+        }
+
+        settingsSaveBtn?.isEnabled = false
+        let group = DispatchGroup()
+        var anyValidated = false
+        for (prov, key, btn, lbl, chk) in pending {
+            group.enter()
+            runProviderApiKeyTest(provider: prov, key: key, button: btn, statusLabel: lbl, checkbox: chk) { ok in
+                if ok { anyValidated = true }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) { [weak self] in
+            self?.settingsSaveBtn?.isEnabled = true
+            let pause = anyValidated ? 0.45 : 0.65
+            DispatchQueue.main.asyncAfter(deadline: .now() + pause) {
+                self?.persistSettingsAndClose()
+            }
+        }
     }
     
     @objc func cancelSettingsClicked() {
@@ -4241,36 +4522,27 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
     private let initialDelay: TimeInterval = 60          // espera 1 minuto após abrir o app
     private let launchTime = Date().timeIntervalSince1970
     private var scheduled = false
-
-    private var lastShownFile: String {
-        return NSHomeDirectory() + "/.config/UniversalAIQuota/promo_last_shown"
-    }
-
-    private func persistedLastShown() -> TimeInterval {
-        guard let raw = try? String(contentsOfFile: lastShownFile, encoding: .utf8) else { return 0 }
-        return TimeInterval(raw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-    }
-
-    private func persistLastShown(_ ts: TimeInterval) {
-        try? String(Int(ts)).write(toFile: lastShownFile, atomically: true, encoding: .utf8)
-    }
+    private var latestAnnouncement: AnnouncementInfo?
 
     func presentIfNeeded(_ ann: AnnouncementInfo) {
+        self.latestAnnouncement = ann
         let now = Date().timeIntervalSince1970
-        let last = max(lastShownAt, persistedLastShown())
-        if last > 0 && (now - last) < intervalSeconds {
+        if lastShownAt > 0 && (now - lastShownAt) < intervalSeconds {
             return
         }
         if scheduled || promoWindow != nil { return }
         scheduled = true
-        let wait = max(0, initialDelay - (now - launchTime))
+        let wait = (lastShownAt == 0) ? max(0, initialDelay - (now - launchTime)) : 0
         DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
             guard let self = self else { return }
             self.scheduled = false
-            let shownAt = Date().timeIntervalSince1970
-            self.lastShownAt = shownAt
-            self.persistLastShown(shownAt)
-            self.showWindow(ann)
+            self.lastShownAt = Date().timeIntervalSince1970
+            let effective = self.latestAnnouncement ?? ann
+            self.showWindow(effective)
+            DispatchQueue.main.asyncAfter(deadline: .now() + self.intervalSeconds) { [weak self] in
+                guard let self = self, let cur = self.latestAnnouncement else { return }
+                self.presentIfNeeded(cur)
+            }
         }
     }
 
@@ -4303,6 +4575,7 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
         win.isOpaque = false
         win.backgroundColor = .clear
         win.level = .floating
+        win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         win.hasShadow = true
         win.isReleasedWhenClosed = false
 
@@ -4515,9 +4788,10 @@ class PromoDockManager: NSObject, WKScriptMessageHandler {
           }
         </script></body></html>
         """
-        webView.loadHTMLString(html, baseURL: nil)
+        webView.loadHTMLString(html, baseURL: URL(string: "https://dashboard.vh2c.com.br"))
         win.contentView = webView
         win.makeKeyAndOrderFront(nil)
+        win.orderFrontRegardless()
         self.promoWindow = win
     }
 
