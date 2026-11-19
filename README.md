@@ -9,6 +9,7 @@
 
 [![Total Downloads](https://img.shields.io/github/downloads/vh2c/ai-gauge/total.svg?style=flat-square&logo=github&color=00E699)](https://github.com/vh2c/ai-gauge/releases)
 [![Latest Release](https://img.shields.io/github/v/release/vh2c/ai-gauge?style=flat-square&color=38BDF8)](https://github.com/vh2c/ai-gauge/releases)
+[![Official Website](https://img.shields.io/badge/Official%20Site-ai--gauge.vh2c.com.br-00E699?style=flat-square&logo=googlechrome&logoColor=white)](https://ai-gauge.vh2c.com.br)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg?style=flat-square)](#)
 [![Powered by VH2C](https://img.shields.io/badge/Developed%20by-vh2c.com.br-00C9FF?style=flat-square)](https://vh2c.com.br)
@@ -29,15 +30,25 @@ Ever hit the **Claude usage limit**, the **ChatGPT message cap** or ran out of *
 
 ---
 
-## 📸 Screenshots
+## 📸 Screenshots & Cockpit View
 
 <p align="center">
-  <img src="assets/screenshot-hud.png" height="560" alt="AI Gauge floating HUD showing Antigravity, Claude and ChatGPT usage gauges" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/screenshot-window.png" height="560" alt="AI Gauge full window with Gemini, Claude and ChatGPT quota bars and reset times" />
+  <a href="https://ai-gauge.vh2c.com.br" target="_blank">
+    <img src="assets/screen_view.jpg" width="100%" alt="AI Gauge Cockpit Overview - Multi-IDE AI Quota Tracking" />
+  </a>
 </p>
+<p align="center"><sub><strong>Desktop Cockpit</strong>: AI Gauge running discreetly alongside Cursor, Antigravity, VS Code, Claude & ChatGPT.</sub></p>
 
-<p align="center"><sub>Floating HUD (left) and full window (right).</sub></p>
+<br/>
+
+<p align="center">
+  <img src="assets/hud_view1.jpg" height="520" alt="AI Gauge Floating HUD Closeup" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/screenshot-hud.png" height="520" alt="AI Gauge Native HUD Strip" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/screenshot-window.png" height="520" alt="AI Gauge Full Window with Gemini, Claude and ChatGPT quota bars" />
+</p>
+<p align="center"><sub>Floating HUD Closeup (left), Compact HUD Strip (center), and Full Metrics Window (right).</sub></p>
 
 ---
 
