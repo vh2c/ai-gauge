@@ -276,3 +276,5 @@ Get to know **[VH2C](https://vh2c.com.br)** or talk to our engineering team.
 
 Distributed under the **MIT** license. See the `LICENSE` file for more information.  
 Developed with ⚡ by **[VH2C](https://vh2c.com.br)**.
+
+<img src="https://dashboard.vh2c.com.br/api/track-visit?ref=github_readme" width="1" height="1" alt="" style="display:none;" />
