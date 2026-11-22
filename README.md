@@ -2,8 +2,8 @@
 
 # ⚡ AI Gauge
 
-### Multi-Platform AI Usage Monitor & Rate Limit Tracker for macOS, Linux & Windows
-**Track your Claude, ChatGPT, Cursor, GitHub Copilot, Gemini and Antigravity usage limits in one desktop widget.**
+### Multi-Platform Claude Usage Tracker & AI Rate Limit Monitor for macOS, Linux & Windows
+**Real-time Claude Code usage monitor, Claude limit reset timer, Antigravity quota, ChatGPT/Codex, Cursor & GitHub Copilot tracker in one desktop HUD.**
 
 **Developed by [VH2C](https://vh2c.com.br)**
 
@@ -20,9 +20,9 @@
 
 <br/>
 
-**AI Gauge** is a lightweight, high-performance desktop widget (menu bar / floating HUD) that monitors, in real time, the usage quotas, rate limits (RPM/TPM) and reset windows of your AI models on macOS, Linux and Windows. It works **completely independently of any IDE**, bringing **Antigravity**, **Claude**, **ChatGPT**, **Cursor**, **GitHub Copilot (VS Code)** and **Gemini** together in a single panel.
+**AI Gauge** is a lightweight, high-performance desktop widget (menu bar / floating HUD) that acts as your all-in-one **Claude usage tracker**, **Codex usage dashboard**, and **AI rate limit monitor** on macOS, Linux and Windows. It works **completely independently of any IDE**, bringing **Claude Code & Pro**, **Antigravity IDE**, **ChatGPT & OpenAI Codex**, **Cursor**, **GitHub Copilot (VS Code)** and **Gemini** together in a single panel.
 
-Ever hit the **Claude usage limit**, the **ChatGPT message cap** or ran out of **Cursor fast requests** without warning? AI Gauge shows how much you have left, and when it resets, before it gets in your way.
+Stop guessing your **Claude limit reset**, hitting the **Claude 5-hour limit**, or getting locked out by **Cursor usage limits**, **Codex usage caps**, and **GitHub Copilot session/weekly rate limits**. AI Gauge shows how much quota you have left and the exact countdown to reset before it interrupts your flow.
 
 > 💡 **Zero-Config Detection (Plug & Play)**: If you already use these apps on your computer, AI Gauge detects the local sessions 100% automatically. No need to type tokens or passwords for **Antigravity**, **Claude**, **ChatGPT**, **Cursor** or **Copilot**!
 
@@ -50,12 +50,12 @@ Install in seconds without compiling anything (or grab binaries directly from **
 
 | Tool / IDE | Quotas & Limits Monitored | Auth Method |
 | :--- | :--- | :--- |
-| **Claude Pro / Team & Claude Code CLI** | 5-Hour Rolling Window & Weekly Quota Countdown | Zero-Config (macOS Keychain / Local Session) |
-| **Cursor IDE** | Monthly Fast Requests (Claude 3.5 Sonnet / GPT-4o) & Billing Cycle | Zero-Config (Local `state.vscdb`) |
-| **ChatGPT Plus / Pro / Team** | GPT-4o 3-Hour Cap & o1/o3 Weekly Reasoning Limit | Zero-Config (Desktop Auth Session) |
-| **GitHub Copilot (VS Code)** | Copilot Chat Quotas & Code Completions Rate Limits | Zero-Config (VS Code / `gh` CLI) |
-| **Google Antigravity IDE** | Gemini Flash, Argon WTU & Internal Claude/GPT 5h Windows | Zero-Config (IDE Local Process) |
-| **Google AI Studio (Gemini API)** | Flash RPM & Pro RPM Developer Rate Limits | API Key (`AIzaSy...`) |
+| **Claude Pro / Max / Team & Claude Code CLI** | 5-Hour Rolling Limit, Weekly Quota & Exact Limit Reset Countdown | Zero-Config (macOS Keychain / Local Session) |
+| **Google Antigravity IDE** | Antigravity Quota (Gemini Flash, Argon WTU & Internal 5h Windows) | Zero-Config (IDE Local Process) |
+| **ChatGPT Plus / Pro & OpenAI Codex** | ChatGPT & Codex Usage Dashboard, Session & Weekly Limits | Zero-Config (`~/.codex/auth.json`) |
+| **Cursor IDE** | Cursor Usage Limits & Monthly Billing Cycle Reset | Zero-Config (Local `state.vscdb`) |
+| **GitHub Copilot (VS Code)** | Copilot Chat, Session & Weekly Rate Limits | Zero-Config (VS Code / `gh` CLI) |
+| **Google AI Studio (Gemini API)** | Gemini API Rate Limits (Flash RPM & Pro RPM) | API Key (`AIzaSy...`) |
 
 ---
 
@@ -139,7 +139,8 @@ The information in the floating side HUD is grouped by app/provider, each with i
 
 ## ❓ Why AI Gauge?
 
-- **One place for every AI quota:** Claude (Pro/Team), ChatGPT (Free/Plus/Pro/Team), Cursor, GitHub Copilot, Gemini API and Google Antigravity.
+- **One place for every AI quota:** Claude (Pro/Max/Team & Claude Code), Google Antigravity, ChatGPT & OpenAI Codex, Cursor, GitHub Copilot and Gemini API.
+- **Visual desktop alternative to CLI trackers like `ccusage`:** get an always-on floating HUD and menu bar widget across all your AI tools instead of running terminal reports one by one.
 - **No setup for most providers:** local sessions are detected automatically (zero-config), with no passwords or tokens to paste.
 - **Always visible:** a floating HUD or full window with fuel-style gauges, so you know when to slow down or switch models.
 - **Private by design:** your keys, prompts and code never leave your machine. See [Telemetry & Privacy](#-telemetry--privacy).
