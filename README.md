@@ -68,6 +68,15 @@ Install in seconds without compiling anything (or grab binaries directly from **
 
 <p align="center">
   <a href="https://ai-gauge.vh2c.com.br" target="_blank">
+    <img src="assets/ai-gauge-demo.gif" width="100%" alt="AI Gauge Live Demo - Real-Time Claude, Antigravity, Codex, Cursor & Copilot HUD" />
+  </a>
+</p>
+<p align="center"><sub><strong>Live Demo</strong>: Full Cockpit window, provider &amp; gauge customization, vertical/horizontal floating HUD, and instant switching across Antigravity, Claude, ChatGPT/Codex &amp; Copilot.</sub></p>
+
+<br/>
+
+<p align="center">
+  <a href="https://ai-gauge.vh2c.com.br" target="_blank">
     <img src="assets/screen_view.jpg" width="100%" alt="AI Gauge Cockpit Overview - Multi-IDE AI Quota Tracking" />
   </a>
 </p>
