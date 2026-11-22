@@ -70,7 +70,21 @@ If the values do not match, **do not install the file**: download it again, and 
 
 ## macOS
 
-### Fastest way: one command (no security warning)
+### Option 1: Homebrew (recommended — installs Node.js automatically)
+
+```bash
+brew install --cask vh2c/tap/ai-gauge
+```
+
+It installs **AI Gauge.app** in `/Applications`, automatically installs **Node.js 18+** if needed, and clears the quarantine flag.
+*(On Homebrew 7+, if prompted that `vh2c/tap` is an untrusted third-party tap on first use, run `brew trust vh2c/tap` and repeat the command.)*
+
+**To update to a newer version later:**
+```bash
+brew upgrade --cask ai-gauge
+```
+
+### Option 2: One command without Homebrew (no security warning)
 
 Open **Terminal** (⌘ + Space, type *Terminal*, Enter), paste this and press Enter:
 

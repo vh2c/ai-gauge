@@ -34,7 +34,12 @@ Stop guessing your **Claude limit reset**, hitting the **Claude 5-hour limit**, 
 
 Install in seconds without compiling anything (or grab binaries directly from **[Latest Releases](https://github.com/vh2c/ai-gauge/releases/latest)**):
 
-- **macOS (Apple Silicon / Intel):**
+- **macOS (Homebrew — recommended, auto-installs Node.js):**
+  ```bash
+  brew install --cask vh2c/tap/ai-gauge
+  ```
+  *(On Homebrew 7+, if prompted about an untrusted third-party tap on first use, run `brew trust vh2c/tap` first.)*
+- **macOS (curl, no Homebrew):**
   ```bash
   curl -fsSL https://raw.githubusercontent.com/vh2c/ai-gauge/main/macos/get-ai-gauge.sh | bash
   ```
@@ -191,7 +196,13 @@ All the analog dials in AI GAUGE work like a **battery or fuel gauge**:
 > 📘 Full details, checksums, troubleshooting and uninstall steps: **[INSTALL.md](INSTALL.md)**.
 
 ### 🍏 macOS (Apple Silicon with macOS 11+ · Intel with macOS 13+)
-**One command, no security warning** (checks the SHA-256 checksum, installs and opens the app; run it again to update):
+**Homebrew (recommended — installs Node.js automatically and clears quarantine):**
+```bash
+brew install --cask vh2c/tap/ai-gauge
+```
+*(On Homebrew 7+, run `brew trust vh2c/tap` first if prompted. Upgrade later with `brew upgrade --cask ai-gauge`.)*
+
+**Or one command via `curl`, no security warning** (checks the SHA-256 checksum, installs and opens the app; run it again to update):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vh2c/ai-gauge/main/macos/get-ai-gauge.sh | bash
 ```
