@@ -30,6 +30,35 @@ Ever hit the **Claude usage limit**, the **ChatGPT message cap** or ran out of *
 
 ---
 
+## ⚡ 1-Line Quick Install
+
+Install in seconds without compiling anything (or grab binaries directly from **[Latest Releases](https://github.com/vh2c/ai-gauge/releases/latest)**):
+
+- **macOS (Apple Silicon / Intel):**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/vh2c/ai-gauge/main/macos/get-ai-gauge.sh | bash
+  ```
+- **Windows (PowerShell):**
+  ```powershell
+  irm https://raw.githubusercontent.com/vh2c/ai-gauge/main/windows/get-ai-gauge.ps1 | iex
+  ```
+- **Linux & Manual Installers:** See [📦 Downloads](#-downloads) or [INSTALL.md](INSTALL.md).
+
+---
+
+## 📊 Supported AI Tools & Rate Limits
+
+| Tool / IDE | Quotas & Limits Monitored | Auth Method |
+| :--- | :--- | :--- |
+| **Claude Pro / Team & Claude Code CLI** | 5-Hour Rolling Window & Weekly Quota Countdown | Zero-Config (macOS Keychain / Local Session) |
+| **Cursor IDE** | Monthly Fast Requests (Claude 3.5 Sonnet / GPT-4o) & Billing Cycle | Zero-Config (Local `state.vscdb`) |
+| **ChatGPT Plus / Pro / Team** | GPT-4o 3-Hour Cap & o1/o3 Weekly Reasoning Limit | Zero-Config (Desktop Auth Session) |
+| **GitHub Copilot (VS Code)** | Copilot Chat Quotas & Code Completions Rate Limits | Zero-Config (VS Code / `gh` CLI) |
+| **Google Antigravity IDE** | Gemini Flash, Argon WTU & Internal Claude/GPT 5h Windows | Zero-Config (IDE Local Process) |
+| **Google AI Studio (Gemini API)** | Flash RPM & Pro RPM Developer Rate Limits | API Key (`AIzaSy...`) |
+
+---
+
 ## 📸 Screenshots & Cockpit View
 
 <p align="center">
