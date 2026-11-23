@@ -19,6 +19,7 @@ const { OpenAIProvider } = require('./providers/openai');
 const { AnthropicProvider } = require('./providers/anthropic');
 const { checkForUpdates, CURRENT_VERSION } = require('./updater');
 const { mergeWithLastGood } = require('./last_good');
+const { detectAllActivity } = require('./agent_activity');
 
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'UniversalAIQuota');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -167,6 +168,7 @@ class UniversalQuotaEngine {
     }
 
     const updateData = await updatePromise;
+    const activity = detectAllActivity(opts.activityOpts || {});
 
     if (valid.length === 0) {
       return {
@@ -176,6 +178,8 @@ class UniversalQuotaEngine {
         providers_count: 0,
         detected_providers: [],
         groups: [],
+        activity,
+        recommended_poll_seconds: activity.recommended_poll_seconds,
         version: CURRENT_VERSION,
         tier: updateData?.tier || 'free',
         update: updateData || { current_version: CURRENT_VERSION, update_available: false },
@@ -194,8 +198,9 @@ class UniversalQuotaEngine {
         mainAccount = item.account;
         mainPlan = item.plan;
       }
+      const provActivity = activity.providers[item.provider] || null;
       for (const g of item.groups || []) {
-        allGroups.push(g);
+        allGroups.push(provActivity ? { ...g, activity: provActivity } : g);
       }
     }
 
@@ -205,6 +210,8 @@ class UniversalQuotaEngine {
       providers_count: valid.length,
       detected_providers: valid.map(v => v.provider),
       groups: allGroups,
+      activity,
+      recommended_poll_seconds: activity.recommended_poll_seconds,
       version: CURRENT_VERSION,
       tier: updateData?.tier || 'free',
       update: updateData || { current_version: CURRENT_VERSION, update_available: false },
@@ -299,7 +306,14 @@ async function testProviderKey(providerArg, keyArg, customProviders) {
 
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (args[0] === '--test-gemini' || args[0] === '--test-key') {
+  if (args.includes('--activity-only')) {
+    try {
+      console.log(JSON.stringify(detectAllActivity()));
+    } catch (err) {
+      console.error(JSON.stringify({ error: err.message }));
+      process.exit(1);
+    }
+  } else if (args[0] === '--test-gemini' || args[0] === '--test-key') {
     const runTest = args[0] === '--test-gemini'
       ? testProviderKey('gemini', args[1] || '')
       : testProviderKey(args[1] || '', args[2] || '');
@@ -311,7 +325,11 @@ if (require.main === module) {
   } else {
     const engine = new UniversalQuotaEngine();
     // `--startup` is passed by the apps on their first run after being opened; `--scan` probes all local AIs
-    engine.fetchAll({ startup: args.includes('--startup'), scan: args.includes('--scan') }).then(res => {
+    engine.fetchAll({
+      startup: args.includes('--startup'),
+      scan: args.includes('--scan'),
+      force: args.includes('--force')
+    }).then(res => {
       console.log(JSON.stringify(res, null, 2));
     }).catch(err => {
       console.error(JSON.stringify({ error: err.message }));

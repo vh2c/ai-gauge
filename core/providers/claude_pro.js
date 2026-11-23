@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { markOutdated } = require('../staleness');
+const { readBackoffState, recordBackoff429, clearBackoffState } = require('../last_good');
 
 const CLAUDE_SIGNIN_HINT = 'Outdated: sign in to Claude Code again (run "claude auth login --claudeai") or open Claude Desktop';
 
@@ -16,28 +17,57 @@ class ClaudeProProvider {
     this._explicitToken = Boolean(token);
     this._ignoreCachedDesktopToken = false;
     this.tokenCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_token_cache.json');
-    this.token = token || this.getTokenFromKeychain() || this.getTokenFromFile();
+    this.token = token || null;
     this.dedicatedCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_cache.json');
     this.backoffPath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'claude_pro_backoff.json');
   }
 
   /** After a 429 from Anthropic we stop calling the usage endpoint until this time. */
   getBackoffUntil() {
-    try {
-      const b = JSON.parse(fs.readFileSync(this.backoffPath, 'utf8'));
-      return Number(b.until) || 0;
-    } catch (_) { return 0; }
+    return readBackoffState(this.backoffPath).until;
   }
 
-  setBackoff(ms) {
-    try {
-      fs.mkdirSync(path.dirname(this.backoffPath), { recursive: true });
-      fs.writeFileSync(this.backoffPath, JSON.stringify({ until: Date.now() + ms }), 'utf8');
-    } catch (_) {}
+  setBackoff(retryAfterSeconds = 0) {
+    return recordBackoff429(this.backoffPath, retryAfterSeconds);
   }
 
   clearBackoff() {
-    try { fs.rmSync(this.backoffPath, { force: true }); } catch (_) {}
+    clearBackoffState(this.backoffPath);
+  }
+
+  getCachedToken() {
+    if (this._ignoreCachedDesktopToken) return null;
+    try {
+      if (!fs.existsSync(this.tokenCachePath)) return null;
+      const cached = JSON.parse(fs.readFileSync(this.tokenCachePath, 'utf8').replace(/^\uFEFF/, ''));
+      if (cached && cached.token && (!cached.expiresAt || cached.expiresAt > (Date.now() + 60000))) {
+        return cached.token;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  saveCachedToken(token, expiresAt = null) {
+    if (!token) return;
+    try {
+      const dir = path.dirname(this.tokenCachePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        this.tokenCachePath,
+        JSON.stringify({ token, expiresAt, updatedAt: Date.now() }),
+        { encoding: 'utf8', mode: 0o600 }
+      );
+    } catch (_) {}
+  }
+
+  resolveToken() {
+    return (
+      this.token ||
+      this.getTokenFromFile() ||
+      this.getCachedToken() ||
+      this.getTokenFromDesktopConfig() ||
+      this.getTokenFromKeychain()
+    );
   }
 
   /**
@@ -156,7 +186,11 @@ class ClaudeProProvider {
         } catch (_) {}
       }
 
-      return parsed?.claudeAiOauth?.accessToken || null;
+      const tok = parsed?.claudeAiOauth?.accessToken || null;
+      if (tok) {
+        this.saveCachedToken(tok, parsed?.claudeAiOauth?.expiresAt || null);
+      }
+      return tok;
     } catch (_) {
       return null;
     }
@@ -394,6 +428,7 @@ class ClaudeProProvider {
               name: '5 Hours Limit',
               remaining_pct: rem5h,
               reset_in: reset5h,
+              reset_time: data.five_hour?.resets_at || null,
               detail: `5h window (${rem5h}% available)${time5hStr}`
             },
             {
@@ -401,6 +436,7 @@ class ClaudeProProvider {
               name: 'Weekly Limit',
               remaining_pct: rem7d,
               reset_in: reset7d,
+              reset_time: reset7dIso,
               detail: `Weekly quota (${rem7d}% available)${time7dStr}`
             }
           ]
@@ -515,8 +551,6 @@ class ClaudeProProvider {
       }
     } catch (_) {}
 
-    const token = this.token || this.getTokenFromKeychain() || this.getTokenFromFile() || this.getTokenFromDesktopConfig();
-
     const fallback = () => {
       const desktop = this.getDesktopUsage();
       if (desktop && !desktop.groups?.[0]?.outdated) {
@@ -525,15 +559,17 @@ class ClaudeProProvider {
       return this.fetchFromCache(desktop);
     };
 
+    // The usage endpoint is rate limited (a burst of calls ends in 429). While we are paused, do not call it
+    // (nor touch Keychain): show the last real numbers instead of hammering the API.
+    if (Date.now() < this.getBackoffUntil()) {
+      return this.fetchFromRealCache() || fallback();
+    }
+
+    const token = this.resolveToken();
+
     // Fallback: if no live token, check desktop session first, then cache
     if (!token) {
       return fallback();
-    }
-
-    // The usage endpoint is rate limited (a burst of calls ends in 429). While we are paused, do not call it:
-    // show the last real numbers instead of hammering the API.
-    if (Date.now() < this.getBackoffUntil()) {
-      return this.fetchFromRealCache() || fallback();
     }
 
     const requestUsage = (bearerToken) => new Promise((resolve) => {
@@ -571,9 +607,9 @@ class ClaudeProProvider {
       this._ignoreCachedDesktopToken = true;
 
       if (!this._explicitToken) {
-        let freshToken = this.getTokenFromKeychain() || this.getTokenFromFile();
+        let freshToken = this.getTokenFromFile() || this.getTokenFromDesktopConfig();
         if (!freshToken || freshToken === token) {
-          freshToken = this.getTokenFromDesktopConfig();
+          freshToken = this.getTokenFromKeychain();
         }
         if (freshToken && freshToken !== token) {
           this.token = freshToken;
@@ -583,8 +619,8 @@ class ClaudeProProvider {
     }
 
     if (res.statusCode === 429) {
-      // Honour Retry-After (clamped to 30s..5min); default 60s
-      this.setBackoff(Math.min(Math.max((res.retryAfter || 60) * 1000, 30000), 300000));
+      // Exponential persisted backoff (60s -> 15m) honouring Retry-After when supplied
+      this.setBackoff(res.retryAfter || 0);
     }
 
     if (res.statusCode === 200) {

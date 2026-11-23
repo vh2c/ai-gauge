@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { markOutdated } = require('../staleness');
+const { readBackoffState, recordBackoff429, clearBackoffState } = require('../last_good');
 
 const CHATGPT_SIGNIN_HINT = 'Outdated: sign in to ChatGPT / Codex again';
 
@@ -16,6 +17,19 @@ class ChatGPTSubscriptionProvider {
   constructor(token) {
     this.token = token;
     this.dedicatedCachePath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'chatgpt_cache.json');
+    this.backoffPath = path.join(os.homedir(), '.config', 'UniversalAIQuota', 'chatgpt_backoff.json');
+  }
+
+  getBackoffUntil() {
+    return readBackoffState(this.backoffPath).until;
+  }
+
+  setBackoff(retryAfterSeconds = 0) {
+    return recordBackoff429(this.backoffPath, retryAfterSeconds);
+  }
+
+  clearBackoff() {
+    clearBackoffState(this.backoffPath);
   }
 
   getCredentials() {
@@ -142,23 +156,29 @@ class ChatGPTSubscriptionProvider {
 
     let rem4o = 100;
     let reset4o = '3h';
+    let reset4oIso = null;
     if (gpt4oUsage) {
       rem4o = this.calcRemainingPct(gpt4oUsage.utilization, gpt4oUsage.used_percent);
-      reset4o = this.formatResetRemaining(gpt4oUsage.resets_at) || '3h';
+      reset4oIso = gpt4oUsage.resets_at || null;
+      reset4o = this.formatResetRemaining(reset4oIso) || '3h';
     } else if (pw) {
       rem4o = this.calcRemainingPct(null, pw.used_percent);
-      reset4o = this.formatResetRemaining(pw.reset_at) || (pw.reset_after_seconds ? `${Math.round(pw.reset_after_seconds / 3600)}h` : '3h');
+      reset4oIso = pw.reset_at || null;
+      reset4o = this.formatResetRemaining(reset4oIso) || (pw.reset_after_seconds ? `${Math.round(pw.reset_after_seconds / 3600)}h` : '3h');
     }
 
     let remO1 = 100;
     let resetO1 = '7d';
+    let resetO1Iso = null;
     if (o1Usage) {
       remO1 = this.calcRemainingPct(o1Usage.utilization, o1Usage.used_percent);
-      resetO1 = this.formatResetRemaining(o1Usage.resets_at) || '7d';
+      resetO1Iso = o1Usage.resets_at || null;
+      resetO1 = this.formatResetRemaining(resetO1Iso) || '7d';
     } else if (data.rate_limit?.secondary_window) {
       const sw = data.rate_limit.secondary_window;
       remO1 = this.calcRemainingPct(null, sw.used_percent);
-      resetO1 = this.formatResetRemaining(sw.reset_at) || '7d';
+      resetO1Iso = sw.reset_at || null;
+      resetO1 = this.formatResetRemaining(resetO1Iso) || '7d';
     }
 
     return {
@@ -177,6 +197,7 @@ class ChatGPTSubscriptionProvider {
               name: 'GPT-4o (3h)',
               remaining_pct: rem4o,
               reset_in: reset4o,
+              reset_time: reset4oIso,
               detail: planType === 'free' ? `Active quota (${rem4o}% available)` : `3h window (${rem4o}% available)`
             },
             {
@@ -184,6 +205,7 @@ class ChatGPTSubscriptionProvider {
               name: 'o1 Reasoning (Weekly)',
               remaining_pct: remO1,
               reset_in: resetO1,
+              reset_time: resetO1Iso,
               detail: `Weekly o1 quota (${remO1}% available)`
             }
           ]
@@ -202,6 +224,10 @@ class ChatGPTSubscriptionProvider {
         }
       }
     } catch (_) {}
+
+    if (Date.now() < this.getBackoffUntil()) {
+      return this.fetchFromCache();
+    }
 
     const { token, accountId } = this.getCredentials();
 
@@ -233,9 +259,14 @@ class ChatGPTSubscriptionProvider {
         let body = '';
         res.on('data', chunk => body += chunk);
         res.on('end', () => {
+          if (res.statusCode === 429) {
+            const retryAfter = Number(res.headers && res.headers['retry-after']) || 0;
+            this.setBackoff(retryAfter);
+          }
           if (res.statusCode === 200) {
             try {
               const data = JSON.parse(body);
+              this.clearBackoff();
               // Save to dedicated cache
               try {
                 const dir = path.dirname(this.dedicatedCachePath);

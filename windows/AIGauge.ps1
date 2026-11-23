@@ -205,6 +205,154 @@ function Convert-HexToBrush ($hexStr) {
     return (New-Object System.Windows.Media.SolidColorBrush (Convert-HexToColor $hexStr))
 }
 
+function Get-ProviderActivity ($data, $provKey) {
+    if (-not $data) { return $null }
+    if ($data.activity -and $data.activity.providers) {
+        $pMap = $data.activity.providers
+        if ($pMap -is [System.Collections.IDictionary]) {
+            if ($pMap.Contains($provKey)) { return $pMap[$provKey] }
+        } else {
+            $prop = $pMap.PSObject.Properties[$provKey]
+            if ($prop) { return $prop.Value }
+        }
+    }
+    if ($data.groups) {
+        foreach ($g in $data.groups) {
+            $gk = Get-ProviderKey $g.name $g.provider
+            if ($gk -eq $provKey -and $g.activity) { return $g.activity }
+        }
+    }
+    return $null
+}
+
+function Get-EffectivePollSeconds ($data) {
+    if ($data) {
+        if ($data.activity -and $data.activity.recommended_poll_seconds) {
+            return [int]$data.activity.recommended_poll_seconds
+        }
+        if ($data.recommended_poll_seconds) {
+            return [int]$data.recommended_poll_seconds
+        }
+    }
+    return 30
+}
+
+function Get-ActivityFingerprint ($act) {
+    if (-not $act) { return "" }
+    $parts = New-Object System.Collections.ArrayList
+    [void]$parts.Add("$($act.overall_status)")
+    [void]$parts.Add("$($act.recommended_poll_seconds)")
+    if ($act.providers) {
+        foreach ($k in @("antigravity", "claude_pro", "chatgpt_subscription", "cursor", "github_copilot")) {
+            $item = $null
+            if ($act.providers -is [System.Collections.IDictionary]) {
+                if ($act.providers.Contains($k)) { $item = $act.providers[$k] }
+            } else {
+                $p = $act.providers.PSObject.Properties[$k]
+                if ($p) { $item = $p.Value }
+            }
+            if ($item) {
+                [void]$parts.Add("${k}:$($item.status):$($item.detail)")
+            }
+        }
+    }
+    return ($parts -join "|")
+}
+
+function Get-ActivityTooltip ($title, $act, $pollSecs) {
+    $st = if ($act -and $act.status) { "$($act.status)" } else { "idle" }
+    $statusText = if ($st -eq "working") { "Working" } elseif ($st -eq "waiting") { "Waiting for input" } else { "Idle" }
+    $pollLabel = if ($pollSecs -ge 300) { "5 min (idle)" } else { "${pollSecs}s (active)" }
+    $lines = New-Object System.Collections.ArrayList
+    [void]$lines.Add("$title · $statusText")
+    if ($act -and $act.detail) {
+        [void]$lines.Add("$($act.detail)")
+    } elseif ($act -and $act.project) {
+        [void]$lines.Add("Project: $($act.project)")
+    }
+    if ($act -and $null -ne $act.age_seconds -and $st -ne "idle") {
+        [void]$lines.Add("Updated $($act.age_seconds)s ago · Polling: $pollLabel")
+    } else {
+        [void]$lines.Add("Polling: $pollLabel")
+    }
+    return ($lines -join "`n")
+}
+
+function New-ActivityGlyph ($status, $accentHex, $size = 9) {
+    $cv = New-Object System.Windows.Controls.Canvas
+    $cv.Width = $size
+    $cv.Height = $size
+    $cv.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+    $cx = $size / 2.0
+    $cy = $size / 2.0
+    $r = [Math]::Max(2.5, ($size / 2.0) - 1.2)
+
+    if ($status -eq "working") {
+        $track = New-Object System.Windows.Shapes.Ellipse
+        $track.Width = $r * 2
+        $track.Height = $r * 2
+        $trBrush = Convert-HexToBrush $accentHex
+        $trBrush.Opacity = 0.24
+        $track.Stroke = $trBrush
+        $track.StrokeThickness = 1.4
+        [System.Windows.Controls.Canvas]::SetLeft($track, $cx - $r)
+        [System.Windows.Controls.Canvas]::SetTop($track, $cy - $r)
+        $cv.Children.Add($track) | Out-Null
+
+        $arcStr = Get-ArcGeometry $cx $cy $r 0 140
+        if ($arcStr) {
+            $arc = New-Object System.Windows.Shapes.Path
+            $arc.Data = [System.Windows.Media.Geometry]::Parse($arcStr)
+            $arc.Stroke = Convert-HexToBrush $accentHex
+            $arc.StrokeThickness = 1.6
+            $arc.StrokeStartLineCap = [System.Windows.Media.PenLineCap]::Round
+            $arc.StrokeEndLineCap = [System.Windows.Media.PenLineCap]::Round
+            $rot = New-Object System.Windows.Media.RotateTransform
+            $rot.CenterX = $cx
+            $rot.CenterY = $cy
+            $arc.RenderTransform = $rot
+            $anim = New-Object System.Windows.Media.Animation.DoubleAnimation(0, 360, [TimeSpan]::FromSeconds(1.1))
+            $anim.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever
+            $rot.BeginAnimation([System.Windows.Media.RotateTransform]::AngleProperty, $anim)
+            $cv.Children.Add($arc) | Out-Null
+        }
+    } elseif ($status -eq "waiting") {
+        $ring = New-Object System.Windows.Shapes.Ellipse
+        $ring.Width = $size - 1
+        $ring.Height = $size - 1
+        $ringBrush = Convert-HexToBrush "#F5A623"
+        $ring.Stroke = $ringBrush
+        $ring.StrokeThickness = 1.2
+        [System.Windows.Controls.Canvas]::SetLeft($ring, 0.5)
+        [System.Windows.Controls.Canvas]::SetTop($ring, 0.5)
+        $pulseAnim = New-Object System.Windows.Media.Animation.DoubleAnimation(0.9, 0.15, [TimeSpan]::FromSeconds(0.8))
+        $pulseAnim.AutoReverse = $true
+        $pulseAnim.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever
+        $ring.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $pulseAnim)
+        $cv.Children.Add($ring) | Out-Null
+
+        $dotR = [Math]::Max(2.0, $r * 0.62)
+        $dot = New-Object System.Windows.Shapes.Ellipse
+        $dot.Width = $dotR * 2
+        $dot.Height = $dotR * 2
+        $dot.Fill = Convert-HexToBrush "#F5A623"
+        [System.Windows.Controls.Canvas]::SetLeft($dot, $cx - $dotR)
+        [System.Windows.Controls.Canvas]::SetTop($dot, $cy - $dotR)
+        $cv.Children.Add($dot) | Out-Null
+    } else {
+        $idleR = [Math]::Max(2.0, $r * 0.68)
+        $circle = New-Object System.Windows.Shapes.Ellipse
+        $circle.Width = $idleR * 2
+        $circle.Height = $idleR * 2
+        $circle.Stroke = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(190, 0x7A, 0x7A, 0x86))
+        $circle.StrokeThickness = 1.2
+        [System.Windows.Controls.Canvas]::SetLeft($circle, $cx - $idleR)
+        [System.Windows.Controls.Canvas]::SetTop($circle, $cy - $idleR)
+        $cv.Children.Add($circle) | Out-Null
+    }
+    return $cv
+}
+
 function Load-CurrentConfig {
     if (Test-Path $ConfigFile) {
         try {
@@ -382,6 +530,20 @@ function New-DemoData {
         plan = "DEMO"
         updated_at = (Get-Date -Format "HH:mm:ss")
         tier = "free"
+        recommended_poll_seconds = 30
+        activity = @{
+            overall_status = "waiting"
+            active_count = 2
+            working_count = 1
+            waiting_count = 1
+            recommended_poll_seconds = 30
+            providers = @{
+                antigravity = @{ status = "waiting"; sessions_count = 1; project = "ai_gauge"; summary = "Waiting for your response"; detail = "ai_gauge · Waiting for your response"; age_seconds = 14 }
+                claude_pro = @{ status = "working"; sessions_count = 1; project = "ai_gauge"; summary = "Running Bash"; detail = "ai_gauge · Running Bash"; age_seconds = 3 }
+                chatgpt_subscription = @{ status = "idle"; sessions_count = 0; project = "Codex"; summary = "Idle"; detail = ""; age_seconds = 940 }
+                cursor = @{ status = "idle"; sessions_count = 0; project = "Cursor IDE"; summary = "Idle"; detail = ""; age_seconds = $null }
+            }
+        }
         # Two independent components (like the real API): `announcement` = version notice banner, `promo` = ad toast
         announcement = @{
             type = "versao"
@@ -832,11 +994,82 @@ function Show-HudMenu {
     $menu.IsOpen = $true
 }
 
+$global:hudIdleSince = $null
+$global:hudManualOverride = $false
+
+function Test-AnyAgentActive ($data) {
+    if (-not $data) { return $false }
+    if ($data.activity) {
+        if (($data.activity.working_count -gt 0) -or ($data.activity.waiting_count -gt 0)) {
+            return $true
+        }
+    }
+    if ($data.groups) {
+        foreach ($g in $data.groups) {
+            if ($g.activity -and ($g.activity.state -eq "working" -or $g.activity.state -eq "waiting")) {
+                return $true
+            }
+        }
+    }
+    return $false
+}
+
+function Apply-HudAutoHidePolicy {
+    if (-not $global:isHudMode) {
+        $global:hudIdleSince = $null
+        $global:hudManualOverride = $false
+        if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
+            try { $window.Show() } catch {}
+        }
+        return
+    }
+    $cfg = Load-CurrentConfig
+    $autoHide = [bool]($cfg -and $cfg.hud_auto_hide)
+    if (-not $autoHide) {
+        $global:hudIdleSince = $null
+        $global:hudManualOverride = $false
+        if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
+            try { $window.Show() } catch {}
+        }
+        return
+    }
+    $showOnActivity = $true
+    if ($cfg -and $null -ne $cfg.hud_show_on_activity) {
+        $showOnActivity = [bool]$cfg.hud_show_on_activity
+    }
+    $hasActive = Test-AnyAgentActive $global:currentData
+    if ($showOnActivity -and $hasActive) {
+        $global:hudIdleSince = $null
+        $global:hudManualOverride = $false
+        if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
+            try { $window.Show() } catch {}
+        }
+        return
+    }
+    if ($global:hudManualOverride) {
+        if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
+            try { $window.Show() } catch {}
+        }
+        return
+    }
+    if ($null -eq $global:hudIdleSince) {
+        $global:hudIdleSince = Get-Date
+        return
+    }
+    if (((Get-Date) - $global:hudIdleSince).TotalSeconds -ge 12) {
+        if ($window -and $window.Visibility -eq [System.Windows.Visibility]::Visible) {
+            try { $window.Hide() } catch {}
+        }
+    }
+}
+
 function Toggle-HudMode {
     $workArea = [System.Windows.SystemParameters]::WorkArea
     if ($global:isHudMode) {
         # Switch back to Cockpit Mode
         $global:isHudMode = $false
+        $global:hudIdleSince = $null
+        $global:hudManualOverride = $false
         $hudView.Visibility = [System.Windows.Visibility]::Collapsed
         $cockpitView.Visibility = [System.Windows.Visibility]::Visible
         
@@ -853,10 +1086,18 @@ function Toggle-HudMode {
             $window.Top = [Math]::Max(0, ($workArea.Height - 640) / 2)
         }
         
+        if ($window.Visibility -ne [System.Windows.Visibility]::Visible) {
+            try { $window.Show() } catch {}
+        }
         Render-UI $global:currentData
+        if (((Get-Date) - $global:lastQuotaFetchAt).TotalSeconds -gt 15) {
+            Refresh-Data
+        }
     } else {
         # Switch to HUD Bar Mode
         $global:isHudMode = $true
+        $global:hudIdleSince = $null
+        $global:hudManualOverride = $false
         $global:prevLeft = $window.Left
         $global:prevTop = $window.Top
         
@@ -874,6 +1115,7 @@ function Toggle-HudMode {
         $window.Top = [Math]::Max(20, ($workArea.Height - $hudH) / 2)
         
         Render-HUD $global:currentData
+        Apply-HudAutoHidePolicy
     }
 }
 
@@ -1519,8 +1761,16 @@ function Render-UI ($data) {
     }
     
     $cacheInfo = if ($data.from_cache) { "Cache" } elseif ($DemoMode) { "Demo" } else { "Live" }
+    $pollSecs = Get-EffectivePollSeconds $data
+    $pollText = if ($pollSecs -ge 300) { "Polling 5 min (idle)" } else { "Polling ${pollSecs}s (active)" }
+    $actWork = if ($data.activity -and $null -ne $data.activity.working_count) { [int]$data.activity.working_count } else { 0 }
+    $actWait = if ($data.activity -and $null -ne $data.activity.waiting_count) { [int]$data.activity.waiting_count } else { 0 }
+    $sumParts = @()
+    if ($actWork -gt 0) { $sumParts += "$actWork working" }
+    if ($actWait -gt 0) { $sumParts += "$actWait waiting" }
+    $sumLabel = if ($sumParts.Count -gt 0) { $sumParts -join " · " } else { "All idle" }
     $txtAcc.Text = "$($data.account)  •  Plan $($data.plan)"
-    $txtUpdated.Text = "Updated at $($data.updated_at) ($cacheInfo)"
+    $txtUpdated.Text = "Updated at $($data.updated_at) ($cacheInfo) · $pollText · $sumLabel"
 
     # The version that is running, next to the title
     if ($data.version -and $txtAppName) {
@@ -1580,17 +1830,28 @@ function Render-UI ($data) {
         $provLabels = @{ antigravity = "ANTIGRAVITY"; claude_pro = "CLAUDE"; chatgpt_subscription = "CHATGPT"; cursor = "CURSOR"; github_copilot = "COPILOT"; gemini = "GEMINI"; openai = "OPENAI"; anthropic = "ANTHROPIC" }
         $badgeLabel = if ($provLabels.ContainsKey($provKey)) { $provLabels[$provKey] } else { "$provKey".ToUpper() }
 
+        $act = Get-ProviderActivity $data $provKey
+        $actStatus = if ($act -and $act.status) { "$($act.status)" } else { "idle" }
+        $cardBorderBrush = if ($actStatus -eq "waiting") {
+            $wb = Convert-HexToBrush "#F5A623"
+            $wb.Opacity = 0.55
+            $wb
+        } else {
+            New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2C, 0x2C, 0x30))
+        }
+
         $card = New-Object System.Windows.Controls.Border
         $card.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x1E, 0x1E, 0x22))
-        $card.BorderBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x2C, 0x2C, 0x30))
+        $card.BorderBrush = $cardBorderBrush
         $card.BorderThickness = New-Object System.Windows.Thickness(1)
         $card.CornerRadius = New-Object System.Windows.CornerRadius(8)
         $card.Padding = New-Object System.Windows.Thickness(14, 11, 14, 12)
         $card.Margin = New-Object System.Windows.Thickness(0, 0, 0, 10)
+        $card.ToolTip = Get-ActivityTooltip $cleanTitle $act $pollSecs
         
         $cardStack = New-Object System.Windows.Controls.StackPanel
 
-        # Card header INSIDE the card: group title (left) + provider badge (right)
+        # Card header INSIDE the card: group title (left) + live activity + provider tag (right)
         $headerGrid = New-Object System.Windows.Controls.Grid
         $hCol1 = New-Object System.Windows.Controls.ColumnDefinition; $hCol1.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
         $hCol2 = New-Object System.Windows.Controls.ColumnDefinition; $hCol2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Auto)
@@ -1606,14 +1867,45 @@ function Render-UI ($data) {
         [System.Windows.Controls.Grid]::SetColumn($gbTitle, 0)
         $headerGrid.Children.Add($gbTitle) | Out-Null
 
+        $rightHdr = New-Object System.Windows.Controls.StackPanel
+        $rightHdr.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+        $rightHdr.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+
+        $glyph = New-ActivityGlyph $actStatus $accentHex 10
+        $glyph.Margin = New-Object System.Windows.Thickness(0, 0, 4, 0)
+        $rightHdr.Children.Add($glyph) | Out-Null
+
+        $stTb = New-Object System.Windows.Controls.TextBlock
+        $stTb.Text = if ($actStatus -eq "waiting") { "Waiting" } elseif ($actStatus -eq "working") { "Working" } else { "Idle" }
+        $stTb.FontSize = 10
+        $stTb.FontWeight = [System.Windows.FontWeights]::Medium
+        $stTb.Foreground = if ($actStatus -eq "waiting") {
+            Convert-HexToBrush "#F5A623"
+        } elseif ($actStatus -eq "working") {
+            New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xE5, 0xE7, 0xEB))
+        } else {
+            New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x71, 0x71, 0x7A))
+        }
+        $stTb.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        $rightHdr.Children.Add($stTb) | Out-Null
+
+        $dotTb = New-Object System.Windows.Controls.TextBlock
+        $dotTb.Text = " · "
+        $dotTb.Foreground = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x52, 0x52, 0x5B))
+        $dotTb.FontSize = 10
+        $dotTb.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        $rightHdr.Children.Add($dotTb) | Out-Null
+
         $tagBadge = New-Object System.Windows.Controls.TextBlock
         $tagBadge.Text = $badgeLabel
         $tagBadge.Foreground = $accentBrush
         $tagBadge.FontSize = 8.5
         $tagBadge.FontWeight = [System.Windows.FontWeights]::Bold
         $tagBadge.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
-        [System.Windows.Controls.Grid]::SetColumn($tagBadge, 1)
-        $headerGrid.Children.Add($tagBadge) | Out-Null
+        $rightHdr.Children.Add($tagBadge) | Out-Null
+
+        [System.Windows.Controls.Grid]::SetColumn($rightHdr, 1)
+        $headerGrid.Children.Add($rightHdr) | Out-Null
         $cardStack.Children.Add($headerGrid) | Out-Null
 
         $hSep = New-Object System.Windows.Controls.Border
@@ -1621,6 +1913,22 @@ function Render-UI ($data) {
         $hSep.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x28, 0x28, 0x2E))
         $hSep.Margin = New-Object System.Windows.Thickness(0, 8, 0, 7)
         $cardStack.Children.Add($hSep) | Out-Null
+
+        if (($actStatus -eq "working" -or $actStatus -eq "waiting") -and $act -and $act.detail) {
+            $prefix = if ($actStatus -eq "waiting") { "Paused" } else { "Active" }
+            $ageTxt = if ($null -ne $act.age_seconds) { " · $($act.age_seconds)s ago" } else { "" }
+            $sessTb = New-Object System.Windows.Controls.TextBlock
+            $sessTb.Text = "$prefix · $($act.detail)$ageTxt"
+            $sessTb.FontSize = 10
+            $sessTb.Foreground = if ($actStatus -eq "waiting") {
+                Convert-HexToBrush "#F5B84D"
+            } else {
+                New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xA1, 0xA1, 0xAA))
+            }
+            $sessTb.TextTrimming = [System.Windows.TextTrimming]::CharacterEllipsis
+            $sessTb.Margin = New-Object System.Windows.Thickness(0, 0, 0, 7)
+            $cardStack.Children.Add($sessTb) | Out-Null
+        }
         
         $idx = 0
         foreach ($b in $g.buckets) {
@@ -1763,20 +2071,39 @@ function Render-HUD ($data) {
     }
     
     $sections = @(Get-HudSections $data)
+    $pollSecs = Get-EffectivePollSeconds $data
     foreach ($sec in $sections) {
         $accentHex = $sec.AccentHex
         $accentBrush = $sec.AccentBrush
         $cleanTitle = $sec.Title
+        $act = Get-ProviderActivity $data $sec.Key
+        $actStatus = if ($act -and $act.status) { "$($act.status)" } else { "idle" }
 
         # Section Frame Container Grid (Mac-aligned 102px width)
         $secGrid = New-Object System.Windows.Controls.Grid
         $secGrid.Width = 102
         $secGrid.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)
         $secGrid.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        $secGrid.ToolTip = Get-ActivityTooltip $cleanTitle $act $pollSecs
 
-        # Outer Rounded Border (Emoldura toda a seção com fundo transparente para evitar corte com a badge)
+        # Outer Rounded Border (Proposta A: color/opacity responds to working / waiting / idle)
+        $frameBorderBrush = if ($actStatus -eq "waiting") {
+            $wb = Convert-HexToBrush "#F5A623"
+            $pulseB = New-Object System.Windows.Media.Animation.DoubleAnimation(1.0, 0.48, [TimeSpan]::FromSeconds(0.9))
+            $pulseB.AutoReverse = $true
+            $pulseB.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever
+            $wb.BeginAnimation([System.Windows.Media.Brush]::OpacityProperty, $pulseB)
+            $wb
+        } elseif ($actStatus -eq "working") {
+            Convert-HexToBrush $accentHex
+        } else {
+            $ib = Convert-HexToBrush $accentHex
+            $ib.Opacity = 0.42
+            $ib
+        }
+
         $secBorder = New-Object System.Windows.Controls.Border
-        $secBorder.BorderBrush = $accentBrush
+        $secBorder.BorderBrush = $frameBorderBrush
         $secBorder.BorderThickness = New-Object System.Windows.Thickness(1.6)
         $secBorder.CornerRadius = New-Object System.Windows.CornerRadius(12)
         $secBorder.Margin = New-Object System.Windows.Thickness(0, 7, 0, 0)
@@ -1788,19 +2115,38 @@ function Render-HUD ($data) {
         $secBorder.Child = $secStack
         $secGrid.Children.Add($secBorder) | Out-Null
 
-        # Cut-out Title on Top Line (Design idêntico ao Mac)
+        # Cut-out Title + Live Glyph on Top Line (Proposta A)
         $titleBadge = New-Object System.Windows.Controls.Border
         $titleBadge.Background = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x18, 0x18, 0x18))
-        $titleBadge.Padding = New-Object System.Windows.Thickness(5, 0, 5, 0)
+        $titleBadge.Padding = New-Object System.Windows.Thickness(4, 0, 4, 0)
         $titleBadge.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
         $titleBadge.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
 
+        $titleStack = New-Object System.Windows.Controls.StackPanel
+        $titleStack.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+        $titleStack.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+
+        $hdrGlyph = New-ActivityGlyph $actStatus $accentHex 9
+        $hdrGlyph.Margin = New-Object System.Windows.Thickness(0, 0, 3.5, 0)
+        $titleStack.Children.Add($hdrGlyph) | Out-Null
+
         $titleTb = New-Object System.Windows.Controls.TextBlock
         $titleTb.Text = $cleanTitle
-        $titleTb.Foreground = $accentBrush
-        $titleTb.FontSize = 10.5
+        $titleBrush = if ($actStatus -eq "waiting") {
+            Convert-HexToBrush "#F5A623"
+        } elseif ($actStatus -eq "working") {
+            Convert-HexToBrush $accentHex
+        } else {
+            $tb = Convert-HexToBrush $accentHex
+            $tb.Opacity = 0.75
+            $tb
+        }
+        $titleTb.Foreground = $titleBrush
+        $titleTb.FontSize = if ($cleanTitle.Length -ge 10) { 9.8 } else { 10.2 }
         $titleTb.FontWeight = [System.Windows.FontWeights]::SemiBold
-        $titleBadge.Child = $titleTb
+        $titleStack.Children.Add($titleTb) | Out-Null
+
+        $titleBadge.Child = $titleStack
         $secGrid.Children.Add($titleBadge) | Out-Null
 
         foreach ($itemWrap in $sec.Items) {
@@ -2251,6 +2597,15 @@ function Show-SettingsDialog {
         
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Name="SettingsStack" Margin="0,0,6,0">
+                <!-- HUD Side Bar Behavior -->
+                <Border Background="#1E1E22" BorderBrush="#2C2C30" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="HUD Side Bar Behavior" Foreground="#A1A1AA" FontSize="10" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <CheckBox Name="ChkHudAutoHide" Content="Auto-hide HUD when idle" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <CheckBox Name="ChkHudShowOnActivity" Content="Show HUD automatically while an agent is working or waiting" Foreground="#CBD5E1" FontSize="10.5" Margin="18,6,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Antigravity -->
                 <Border Background="#1E1E22" BorderBrush="#2C2C30" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
                     <StackPanel>
@@ -2436,10 +2791,27 @@ function Show-SettingsDialog {
     $btnCfgScan = $cfgWin.FindName("BtnCfgScan")
     $btnCfgHud = $cfgWin.FindName("BtnCfgHud")
     $btnCancel = $cfgWin.FindName("BtnCancel")
+    $chkHudAutoHide = $cfgWin.FindName("ChkHudAutoHide")
+    $chkHudShowOnActivity = $cfgWin.FindName("ChkHudShowOnActivity")
 
     $currentCfg = Load-CurrentConfig
     $pData = if ($currentCfg -and $currentCfg.providers) { $currentCfg.providers } else { @{} }
     $sColors = if ($currentCfg -and $currentCfg.section_colors) { $currentCfg.section_colors } else { @{} }
+
+    $autoHideEnabled = [bool]($currentCfg -and $currentCfg.hud_auto_hide)
+    $showOnActEnabled = if ($currentCfg -and $null -ne $currentCfg.hud_show_on_activity) { [bool]$currentCfg.hud_show_on_activity } else { $true }
+    $chkHudAutoHide.IsChecked = $autoHideEnabled
+    $chkHudShowOnActivity.IsChecked = $showOnActEnabled
+    $chkHudShowOnActivity.IsEnabled = $autoHideEnabled
+    $chkHudShowOnActivity.Opacity = if ($autoHideEnabled) { 1.0 } else { 0.5 }
+    $chkHudAutoHide.Add_Checked({
+        $chkHudShowOnActivity.IsEnabled = $true
+        $chkHudShowOnActivity.Opacity = 1.0
+    })
+    $chkHudAutoHide.Add_Unchecked({
+        $chkHudShowOnActivity.IsEnabled = $false
+        $chkHudShowOnActivity.Opacity = 0.5
+    })
 
     # Helper: Populate Swatches
     $chosenColors = @{}
@@ -2683,6 +3055,8 @@ function Show-SettingsDialog {
         CfgWin       = $cfgWin
         SwatchPanels = $swatchPanels
         ApiTestState = $apiTestState
+        ChkHudAutoHide = $chkHudAutoHide
+        ChkHudShowOnActivity = $chkHudShowOnActivity
         ChkAnti      = $chkAnti
         ChkClaudePro = $chkClaudePro
         TxtClaudePro = $txtClaudeProToken
@@ -2767,6 +3141,8 @@ function Show-SettingsDialog {
             section_colors = $colorsOut
             refresh_interval_seconds = 30
             hidden_hud_gauges = @(Get-HiddenGauges)
+            hud_auto_hide = [bool]$st.ChkHudAutoHide.IsChecked
+            hud_show_on_activity = [bool]$st.ChkHudShowOnActivity.IsChecked
             onboarding_completed = $true
         }
         
@@ -2783,6 +3159,7 @@ function Show-SettingsDialog {
         $st.CfgWin.Close()
         # Repaint immediately with the new colors (cockpit + HUD), then fetch fresh data
         try { Redraw-All } catch { Write-AppError $_.Exception }
+        try { Apply-HudAutoHidePolicy } catch {}
         Refresh-Data
     })
     
@@ -2805,12 +3182,20 @@ function Redraw-All {
     if ($global:currentData) {
         Render-UI $global:currentData
         if ($global:isHudMode) { Render-HUD $global:currentData }
+        Apply-HudAutoHidePolicy
     }
 }
 
 function Complete-QuotaFetch ($newData) {
     $wasScan = $global:lastFetchWasScan
     $global:lastFetchWasScan = $false
+    $global:lastQuotaFetchAt = Get-Date
+
+    $targetPoll = Get-EffectivePollSeconds $newData
+    if ($targetPoll -ne $global:currentPollSeconds -and $timer) {
+        $global:currentPollSeconds = $targetPoll
+        $timer.Interval = [TimeSpan]::FromSeconds($targetPoll)
+    }
 
     $hasGroups = ($newData -and $newData.groups -and $newData.groups.Count -gt 0)
     $nodeMissing = ($newData -and $newData.node_missing)
@@ -2902,10 +3287,90 @@ $window.Dispatcher.Add_UnhandledException({
     $e.Handled = $true
 })
 
-# Auto-refresh Timer (30s)
+# Adaptive Auto-refresh Timer (30s active / 5 min idle) + Passive 10s Activity Probe
+$global:currentPollSeconds = 30
+$global:lastQuotaFetchAt = [DateTime]::MinValue
+$global:activityFetch = $null
+
 $timer = New-Object System.Windows.Threading.DispatcherTimer
 $timer.Interval = [TimeSpan]::FromSeconds(30)
 $timer.Add_Tick({ Refresh-Data })
 $timer.Start()
+
+$global:activityPoll = New-Object System.Windows.Threading.DispatcherTimer
+$global:activityPoll.Interval = [TimeSpan]::FromMilliseconds(150)
+$global:activityPoll.Add_Tick({
+    $af = $global:activityFetch
+    if (-not $af) { $global:activityPoll.Stop(); return }
+    $timedOut = (((Get-Date) - $af.Started).TotalSeconds -gt 8)
+    if (-not $af.Proc.HasExited -and -not $timedOut) { return }
+    $global:activityPoll.Stop()
+    $global:activityFetch = $null
+    try {
+        if (-not $af.Proc.HasExited) {
+            $af.Proc.Kill()
+        } else {
+            $af.Proc.WaitForExit()
+            if ($af.Proc.ExitCode -eq 0) {
+                $json = $af.Out.Result
+                if ($json -and $global:currentData) {
+                    $act = $json | ConvertFrom-Json
+                    if ($act) {
+                        $prevFp = Get-ActivityFingerprint $global:currentData.activity
+                        $nextFp = Get-ActivityFingerprint $act
+                        if ($global:currentData.PSObject.Properties["activity"]) {
+                            $global:currentData.activity = $act
+                        } else {
+                            Add-Member -InputObject $global:currentData -NotePropertyName "activity" -NotePropertyValue $act -Force
+                        }
+                        if ($global:currentData.PSObject.Properties["recommended_poll_seconds"]) {
+                            $global:currentData.recommended_poll_seconds = $act.recommended_poll_seconds
+                        } else {
+                            Add-Member -InputObject $global:currentData -NotePropertyName "recommended_poll_seconds" -NotePropertyValue $act.recommended_poll_seconds -Force
+                        }
+                        $targetPoll = Get-EffectivePollSeconds $global:currentData
+                        if ($targetPoll -ne $global:currentPollSeconds) {
+                            $global:currentPollSeconds = $targetPoll
+                            $timer.Interval = [TimeSpan]::FromSeconds($targetPoll)
+                        }
+                        if ($prevFp -ne $nextFp) {
+                            Redraw-All
+                        } else {
+                            Apply-HudAutoHidePolicy
+                        }
+                        if ($act.transition_to_idle -or $act.transition_to_active) {
+                            Refresh-Data
+                        }
+                    }
+                }
+            }
+        }
+    } catch {}
+})
+
+$global:activityTimer = New-Object System.Windows.Threading.DispatcherTimer
+$global:activityTimer.Interval = [TimeSpan]::FromSeconds(10)
+$global:activityTimer.Add_Tick({
+    if ($DemoMode -or -not $NodeExe -or $global:quotaFetch -or $global:activityFetch -or -not $global:currentData) { return }
+    try {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $NodeExe
+        $psi.Arguments = "`"$EngineScript`" --activity-only"
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $global:activityFetch = @{
+            Proc    = $proc
+            Out     = $proc.StandardOutput.ReadToEndAsync()
+            Err     = $proc.StandardError.ReadToEndAsync()
+            Started = Get-Date
+        }
+        $global:activityPoll.Start()
+    } catch {}
+})
+$global:activityTimer.Start()
 
 $window.ShowDialog() | Out-Null

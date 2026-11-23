@@ -10,11 +10,43 @@ struct Bucket: Codable {
     let detail: String?
 }
 
+struct ProviderActivity: Codable, Equatable {
+    let status: String
+    let sessions_count: Int?
+    let project: String?
+    let summary: String?
+    let detail: String?
+    let updated_at_ms: Double?
+    let age_seconds: Int?
+}
+
+struct ActivitySummary: Codable, Equatable {
+    let overall_status: String
+    let active_count: Int?
+    let working_count: Int?
+    let waiting_count: Int?
+    let recommended_poll_seconds: Int?
+    let transition_to_idle: Bool?
+    let transition_to_active: Bool?
+    let checked_at: Double?
+    let providers: [String: ProviderActivity]?
+
+    var fingerprint: String {
+        let keys = (providers ?? [:]).keys.sorted()
+        let pStr = keys.map { k in
+            let v = providers?[k]
+            return "\(k):\(v?.status ?? ""):\(v?.detail ?? "")"
+        }.joined(separator: "|")
+        return "\(overall_status)|\(recommended_poll_seconds ?? 30)|\(pStr)"
+    }
+}
+
 struct Group: Codable {
     let name: String
     let description: String?
     let provider: String?
     let buckets: [Bucket]
+    var activity: ProviderActivity?
 }
 
 class UrlButton: NSButton {
@@ -65,6 +97,8 @@ struct QuotaData: Codable {
     var update: UpdateInfo?
     var announcement: AnnouncementInfo?
     var promo: AnnouncementInfo?
+    var activity: ActivitySummary?
+    var recommended_poll_seconds: Int?
 }
 
 extension QuotaData {
@@ -114,7 +148,9 @@ struct GaugeSection {
     let name: String
     let subtitle: String?
     let tag: String // "ANTIGRAVITY", "AI STUDIO", "OPENAI", "CLAUDE"
+    let providerKey: String
     let accentColor: NSColor
+    let activity: ProviderActivity?
     var items: [GaugeItem]
 }
 
@@ -149,6 +185,8 @@ struct AppConfig: Codable {
     var hidden_hud_gauges: [String]?
     var onboarding_completed: Bool?
     var section_colors: [String: String]?
+    var hud_auto_hide: Bool?
+    var hud_show_on_activity: Bool?
 }
 
 struct PastelColor {
@@ -197,6 +235,72 @@ struct PastelTheme {
 }
 
 extension QuotaData {
+    static func providerKey(groupName: String, provider: String?) -> String {
+        let p = (provider ?? "").lowercased()
+        let n = groupName.lowercased()
+        if n.contains("claude and gpt") || p.contains("antigravity") || n.contains("antigravity") || n.contains("argon") {
+            return "antigravity"
+        } else if p.contains("anthropic") || n.contains("anthropic") {
+            return "anthropic"
+        } else if p.contains("claude") || n.contains("claude") {
+            return "claude_pro"
+        } else if p.contains("chatgpt") || n.contains("chatgpt") {
+            return "chatgpt_subscription"
+        } else if p.contains("cursor") || n.contains("cursor") {
+            return "cursor"
+        } else if p.contains("copilot") || n.contains("copilot") || p.contains("github") {
+            return "github_copilot"
+        } else if p.contains("studio") || p == "gemini" || p == "gemini_api" || n.contains("google gemini api") || n.contains("ai studio") || n.contains("gemini api") {
+            return "gemini"
+        } else if p.contains("openai") || n.contains("openai") {
+            return "openai"
+        }
+        return "other"
+    }
+
+    var effectivePollSeconds: Int {
+        return activity?.recommended_poll_seconds ?? recommended_poll_seconds ?? 30
+    }
+
+    func resolvedActivity(for providerKey: String, group: Group? = nil) -> ProviderActivity? {
+        return activity?.providers?[providerKey] ?? group?.activity
+    }
+
+    func formatActivityTooltip(name: String, act: ProviderActivity?) -> String {
+        let st = act?.status ?? "idle"
+        let statusText: String
+        switch st {
+        case "working": statusText = "Working"
+        case "waiting": statusText = "Waiting for input"
+        default: statusText = "Idle"
+        }
+        let pollSecs = effectivePollSeconds
+        let pollLabel = pollSecs >= 300 ? "5 min (idle)" : "\(pollSecs)s (active)"
+        var lines = ["\(name) · \(statusText)"]
+        if let d = act?.detail, !d.isEmpty {
+            lines.append(d)
+        } else if let p = act?.project, !p.isEmpty {
+            lines.append("Project: \(p)")
+        }
+        if let age = act?.age_seconds, st != "idle" {
+            lines.append("Updated \(age)s ago · Polling: \(pollLabel)")
+        } else {
+            lines.append("Polling: \(pollLabel)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    func cardSessionLine(for group: Group) -> (text: String, status: String)? {
+        let pk = QuotaData.providerKey(groupName: group.name, provider: group.provider)
+        let act = resolvedActivity(for: pk, group: group)
+        guard let a = act, (a.status == "working" || a.status == "waiting") else { return nil }
+        let rawDetail = (a.detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawDetail.isEmpty else { return nil }
+        let prefix = (a.status == "waiting") ? "Paused" : "Active"
+        let ageStr = (a.age_seconds != nil) ? " · \(a.age_seconds!)s ago" : ""
+        return ("\(prefix) · \(rawDetail)\(ageStr)", a.status)
+    }
+
     var gaugeSections: [GaugeSection] {
         var sections: [GaugeSection] = []
         let customColors = QuotaManager.loadConfig().section_colors
@@ -220,26 +324,16 @@ extension QuotaData {
         var otherGroups: [Group] = []
         
         for g in groups {
-            let p = (g.provider ?? "").lowercased()
-            let n = g.name.lowercased()
-            if n.contains("claude and gpt") || p.contains("antigravity") || n.contains("antigravity") || n.contains("argon") {
-                antiGroups.append(g)
-            } else if p.contains("claude") || n.contains("claude") {
-                claudeProGroups.append(g)
-            } else if p.contains("chatgpt") || n.contains("chatgpt") {
-                chatgptGroups.append(g)
-            } else if p.contains("cursor") || n.contains("cursor") {
-                cursorGroups.append(g)
-            } else if p.contains("copilot") || n.contains("copilot") || p.contains("github") {
-                copilotGroups.append(g)
-            } else if p.contains("studio") || p == "gemini" || p == "gemini_api" || n.contains("google gemini api") || n.contains("ai studio") {
-                studioGroups.append(g)
-            } else if p.contains("openai") || n.contains("openai") {
-                openGroups.append(g)
-            } else if p.contains("anthropic") || n.contains("anthropic") {
-                antGroups.append(g)
-            } else {
-                otherGroups.append(g)
+            switch QuotaData.providerKey(groupName: g.name, provider: g.provider) {
+            case "antigravity": antiGroups.append(g)
+            case "claude_pro": claudeProGroups.append(g)
+            case "chatgpt_subscription": chatgptGroups.append(g)
+            case "cursor": cursorGroups.append(g)
+            case "github_copilot": copilotGroups.append(g)
+            case "gemini": studioGroups.append(g)
+            case "openai": openGroups.append(g)
+            case "anthropic": antGroups.append(g)
+            default: otherGroups.append(g)
             }
         }
         
@@ -279,7 +373,9 @@ extension QuotaData {
                 name: "Antigravity",
                 subtitle: "Live & Headless",
                 tag: "ANTIGRAVITY",
+                providerKey: "antigravity",
                 accentColor: antiColor,
+                activity: resolvedActivity(for: "antigravity", group: antiGroups.first),
                 items: items
             ))
         }
@@ -312,7 +408,9 @@ extension QuotaData {
                 name: "Claude",
                 subtitle: "Desktop Session",
                 tag: "CLAUDE_PRO",
+                providerKey: "claude_pro",
                 accentColor: claudeColor,
+                activity: resolvedActivity(for: "claude_pro", group: claudeProGroups.first),
                 items: items
             ))
         }
@@ -345,7 +443,9 @@ extension QuotaData {
                 name: "ChatGPT",
                 subtitle: "Web Session",
                 tag: "CHATGPT",
+                providerKey: "chatgpt_subscription",
                 accentColor: chatgptColor,
+                activity: resolvedActivity(for: "chatgpt_subscription", group: chatgptGroups.first),
                 items: items
             ))
         }
@@ -377,7 +477,9 @@ extension QuotaData {
                 name: "Cursor",
                 subtitle: "Cursor IDE",
                 tag: "CURSOR",
+                providerKey: "cursor",
                 accentColor: cursorColor,
+                activity: resolvedActivity(for: "cursor", group: cursorGroups.first),
                 items: items
             ))
         }
@@ -409,7 +511,9 @@ extension QuotaData {
                 name: "Copilot",
                 subtitle: "VS Code",
                 tag: "COPILOT",
+                providerKey: "github_copilot",
                 accentColor: copilotColor,
+                activity: resolvedActivity(for: "github_copilot", group: copilotGroups.first),
                 items: items
             ))
         }
@@ -448,7 +552,9 @@ extension QuotaData {
                 name: "Gemini",
                 subtitle: "Gemini API",
                 tag: "AI STUDIO",
+                providerKey: "gemini",
                 accentColor: geminiColor,
+                activity: resolvedActivity(for: "gemini", group: studioGroups.first),
                 items: items
             ))
         }
@@ -473,7 +579,9 @@ extension QuotaData {
                 name: "OpenAI API",
                 subtitle: "GPT Models",
                 tag: "OPENAI",
+                providerKey: "openai",
                 accentColor: openColor,
+                activity: resolvedActivity(for: "openai", group: openGroups.first),
                 items: items
             ))
         }
@@ -498,7 +606,9 @@ extension QuotaData {
                 name: "Anthropic Claude",
                 subtitle: "Claude API",
                 tag: "CLAUDE",
+                providerKey: "anthropic",
                 accentColor: antColor,
+                activity: resolvedActivity(for: "anthropic", group: antGroups.first),
                 items: items
             ))
         }
@@ -523,7 +633,9 @@ extension QuotaData {
                 name: "Outros Provedores",
                 subtitle: nil,
                 tag: "OUTROS",
+                providerKey: "other",
                 accentColor: NSColor(white: 0.7, alpha: 1.0),
+                activity: otherGroups.first?.activity,
                 items: items
             ))
         }
@@ -846,20 +958,15 @@ class QuotaManager {
     
     private static var startupSent = false
 
-    static func fetchLive() -> QuotaData? {
+    private static func configureNodeProcess(_ task: Process, args: [String]) {
         let nodeBin = findNodeBinary()
-        let task = Process()
-        // `--startup` tells the engine the app was just opened: it then contacts the AI Gauge API once
-        // (version/announcements). Later refreshes only read the local cache (the engine re-checks after 24h).
-        let startupArgs = startupSent ? [] : ["--startup"]
         if nodeBin.hasPrefix("/") {
             task.executableURL = URL(fileURLWithPath: nodeBin)
-            task.arguments = [engineScript] + startupArgs
+            task.arguments = [engineScript] + args
         } else {
             task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            task.arguments = ["node", engineScript] + startupArgs
+            task.arguments = ["node", engineScript] + args
         }
-        
         var env = ProcessInfo.processInfo.environment
         var searchPaths: [String] = [
             "/opt/homebrew/bin",
@@ -883,6 +990,31 @@ class QuotaManager {
         env["HOME"] = NSHomeDirectory()
         env["USER"] = NSUserName()
         task.environment = env
+    }
+
+    static func fetchActivityOnly() -> ActivitySummary? {
+        let task = Process()
+        configureNodeProcess(task, args: ["--activity-only"])
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if task.terminationStatus == 0 {
+                return try? JSONDecoder().decode(ActivitySummary.self, from: data)
+            }
+        } catch {}
+        return nil
+    }
+
+    static func fetchLive() -> QuotaData? {
+        let task = Process()
+        // `--startup` tells the engine the app was just opened: it then contacts the AI Gauge API once
+        // (version/announcements). Later refreshes only read the local cache (the engine re-checks after 24h).
+        let startupArgs = startupSent ? [] : ["--startup"]
+        configureNodeProcess(task, args: startupArgs)
         
         let pipe = Pipe()
         task.standardOutput = pipe
@@ -1527,19 +1659,124 @@ class PastelColorPickerView: NSView {
     }
 }
 
-class SectionFrameView: NSView {
-    let title: String
+func drawActivityGlyph(in ctx: CGContext, center: CGPoint, radius: CGFloat, status: String, accentColor: NSColor, phase: Double) {
+    let amber = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+    ctx.saveGState()
+    if status == "working" {
+        ctx.setStrokeColor(accentColor.withAlphaComponent(0.24).cgColor)
+        ctx.setLineWidth(1.5)
+        ctx.strokeEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+
+        let arcPath = CGMutablePath()
+        let start = CGFloat(-phase)
+        arcPath.addArc(center: center, radius: radius, startAngle: start, endAngle: start + CGFloat(Double.pi * 0.85), clockwise: false)
+        ctx.setStrokeColor(accentColor.cgColor)
+        ctx.setLineWidth(1.7)
+        ctx.setLineCap(.round)
+        ctx.addPath(arcPath)
+        ctx.strokePath()
+    } else if status == "waiting" {
+        let cycle = (phase.truncatingRemainder(dividingBy: Double.pi * 2.0)) / (Double.pi * 2.0)
+        let ringR = radius * CGFloat(0.65 + cycle * 0.65)
+        let ringAlpha = CGFloat(max(0.0, 0.72 * (1.0 - cycle)))
+        ctx.setStrokeColor(amber.withAlphaComponent(ringAlpha).cgColor)
+        ctx.setLineWidth(1.2)
+        ctx.strokeEllipse(in: CGRect(x: center.x - ringR, y: center.y - ringR, width: ringR * 2, height: ringR * 2))
+
+        let dotAlpha = CGFloat(0.68 + 0.32 * (0.5 + 0.5 * sin(phase)))
+        let dotR = radius * 0.62
+        ctx.setFillColor(amber.withAlphaComponent(dotAlpha).cgColor)
+        ctx.fillEllipse(in: CGRect(x: center.x - dotR, y: center.y - dotR, width: dotR * 2, height: dotR * 2))
+    } else {
+        let idleR = radius * 0.66
+        ctx.setStrokeColor(NSColor(white: 0.48, alpha: 0.75).cgColor)
+        ctx.setLineWidth(1.25)
+        ctx.strokeEllipse(in: CGRect(x: center.x - idleR, y: center.y - idleR, width: idleR * 2, height: idleR * 2))
+    }
+    ctx.restoreGState()
+}
+
+class ActivityGlyphView: NSView {
+    let status: String
     let accentColor: NSColor
-    
-    init(frame: NSRect, title: String, accentColor: NSColor) {
-        self.title = title
+    private var animTimer: Timer?
+    private var phase: Double = 0.0
+
+    init(frame: NSRect, status: String, accentColor: NSColor) {
+        self.status = status
         self.accentColor = accentColor
         super.init(frame: frame)
         self.wantsLayer = true
     }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        animTimer?.invalidate()
+        animTimer = nil
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            animTimer?.invalidate()
+            animTimer = nil
+        } else if (status == "working" || status == "waiting") && animTimer == nil {
+            animTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                self.phase += (self.status == "working") ? 0.28 : 0.18
+                self.needsDisplay = true
+            }
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        let r = min(bounds.width, bounds.height) * 0.36
+        drawActivityGlyph(in: ctx, center: CGPoint(x: bounds.midX, y: bounds.midY), radius: r, status: status, accentColor: accentColor, phase: phase)
+    }
+}
+
+class SectionFrameView: NSView {
+    let title: String
+    let accentColor: NSColor
+    let activityStatus: String
+    private var animTimer: Timer?
+    private var phase: Double = 0.0
+    
+    init(frame: NSRect, title: String, accentColor: NSColor, activityStatus: String = "idle", tooltipText: String? = nil) {
+        self.title = title
+        self.accentColor = accentColor
+        self.activityStatus = activityStatus
+        super.init(frame: frame)
+        self.wantsLayer = true
+        self.toolTip = tooltipText
+    }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        animTimer?.invalidate()
+        animTimer = nil
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            animTimer?.invalidate()
+            animTimer = nil
+        } else if (activityStatus == "working" || activityStatus == "waiting") && animTimer == nil {
+            animTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                self.phase += (self.activityStatus == "working") ? 0.28 : 0.18
+                self.needsDisplay = true
+            }
+        }
     }
     
     override var isFlipped: Bool { return true }
@@ -1548,13 +1785,32 @@ class SectionFrameView: NSView {
         super.draw(dirtyRect)
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         
-        let titleFont = NSFont.systemFont(ofSize: 11.5, weight: .semibold)
+        let amber = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+        let borderColor: NSColor
+        let titleColor: NSColor
+        if activityStatus == "waiting" {
+            let pulse = 0.52 + 0.48 * (0.5 + 0.5 * sin(phase))
+            borderColor = amber.withAlphaComponent(CGFloat(pulse))
+            titleColor = amber
+        } else if activityStatus == "working" {
+            borderColor = accentColor
+            titleColor = accentColor
+        } else {
+            borderColor = accentColor.withAlphaComponent(0.42)
+            titleColor = accentColor.withAlphaComponent(0.75)
+        }
+
+        let fontSize: CGFloat = title.count >= 10 ? 10.0 : 10.5
+        let titleFont = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .font: titleFont,
-            .foregroundColor: accentColor
+            .foregroundColor: titleColor
         ]
         let titleStr = title as NSString
         let titleSize = titleStr.size(withAttributes: titleAttrs)
+        let glyphDiameter: CGFloat = 8.0
+        let glyphGap: CGFloat = 4.0
+        let headerContentW = glyphDiameter + glyphGap + titleSize.width
         
         let strokeW: CGFloat = 1.8
         let r: CGFloat = 12.0
@@ -1568,11 +1824,12 @@ class SectionFrameView: NSView {
         )
         
         let cx = bounds.midX
-        let halfGap = (titleSize.width / 2.0) + 5.0
+        let maxHalfGap = max(12.0, (bounds.width / 2.0) - r - 1.0)
+        let halfGap = min(maxHalfGap, (headerContentW / 2.0) + 4.5)
         let gapStart = cx - halfGap
         let gapEnd = cx + halfGap
         
-        // Rounded border with open top gap for the title
+        // Rounded border with open top gap for the status glyph + title
         let path = CGMutablePath()
         path.move(to: CGPoint(x: gapEnd, y: boxRect.minY))
         path.addLine(to: CGPoint(x: boxRect.maxX - r, y: boxRect.minY))
@@ -1601,15 +1858,19 @@ class SectionFrameView: NSView {
         )
         path.addLine(to: CGPoint(x: gapStart, y: boxRect.minY))
         
-        ctx.setStrokeColor(accentColor.cgColor)
+        ctx.setStrokeColor(borderColor.cgColor)
         ctx.setLineWidth(strokeW)
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
         ctx.addPath(path)
         ctx.strokePath()
         
-        // Draw title text exactly centered on the top gap line
-        let textX = cx - (titleSize.width / 2.0)
+        // Draw live activity glyph + title centered on the top gap line
+        let contentStartX = cx - (headerContentW / 2.0)
+        let glyphCenter = CGPoint(x: contentStartX + (glyphDiameter / 2.0), y: topY)
+        drawActivityGlyph(in: ctx, center: glyphCenter, radius: 3.6, status: activityStatus, accentColor: accentColor, phase: phase)
+
+        let textX = contentStartX + glyphDiameter + glyphGap
         let textY = topY - (titleSize.height / 2.0)
         titleStr.draw(at: CGPoint(x: textX, y: textY), withAttributes: titleAttrs)
     }
@@ -1630,12 +1891,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var isAlwaysOnTop: Bool = true
     
     var autoRefreshTimer: Timer?
+    var activityProbeTimer: Timer?
+    var currentPollInterval: TimeInterval = 30.0
+    var lastQuotaFetchDate: Date = .distantPast
+    var hudIdleSince: Date?
+    var hudManualOverride: Bool = false
     var refreshBtn: NSButton?
     var isRefreshing: Bool = false
     var isFirstLaunch: Bool = true
     var latestQuota: QuotaData?
     
     // Settings fields
+    var hudAutoHideCheck: NSButton?
+    var hudShowOnActivityCheck: NSButton?
     var geminiCheck: NSButton?
     var geminiKeyField: NSTextField?
     var geminiTestBtn: NSButton?
@@ -1702,6 +1970,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let force = CommandLine.arguments.contains("--force")
         if let initialQuota = QuotaManager.loadQuota(force: force, maxRetries: 3) {
             self.latestQuota = initialQuota
+            self.lastQuotaFetchDate = Date()
+            self.currentPollInterval = TimeInterval(initialQuota.effectivePollSeconds)
             renderCurrentMode()
             startAutoRefreshTimer()
             // Settings never open by themselves: an empty screen already explains what to do (and has a button)
@@ -1866,19 +2136,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 NSApp.activate(ignoringOtherApps: true)
                 fullWindow?.makeKeyAndOrderFront(nil)
                 fullWindow?.orderFrontRegardless()
+                if Date().timeIntervalSince(lastQuotaFetchDate) > 15 {
+                    performRefresh(animated: false)
+                }
             }
         } else {
             if let win = hudWindow, win.isVisible {
+                hudManualOverride = false
                 win.orderOut(nil)
             } else {
+                hudManualOverride = true
+                hudIdleSince = nil
                 renderCurrentMode()
                 hudWindow?.orderFront(nil)
+                if Date().timeIntervalSince(lastQuotaFetchDate) > 15 {
+                    performRefresh(animated: false)
+                }
             }
         }
     }
     
     func updateStatusItemTitle() {
-        guard let quota = latestQuota else { return }
+        guard let quota = latestQuota, let button = statusItem?.button else { return }
         var minPct = 100
         var hasValidBucket = false
         for g in quota.groups {
@@ -1889,17 +2168,138 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
         }
-        if hasValidBucket && minPct < 100 {
-            statusItem?.button?.title = " \(minPct)%"
+        let baseTitle = (hasValidBucket && minPct < 100) ? " \(minPct)%" : ""
+        let overall = quota.activity?.overall_status ?? "idle"
+        let attr = NSMutableAttributedString()
+        if !baseTitle.isEmpty {
+            attr.append(NSAttributedString(
+                string: baseTitle,
+                attributes: [.font: NSFont.menuBarFont(ofSize: 0)]
+            ))
+        }
+        if overall == "waiting" {
+            let amber = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+            attr.append(NSAttributedString(
+                string: " ●",
+                attributes: [.foregroundColor: amber, .font: NSFont.systemFont(ofSize: 9.5, weight: .bold)]
+            ))
+        } else if overall == "working" {
+            let healthy = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            attr.append(NSAttributedString(
+                string: " ●",
+                attributes: [.foregroundColor: healthy, .font: NSFont.systemFont(ofSize: 9.5, weight: .bold)]
+            ))
+        }
+        button.attributedTitle = attr
+
+        let pollSecs = quota.effectivePollSeconds
+        let pollText = pollSecs >= 300 ? "5 min (idle)" : "\(pollSecs)s (active)"
+        if overall == "waiting" {
+            let c = quota.activity?.waiting_count ?? 1
+            button.toolTip = "AI Gauge · \(c) waiting for your input · Polling: \(pollText)"
+        } else if overall == "working" {
+            let c = quota.activity?.working_count ?? 1
+            button.toolTip = "AI Gauge · \(c) agent working · Polling: \(pollText)"
         } else {
-            statusItem?.button?.title = ""
+            button.toolTip = "AI Gauge · All agents idle · Polling: \(pollText)"
         }
     }
-    
-    func startAutoRefreshTimer() {
+
+    private func scheduleAdaptiveRefreshTimer() {
         autoRefreshTimer?.invalidate()
-        autoRefreshTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+        autoRefreshTimer = Timer.scheduledTimer(withTimeInterval: currentPollInterval, repeats: true) { [weak self] _ in
             self?.performRefresh(animated: false)
+        }
+    }
+
+    func startAutoRefreshTimer() {
+        scheduleAdaptiveRefreshTimer()
+        activityProbeTimer?.invalidate()
+        activityProbeTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: true) { [weak self] _ in
+            self?.probeAgentActivity()
+        }
+    }
+
+    private func isActiveWindowVisible() -> Bool {
+        if currentMode == .full {
+            return fullWindow?.isVisible == true
+        }
+        return hudWindow?.isVisible == true
+    }
+
+    private func shouldShowHudForAutoHide() -> Bool {
+        let cfg = QuotaManager.loadConfig()
+        guard cfg.hud_auto_hide == true else {
+            hudIdleSince = nil
+            return true
+        }
+        let showOnAct = (cfg.hud_show_on_activity ?? true)
+        let overall = latestQuota?.activity?.overall_status ?? "idle"
+        let isActive = (overall == "working" || overall == "waiting")
+        if showOnAct && isActive {
+            hudIdleSince = nil
+            hudManualOverride = false
+            return true
+        }
+        if hudManualOverride {
+            return true
+        }
+        if hudIdleSince == nil {
+            hudIdleSince = Date()
+        }
+        return Date().timeIntervalSince(hudIdleSince!) < 12.0
+    }
+
+    private func applyHudAutoHidePolicy() {
+        guard currentMode == .hud else { return }
+        if settingsWindow != nil && settingsWindow?.isVisible == true { return }
+        if shouldShowHudForAutoHide() {
+            if hudWindow == nil, let quota = latestQuota {
+                setupHudUI(with: quota)
+                return
+            }
+            hudWindow?.orderFront(nil)
+        } else {
+            hudWindow?.orderOut(nil)
+        }
+    }
+
+    private func probeAgentActivity() {
+        if isRefreshing { return }
+        if settingsWindow != nil && settingsWindow?.isVisible == true { return }
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let act = QuotaManager.fetchActivityOnly() else { return }
+            DispatchQueue.main.async {
+                guard let self = self, var quota = self.latestQuota else { return }
+                let changed = (quota.activity?.fingerprint != act.fingerprint)
+                quota.activity = act
+                quota.recommended_poll_seconds = act.recommended_poll_seconds
+                self.latestQuota = quota
+
+                if act.transition_to_idle == true {
+                    self.hudManualOverride = false
+                    self.hudIdleSince = Date()
+                }
+
+                let targetInterval = TimeInterval(act.recommended_poll_seconds ?? 30)
+                if abs(targetInterval - self.currentPollInterval) > 0.5 {
+                    self.currentPollInterval = targetInterval
+                    self.scheduleAdaptiveRefreshTimer()
+                }
+
+                if changed {
+                    self.updateStatusItemTitle()
+                    if self.isActiveWindowVisible() && (self.settingsWindow == nil || self.settingsWindow?.isVisible == false) {
+                        self.renderCurrentMode()
+                    }
+                }
+                self.applyHudAutoHidePolicy()
+
+                if act.transition_to_idle == true || act.transition_to_active == true {
+                    self.performRefresh(animated: false)
+                }
+            }
         }
     }
     
@@ -1933,8 +2333,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.isRefreshing = false
                 if let quota = quota {
                     self.latestQuota = quota
+                    self.lastQuotaFetchDate = Date()
+                    let targetInterval = TimeInterval(quota.effectivePollSeconds)
+                    if abs(targetInterval - self.currentPollInterval) > 0.5 {
+                        self.currentPollInterval = targetInterval
+                        self.scheduleAdaptiveRefreshTimer()
+                    }
                     // Não reconstruir UI nem roubar foco se o usuário estiver com as Configurações abertas
-                    if self.settingsWindow == nil || self.settingsWindow?.isVisible == false {
+                    if (self.settingsWindow == nil || self.settingsWindow?.isVisible == false) && (animated || self.isActiveWindowVisible() || (self.fullWindow == nil && self.hudWindow == nil)) {
                         self.renderCurrentMode()
                     }
                     self.updateStatusItemTitle()
@@ -1984,6 +2390,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func switchToHudMode() {
         currentMode = .hud
+        hudManualOverride = true
+        hudIdleSince = nil
         UserDefaults.standard.set(currentMode.rawValue, forKey: "uaqm_display_mode")
         renderCurrentMode()
     }
@@ -1995,6 +2403,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         fullWindow?.makeKeyAndOrderFront(nil)
         fullWindow?.orderFrontRegardless()
+        if Date().timeIntervalSince(lastQuotaFetchDate) > 15 {
+            performRefresh(animated: false)
+        }
     }
     
     @objc func toggleHudOrientation() {
@@ -2092,6 +2503,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 newX = 100
                 newY = 100
             }
+            isFirstLaunch = false
         } else {
             newX = currentFrame.origin.x
             newY = currentFrame.origin.y + (currentFrame.height - hudH)
@@ -2210,7 +2622,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let sectionFrame = SectionFrameView(
                         frame: NSRect(x: frameX, y: curY, width: frameW, height: frameH),
                         title: s.name,
-                        accentColor: s.accentColor
+                        accentColor: s.accentColor,
+                        activityStatus: s.activity?.status ?? "idle",
+                        tooltipText: quota.formatActivityTooltip(name: s.name, act: s.activity)
                     )
                     
                     for (idx, item) in s.items.enumerated() {
@@ -2303,7 +2717,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let sectionFrame = SectionFrameView(
                         frame: NSRect(x: curX, y: 6.0, width: frameW, height: frameH),
                         title: s.name,
-                        accentColor: s.accentColor
+                        accentColor: s.accentColor,
+                        activityStatus: s.activity?.status ?? "idle",
+                        tooltipText: quota.formatActivityTooltip(name: s.name, act: s.activity)
                     )
                     for (idx, item) in s.items.enumerated() {
                         let gauge = TachometerGaugeView(item: item)
@@ -2391,7 +2807,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         panel.contentView = container
-        panel.orderFront(nil)
+        applyHudAutoHidePolicy()
     }
     
     @objc func showHudContextMenu(_ sender: NSButton) {
@@ -2480,7 +2896,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             calcContentH += 110 + 16
         } else {
             for g in quota.groups {
-                calcContentH += 44 + CGFloat(g.buckets.count * 44 + 6) + 14
+                let extraH: CGFloat = (quota.cardSessionLine(for: g) != nil) ? 18 : 0
+                calcContentH += 44 + extraH + CGFloat(g.buckets.count * 44 + 6) + 14
             }
         }
         calcContentH += 16 // padding inferior
@@ -2548,6 +2965,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             verLabel.frame = NSRect(x: appTitle.frame.maxX + 6, y: y + 3, width: 90, height: 15)
             contentView.addSubview(verLabel)
         }
+
+        let workCount = quota.activity?.working_count ?? 0
+        let waitCount = quota.activity?.waiting_count ?? 0
+        var sumParts: [String] = []
+        if workCount > 0 { sumParts.append("\(workCount) working") }
+        if waitCount > 0 { sumParts.append("\(waitCount) waiting") }
+        let activitySummaryStr = sumParts.isEmpty ? "All idle" : sumParts.joined(separator: " · ")
+        let summaryLabel = NSTextField(labelWithString: activitySummaryStr)
+        summaryLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+        summaryLabel.textColor = (waitCount > 0)
+            ? NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+            : NSColor(white: 0.58, alpha: 1.0)
+        summaryLabel.alignment = .right
+        summaryLabel.frame = NSRect(x: windowWidth - 200, y: y + 3, width: 180, height: 15)
+        contentView.addSubview(summaryLabel)
         y += 24
         
         let accountText = "\(quota.account)  •  Plan \(quota.plan ?? "Universal")"
@@ -2559,7 +2991,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         y += 18
         
         let cacheInfo = (quota.from_cache ?? false) ? " (Cache \(quota.cache_age_seconds ?? 0)s ago)" : " (Live)"
-        let timeText = "Updated at \(quota.updated_at ?? "now")\(cacheInfo)"
+        let pollSecs = quota.effectivePollSeconds
+        let pollText = pollSecs >= 300 ? "Polling 5 min (idle)" : "Polling \(pollSecs)s (active)"
+        let timeText = "Updated at \(quota.updated_at ?? "now")\(cacheInfo) · \(pollText)"
         let timeLabel = NSTextField(labelWithString: timeText)
         timeLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
         timeLabel.textColor = NSColor(white: 0.55, alpha: 1.0)
@@ -2780,74 +3214,105 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             cardView.addSubview(openCfgBtn)
             y += emptyH + 14
         } else {
+            let customColors = QuotaManager.loadConfig().section_colors
+            let amberColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
             for g in quota.groups {
-                let cardHeight = 44 + CGFloat(g.buckets.count * 44 + 6)
+                let provKey = QuotaData.providerKey(groupName: g.name, provider: g.provider)
+                let act = quota.resolvedActivity(for: provKey, group: g)
+                let st = act?.status ?? "idle"
+                let sessionLine = quota.cardSessionLine(for: g)
+                let extraH: CGFloat = (sessionLine != nil) ? 18 : 0
+
+                let cardHeight = 44 + extraH + CGFloat(g.buckets.count * 44 + 6)
                 let cardView = FlippedBox(frame: NSRect(x: 16, y: y, width: windowWidth - 32, height: cardHeight))
                 cardView.boxType = .custom
                 cardView.fillColor = colorField1F
-                cardView.borderColor = colorBorder
+                cardView.borderColor = (st == "waiting") ? amberColor.withAlphaComponent(0.55) : colorBorder
                 cardView.borderWidth = 1
                 cardView.cornerRadius = 8
                 contentView.addSubview(cardView)
                 
-                let pLower = (g.provider ?? "").lowercased()
-                let isStudio = pLower.contains("studio") || (pLower == "gemini" || pLower == "gemini_api") || g.name.lowercased().contains("gemini api")
-                let isClaudePro = !isStudio && !pLower.contains("antigravity") && (pLower.contains("claude") || g.name.lowercased().contains("claude")) && !g.name.lowercased().contains("claude and gpt")
-                let isChatGpt = pLower.contains("chatgpt") || g.name.lowercased().contains("chatgpt")
-                let isCursor = pLower.contains("cursor") || g.name.lowercased().contains("cursor")
-                let isCopilot = pLower.contains("copilot") || g.name.lowercased().contains("copilot") || pLower.contains("github")
-                
-                let customColors = QuotaManager.loadConfig().section_colors
                 let accentColor: NSColor
                 let tagText: String
-                if isClaudePro {
+                let cleanGroupName: String
+                switch provKey {
+                case "claude_pro":
                     accentColor = PastelTheme.getColor(for: "claude_pro", in: customColors)
                     tagText = "CLAUDE"
-                } else if isChatGpt {
+                    cleanGroupName = "Claude"
+                case "chatgpt_subscription":
                     accentColor = PastelTheme.getColor(for: "chatgpt_subscription", in: customColors)
                     tagText = "CHATGPT"
-                } else if isCursor {
+                    cleanGroupName = "ChatGPT"
+                case "cursor":
                     accentColor = PastelTheme.getColor(for: "cursor", in: customColors)
                     tagText = "CURSOR"
-                } else if isCopilot {
+                    cleanGroupName = "Cursor"
+                case "github_copilot":
                     accentColor = PastelTheme.getColor(for: "github_copilot", in: customColors)
                     tagText = "COPILOT"
-                } else if isStudio {
+                    cleanGroupName = "Copilot"
+                case "gemini":
                     accentColor = PastelTheme.getColor(for: "gemini", in: customColors)
                     tagText = "GEMINI"
-                } else {
+                    cleanGroupName = "Google Gemini"
+                case "openai":
+                    accentColor = PastelTheme.getColor(for: "openai", in: customColors)
+                    tagText = "OPENAI"
+                    cleanGroupName = g.name
+                case "anthropic":
+                    accentColor = PastelTheme.getColor(for: "anthropic", in: customColors)
+                    tagText = "ANTHROPIC"
+                    cleanGroupName = g.name
+                default:
                     accentColor = PastelTheme.getColor(for: "antigravity", in: customColors)
                     tagText = "ANTIGRAVITY"
-                }
-                
-                // Group Title (Top Left)
-                let cleanGroupName: String
-                if isClaudePro {
-                    cleanGroupName = "Claude"
-                } else if isChatGpt {
-                    cleanGroupName = "ChatGPT"
-                } else if isCursor {
-                    cleanGroupName = "Cursor"
-                } else if isCopilot {
-                    cleanGroupName = "Copilot"
-                } else if isStudio {
-                    cleanGroupName = "Google Gemini"
-                } else {
                     cleanGroupName = g.name
                 }
-                let gTitle = NSTextField(labelWithString: cleanGroupName)
-                gTitle.font = NSFont.systemFont(ofSize: 12.5, weight: .bold)
-                gTitle.textColor = NSColor(white: 0.95, alpha: 1.0)
-                gTitle.frame = NSRect(x: 14, y: 12, width: cardView.frame.width - 170, height: 16)
-                cardView.addSubview(gTitle)
+                cardView.toolTip = quota.formatActivityTooltip(name: cleanGroupName, act: act)
                 
                 // Group Tag (Top Right)
                 let tagLabel = NSTextField(labelWithString: tagText)
                 tagLabel.font = NSFont.systemFont(ofSize: 8.5, weight: .bold)
                 tagLabel.textColor = accentColor
-                tagLabel.alignment = .right
-                tagLabel.frame = NSRect(x: cardView.frame.width - 150, y: 12, width: 136, height: 16)
+                tagLabel.sizeToFit()
+                let tagX = cardView.frame.width - 14 - tagLabel.frame.width
+                tagLabel.frame = NSRect(x: tagX, y: 13.5, width: tagLabel.frame.width, height: 14)
                 cardView.addSubview(tagLabel)
+
+                let midDot = NSTextField(labelWithString: "·")
+                midDot.font = NSFont.systemFont(ofSize: 10.5, weight: .bold)
+                midDot.textColor = NSColor(white: 0.40, alpha: 1.0)
+                midDot.sizeToFit()
+                let dotX = tagX - 5 - midDot.frame.width
+                midDot.frame = NSRect(x: dotX, y: 11.5, width: midDot.frame.width, height: 15)
+                cardView.addSubview(midDot)
+
+                let statusDisplay = (st == "waiting") ? "Waiting" : ((st == "working") ? "Working" : "Idle")
+                let statusLabel = NSTextField(labelWithString: statusDisplay)
+                statusLabel.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+                statusLabel.textColor = (st == "waiting")
+                    ? amberColor
+                    : ((st == "working") ? NSColor(white: 0.90, alpha: 1.0) : NSColor(white: 0.50, alpha: 1.0))
+                statusLabel.sizeToFit()
+                let statusX = dotX - 5 - statusLabel.frame.width
+                statusLabel.frame = NSRect(x: statusX, y: 12.0, width: statusLabel.frame.width, height: 15)
+                cardView.addSubview(statusLabel)
+
+                let glyphView = ActivityGlyphView(
+                    frame: NSRect(x: statusX - 15, y: 13.5, width: 11, height: 11),
+                    status: st,
+                    accentColor: accentColor
+                )
+                cardView.addSubview(glyphView)
+
+                // Group Title (Top Left)
+                let gTitle = NSTextField(labelWithString: cleanGroupName)
+                gTitle.font = NSFont.systemFont(ofSize: 12.5, weight: .bold)
+                gTitle.textColor = NSColor(white: 0.95, alpha: 1.0)
+                gTitle.lineBreakMode = .byTruncatingTail
+                gTitle.frame = NSRect(x: 14, y: 12, width: max(100, glyphView.frame.minX - 20), height: 16)
+                cardView.addSubview(gTitle)
                 
                 // Header Separator
                 let hSep = NSBox(frame: NSRect(x: 14, y: 34, width: cardView.frame.width - 28, height: 1))
@@ -2855,8 +3320,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 hSep.fillColor = colorSep
                 hSep.borderColor = .clear
                 cardView.addSubview(hSep)
+
+                if let sLine = sessionLine {
+                    let sLabel = NSTextField(labelWithString: sLine.text)
+                    sLabel.font = NSFont.systemFont(ofSize: 10.0, weight: .regular)
+                    sLabel.textColor = (sLine.status == "waiting")
+                        ? NSColor(srgbRed: 0xF5/255.0, green: 0xB8/255.0, blue: 0x4D/255.0, alpha: 1.0)
+                        : NSColor(white: 0.65, alpha: 1.0)
+                    sLabel.lineBreakMode = .byTruncatingTail
+                    sLabel.frame = NSRect(x: 14, y: 40, width: cardView.frame.width - 28, height: 14)
+                    cardView.addSubview(sLabel)
+                }
                 
-                var cardY: CGFloat = 44
+                var cardY: CGFloat = 44 + extraH
                 for (idx, b) in g.buckets.enumerated() {
                     if idx > 0 {
                         let sep = NSBox(frame: NSRect(x: 14, y: cardY - 5, width: cardView.frame.width - 28, height: 1))
@@ -3239,6 +3715,52 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let scrollContent = FlippedContentView(frame: NSRect(x: 0, y: 0, width: winW, height: 1100))
         
         var cy: CGFloat = 12.0
+
+        // 0. HUD Auto-Hide Behavior Card
+        let hudCardH: CGFloat = 82
+        let hudCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: hudCardH))
+        hudCard.boxType = .custom
+        hudCard.fillColor = colorCard
+        hudCard.borderColor = colorBorder
+        hudCard.borderWidth = 1
+        hudCard.cornerRadius = 8
+        scrollContent.addSubview(hudCard)
+
+        let hudCardTitle = NSTextField(labelWithString: "HUD Side Bar Behavior")
+        hudCardTitle.font = NSFont.systemFont(ofSize: 12.5, weight: .bold)
+        hudCardTitle.textColor = .white
+        hudCardTitle.frame = NSRect(x: 14, y: 10, width: cardW - 28, height: 16)
+        hudCard.addSubview(hudCardTitle)
+
+        let autoHideBtn = ContrastCheckbox(frame: NSRect(x: 14, y: 31, width: cardW - 28, height: 18))
+        autoHideBtn.state = (cfg.hud_auto_hide == true) ? .on : .off
+        autoHideBtn.target = self
+        autoHideBtn.action = #selector(hudAutoHideChanged(_:))
+        autoHideBtn.attributedTitle = NSAttributedString(
+            string: "Auto-hide HUD when all AI agents are idle",
+            attributes: [
+                .foregroundColor: NSColor(white: 0.92, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium)
+            ]
+        )
+        hudCard.addSubview(autoHideBtn)
+        self.hudAutoHideCheck = autoHideBtn
+
+        let showOnActBtn = ContrastCheckbox(frame: NSRect(x: 32, y: 54, width: cardW - 46, height: 18))
+        showOnActBtn.state = (cfg.hud_show_on_activity ?? true) ? .on : .off
+        showOnActBtn.isEnabled = (autoHideBtn.state == .on)
+        showOnActBtn.alphaValue = (autoHideBtn.state == .on) ? 1.0 : 0.45
+        showOnActBtn.attributedTitle = NSAttributedString(
+            string: "Show HUD automatically while an agent is working or waiting",
+            attributes: [
+                .foregroundColor: NSColor(white: 0.80, alpha: 1.0),
+                .font: NSFont.systemFont(ofSize: 10.5, weight: .regular)
+            ]
+        )
+        hudCard.addSubview(showOnActBtn)
+        self.hudShowOnActivityCheck = showOnActBtn
+
+        cy += hudCardH + 12
         
         func createHudSectionLabel(y: CGFloat, in parent: NSView) -> CGFloat {
             let sep = NSBox(frame: NSRect(x: 14, y: y, width: cardW - 28, height: 1))
@@ -3995,6 +4517,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc func hudAutoHideChanged(_ sender: NSButton) {
+        let enabled = (sender.state == .on)
+        hudShowOnActivityCheck?.isEnabled = enabled
+        hudShowOnActivityCheck?.alphaValue = enabled ? 1.0 : 0.45
+    }
+
     @objc func openAnthropicLink() {
         if let url = URL(string: "https://console.anthropic.com/settings/keys") {
             NSWorkspace.shared.open(url)
@@ -4065,10 +4593,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         cfg.hidden_hud_gauges = hiddenList
         cfg.section_colors = self.selectedSectionColors
+        cfg.hud_auto_hide = (hudAutoHideCheck?.state == .on)
+        cfg.hud_show_on_activity = (hudShowOnActivityCheck?.state == .on)
+        hudIdleSince = nil
+        hudManualOverride = false
         
         QuotaManager.saveConfig(cfg)
         settingsWindow?.orderOut(nil)
         performRefresh(animated: true)
+        applyHudAutoHidePolicy()
     }
     
     @objc func saveSettingsClicked() {

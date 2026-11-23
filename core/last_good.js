@@ -19,6 +19,80 @@ const os = require('os');
 
 const GRACE_MS = 10 * 60 * 1000;          // reuse a failed provider's last good result for up to 10 minutes
 const PRUNE_MS = 60 * 60 * 1000;          // forget entries not refreshed for an hour
+const BACKOFF_MIN_MS = 30 * 1000;
+const BACKOFF_BASE_MS = 60 * 1000;
+const BACKOFF_MAX_MS = 15 * 60 * 1000;    // cap exponential 429 backoff at 15 minutes
+
+function formatResetFromIso(targetTime, now = Date.now()) {
+  if (!targetTime) return null;
+  let target = 0;
+  if (typeof targetTime === 'number') {
+    target = targetTime > 1e11 ? targetTime : targetTime * 1000;
+  } else {
+    target = new Date(targetTime).getTime();
+  }
+  if (!Number.isFinite(target) || target <= 0) return null;
+  const diffMs = target - now;
+  if (diffMs <= 0) return 'Now';
+  const diffMins = Math.floor(diffMs / 60000);
+  const days = Math.floor(diffMins / (24 * 60));
+  const hours = Math.floor((diffMins % (24 * 60)) / 60);
+  const mins = diffMins % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function recomputeResetCountdowns(payload, now = Date.now()) {
+  if (!payload || !Array.isArray(payload.groups)) return payload;
+  const groups = payload.groups.map((g) => {
+    if (!g || !Array.isArray(g.buckets)) return g;
+    const buckets = g.buckets.map((b) => {
+      if (!b || b.outdated === true || b.reset_in === 'Outdated') return b;
+      const target = b.reset_time || b.resets_at;
+      if (!target) return b;
+      const nextResetIn = formatResetFromIso(target, now);
+      if (!nextResetIn) return b;
+      return { ...b, reset_in: nextResetIn };
+    });
+    return { ...g, buckets };
+  });
+  return { ...payload, groups };
+}
+
+function readBackoffState(filePath) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
+    return {
+      until: Number(raw.until) || 0,
+      attempts: Number(raw.attempts) || 0,
+      delayMs: Number(raw.delayMs) || 0
+    };
+  } catch (_) {
+    return { until: 0, attempts: 0, delayMs: 0 };
+  }
+}
+
+function recordBackoff429(filePath, retryAfterSeconds = 0, now = Date.now()) {
+  const prev = readBackoffState(filePath);
+  const attempts = (prev.attempts || 0) + 1;
+  const expMs = Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * Math.pow(2, attempts - 1));
+  let delayMs = expMs;
+  if (retryAfterSeconds > 0) {
+    const retryMs = Math.min(Math.max(retryAfterSeconds * 1000, BACKOFF_MIN_MS), BACKOFF_MAX_MS);
+    delayMs = attempts === 1 ? retryMs : Math.max(expMs, retryMs);
+  }
+  const state = { until: now + delayMs, attempts, delayMs };
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(state), { encoding: 'utf8', mode: 0o600 });
+  } catch (_) {}
+  return state;
+}
+
+function clearBackoffState(filePath) {
+  try { fs.rmSync(filePath, { force: true }); } catch (_) {}
+}
 
 function storeFile() {
   const dir = path.join(os.homedir(), '.config', 'UniversalAIQuota');
@@ -67,7 +141,8 @@ function mergeWithLastGood(keys, settled, now = Date.now()) {
     }
     const last = store[key];
     if (last && last.value && (now - last.at) < GRACE_MS) {
-      out.push({ ...last.value, stale: true, stale_seconds: Math.round((now - last.at) / 1000) });
+      const refreshed = recomputeResetCountdowns(last.value, now);
+      out.push({ ...refreshed, stale: true, stale_seconds: Math.round((now - last.at) / 1000) });
     }
   });
 
@@ -81,4 +156,14 @@ function mergeWithLastGood(keys, settled, now = Date.now()) {
   return out;
 }
 
-module.exports = { mergeWithLastGood, GRACE_MS };
+module.exports = {
+  mergeWithLastGood,
+  GRACE_MS,
+  recomputeResetCountdowns,
+  formatResetFromIso,
+  readBackoffState,
+  recordBackoff429,
+  clearBackoffState,
+  BACKOFF_BASE_MS,
+  BACKOFF_MAX_MS
+};

@@ -215,6 +215,20 @@ def new_demo_data():
         "version": get_app_version(),
         "tier": "free",
         "from_cache": False,
+        "recommended_poll_seconds": 30,
+        "activity": {
+            "overall_status": "waiting",
+            "active_count": 2,
+            "working_count": 1,
+            "waiting_count": 1,
+            "recommended_poll_seconds": 30,
+            "providers": {
+                "antigravity": {"status": "waiting", "sessions_count": 1, "project": "ai_gauge", "summary": "Waiting for your response", "detail": "ai_gauge · Waiting for your response", "age_seconds": 14},
+                "claude_pro": {"status": "working", "sessions_count": 1, "project": "ai_gauge", "summary": "Running Bash", "detail": "ai_gauge · Running Bash", "age_seconds": 3},
+                "chatgpt_subscription": {"status": "idle", "sessions_count": 0, "project": "Codex", "summary": "Idle", "detail": "", "age_seconds": 940},
+                "cursor": {"status": "idle", "sessions_count": 0, "project": "Cursor IDE", "summary": "Idle", "detail": "", "age_seconds": None},
+            },
+        },
         "announcement": {
             "type": "versao",
             "badge": "VERSION",
@@ -337,6 +351,87 @@ def load_quota(force=False):
         except Exception:
             pass
     return None
+
+def load_activity_only():
+    if DEMO_MODE:
+        return None
+    node_bin = find_node()
+    env = dict(os.environ)
+    extra_paths = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+    env["PATH"] = ":".join(extra_paths) + ":" + env.get("PATH", "")
+    try:
+        res = subprocess.run([node_bin, str(ENGINE_SCRIPT), "--activity-only"], capture_output=True, text=True, env=env, timeout=3)
+        if res.returncode == 0 and res.stdout.strip():
+            return json.loads(res.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+def blend_hex(fg_hex, bg_hex="#181818", alpha=0.42):
+    try:
+        fg = fg_hex.lstrip("#")
+        bg = bg_hex.lstrip("#")
+        fr, fg_c, fb = int(fg[0:2], 16), int(fg[2:4], 16), int(fg[4:6], 16)
+        br, bg_c, bb = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+        r = int(round(fr * alpha + br * (1.0 - alpha)))
+        g = int(round(fg_c * alpha + bg_c * (1.0 - alpha)))
+        b = int(round(fb * alpha + bb * (1.0 - alpha)))
+        return f"#{r:02X}{g:02X}{b:02X}"
+    except Exception:
+        return fg_hex
+
+def get_provider_activity(quota, prov_key):
+    if not isinstance(quota, dict):
+        return None
+    act = quota.get("activity")
+    if isinstance(act, dict):
+        provs = act.get("providers")
+        if isinstance(provs, dict) and isinstance(provs.get(prov_key), dict):
+            return provs[prov_key]
+    for g in quota.get("groups", []):
+        if get_provider_key(g.get("name", ""), g.get("provider", "")) == prov_key:
+            if isinstance(g.get("activity"), dict):
+                return g["activity"]
+    return None
+
+def get_effective_poll_seconds(quota):
+    if isinstance(quota, dict):
+        act = quota.get("activity")
+        if isinstance(act, dict) and act.get("recommended_poll_seconds"):
+            return int(act["recommended_poll_seconds"])
+        if quota.get("recommended_poll_seconds"):
+            return int(quota["recommended_poll_seconds"])
+    return 30
+
+def activity_fingerprint(act):
+    if not isinstance(act, dict):
+        return ""
+    parts = [str(act.get("overall_status", "")), str(act.get("recommended_poll_seconds", ""))]
+    provs = act.get("providers") if isinstance(act.get("providers"), dict) else {}
+    for k in ("antigravity", "claude_pro", "chatgpt_subscription", "cursor", "github_copilot"):
+        item = provs.get(k)
+        if isinstance(item, dict):
+            parts.append(f"{k}:{item.get('status', '')}:{item.get('detail', '')}")
+    return "|".join(parts)
+
+def format_activity_tooltip(title, act, poll_secs):
+    st = (act.get("status") if isinstance(act, dict) else None) or "idle"
+    status_txt = "Working" if st == "working" else ("Waiting for input" if st == "waiting" else "Idle")
+    poll_lbl = "5 min (idle)" if poll_secs >= 300 else f"{poll_secs}s (active)"
+    lines = [f"{title} · {status_txt}"]
+    if isinstance(act, dict):
+        det = (act.get("detail") or "").strip()
+        proj = (act.get("project") or "").strip()
+        if det:
+            lines.append(det)
+        elif proj:
+            lines.append(f"Project: {proj}")
+        age = act.get("age_seconds")
+        if age is not None and st != "idle":
+            lines.append(f"Updated {age}s ago · Polling: {poll_lbl}")
+            return "\n".join(lines)
+    lines.append(f"Polling: {poll_lbl}")
+    return "\n".join(lines)
 
 PASTEL_PALETTE = [
     ("Sky Blue", "#8FBCFF"),
@@ -470,6 +565,7 @@ def get_hud_sections(quota):
                 "key": pk,
                 "title": get_section_clean_title(pk, gname),
                 "accent": accent,
+                "activity": get_provider_activity(quota, pk) or g.get("activity"),
                 "items": [],
             }
             sec_map[pk] = sec_obj
@@ -515,15 +611,27 @@ def print_cli(quota):
         print("="*58 + "\n")
         return
 
+    poll_secs = get_effective_poll_seconds(quota)
+    poll_label = "5 min (idle)" if poll_secs >= 300 else f"{poll_secs}s (active)"
     print("\n" + "="*58)
     print(f" ⚡ AI Gauge v{app_ver} - vh2c.com.br")
     print(f" Account: {quota.get('account', 'Multi-Provider')} • Plan {quota.get('plan', 'Universal')}")
-    print(f" Updated at {quota.get('updated_at', 'now')} " + ("(Live)" if not quota.get("from_cache") else "(Cache)"))
+    print(f" Updated at {quota.get('updated_at', 'now')} " + ("(Live)" if not quota.get("from_cache") else "(Cache)") + f" · Polling {poll_label}")
     print("="*58)
 
     for g in quota.get("groups", []):
         prov = f" [{g.get('provider')}]" if g.get('provider') else ""
-        print(f"\n📂 {g.get('name', 'Group').upper()}{prov}")
+        pk = get_provider_key(g.get("name", ""), g.get("provider", ""))
+        act = get_provider_activity(quota, pk) or g.get("activity") or {}
+        st = (act.get("status") or "idle").lower()
+        det = (act.get("detail") or "").strip()
+        if st == "working":
+            st_badge = f" \033[96m[WORKING{(' · ' + det) if det else ''}]\033[0m"
+        elif st == "waiting":
+            st_badge = f" \033[93m[WAITING{(' · ' + det) if det else ''}]\033[0m"
+        else:
+            st_badge = " \033[90m[IDLE]\033[0m"
+        print(f"\n📂 {g.get('name', 'Group').upper()}{prov}{st_badge}")
         for b in g.get("buckets", []):
             pct = b.get("remaining_pct", 0)
             reset = f" • {b.get('reset_in')}" if b.get("reset_in") else ""
@@ -595,6 +703,7 @@ class ModernCheckbox(tk.Frame):
         self.fg_col = fg
         self.command = command
         self.hovered = False
+        self.enabled = True
 
         self.box = tk.Canvas(self, width=16, height=16, bg=bg, bd=0, highlightthickness=0, cursor="hand2")
         self.box.pack(side="left", padx=(0, 7))
@@ -615,7 +724,14 @@ class ModernCheckbox(tk.Frame):
         self.hovered = False
         self.draw()
 
+    def set_enabled(self, flag: bool):
+        self.enabled = bool(flag)
+        self.lbl.config(fg=self.fg_col if self.enabled else "#64748B")
+        self.draw()
+
     def _toggle(self, _e=None):
+        if not self.enabled:
+            return
         self.variable.set(not bool(self.variable.get()))
         self.draw()
         if self.command:
@@ -697,6 +813,17 @@ class QuotaHubAppLinux:
                 pass
 
         self.is_refreshing = False
+        self.poll_interval_ms = get_effective_poll_seconds(self.quota) * 1000
+        self.last_quota_fetch_at = 0.0
+        self._auto_refresh_job = None
+        self._activity_probe_job = None
+        self._anim_job = None
+        self._anim_phase = 0
+        self._anim_targets = []
+        self._tooltip_win = None
+        self._tooltip_text = None
+        self._hud_idle_since = None
+        self._hud_manual_override = False
 
         self.root.bind("<Control-m>", lambda e: self.toggle_mode())
         self.root.bind("<Control-M>", lambda e: self.toggle_mode())
@@ -709,6 +836,7 @@ class QuotaHubAppLinux:
 
         self.setup_ui()
         self.schedule_auto_refresh()
+        self.schedule_activity_probe()
 
         # Lift window and bring to front on Linux desktop
         try:
@@ -731,13 +859,66 @@ class QuotaHubAppLinux:
             pass
 
     def schedule_auto_refresh(self):
-        self.root.after(30000, self.auto_refresh)
+        if self._auto_refresh_job is not None:
+            try:
+                self.root.after_cancel(self._auto_refresh_job)
+            except Exception:
+                pass
+            self._auto_refresh_job = None
+        self._auto_refresh_job = self.root.after(self.poll_interval_ms, self.auto_refresh)
 
     def auto_refresh(self):
+        self._auto_refresh_job = None
         # Do not refresh or rebuild UI while the user is actively configuring settings
         if not (self.settings_dlg and self.settings_dlg.winfo_exists()):
             self.refresh(animated=False)
         self.schedule_auto_refresh()
+
+    def schedule_activity_probe(self):
+        if self._activity_probe_job is not None:
+            try:
+                self.root.after_cancel(self._activity_probe_job)
+            except Exception:
+                pass
+            self._activity_probe_job = None
+        self._activity_probe_job = self.root.after(10000, self._run_activity_probe)
+
+    def _run_activity_probe(self):
+        self._activity_probe_job = None
+        if (
+            not DEMO_MODE
+            and not self.is_refreshing
+            and self.quota is not None
+            and not (self.settings_dlg and self.settings_dlg.winfo_exists())
+        ):
+            def worker():
+                act = load_activity_only()
+                if act:
+                    try:
+                        self.root.after(0, lambda a=act: self._on_activity_probed(a))
+                    except Exception:
+                        pass
+            threading.Thread(target=worker, daemon=True).start()
+        self.schedule_activity_probe()
+
+    def _on_activity_probed(self, act):
+        if not isinstance(self.quota, dict) or not isinstance(act, dict):
+            return
+        prev_fp = activity_fingerprint(self.quota.get("activity"))
+        next_fp = activity_fingerprint(act)
+        self.quota["activity"] = act
+        if act.get("recommended_poll_seconds"):
+            self.quota["recommended_poll_seconds"] = act["recommended_poll_seconds"]
+        next_ms = get_effective_poll_seconds(self.quota) * 1000
+        if next_ms != self.poll_interval_ms:
+            self.poll_interval_ms = next_ms
+            self.schedule_auto_refresh()
+        if prev_fp != next_fp and not (self.settings_dlg and self.settings_dlg.winfo_exists()):
+            self.setup_ui()
+        else:
+            self._apply_hud_auto_hide_policy()
+        if act.get("transition_to_idle") or act.get("transition_to_active"):
+            self.refresh(animated=False)
 
     def refresh(self, animated=True):
         if self.is_refreshing:
@@ -782,7 +963,12 @@ class QuotaHubAppLinux:
     def on_fetched(self, data):
         self.is_refreshing = False
         if data:
+            self.last_quota_fetch_at = time.time()
             self.quota = data
+            next_ms = get_effective_poll_seconds(data) * 1000
+            if next_ms != self.poll_interval_ms:
+                self.poll_interval_ms = next_ms
+                self.schedule_auto_refresh()
             # If settings window is currently open, don't interrupt user typing
             if not (self.settings_dlg and self.settings_dlg.winfo_exists()):
                 self.setup_ui()
@@ -1029,8 +1215,12 @@ class QuotaHubAppLinux:
 
     def toggle_mode(self):
         self.mode = "hud" if self.mode == "full" else "full"
+        self._hud_idle_since = None
+        self._hud_manual_override = False
         self.save_prefs()
         self.setup_ui()
+        if self.mode == "full" and (time.time() - self.last_quota_fetch_at) > 15:
+            self.refresh(animated=False)
 
     def toggle_orientation(self):
         self.orientation = "horizontal" if self.orientation == "vertical" else "vertical"
@@ -1133,6 +1323,40 @@ class QuotaHubAppLinux:
             hud_vars[gid] = v
             cb = ModernCheckbox(parent, text=label, variable=v, fg="#CBD5E1", bg="#1E1E22", font=("Sans", 8))
             cb.pack(side="left", padx=(0, 12))
+
+        # 0. HUD Side Bar Behavior Card
+        f_hud_beh = make_card()
+        tk.Label(f_hud_beh, text="HUD Side Bar Behavior", font=("Sans", 8, "bold"), fg="#A1A1AA", bg="#1E1E22").pack(anchor="w", pady=(0, 6))
+        var_hud_auto_hide = tk.BooleanVar(value=bool(cfg.get("hud_auto_hide", False)))
+        var_hud_show_on_activity = tk.BooleanVar(value=bool(cfg.get("hud_show_on_activity", True)))
+        cb_hud_show_on_activity = None
+
+        def on_hud_auto_hide_toggle():
+            if cb_hud_show_on_activity is not None:
+                cb_hud_show_on_activity.set_enabled(bool(var_hud_auto_hide.get()))
+
+        cb_hud_auto_hide = ModernCheckbox(
+            f_hud_beh,
+            text="Auto-hide HUD when idle",
+            variable=var_hud_auto_hide,
+            fg="#FFFFFF",
+            bg="#1E1E22",
+            font=("Sans", 9, "bold"),
+            command=on_hud_auto_hide_toggle,
+        )
+        cb_hud_auto_hide.pack(anchor="w")
+        r_hud_sub = tk.Frame(f_hud_beh, bg="#1E1E22")
+        r_hud_sub.pack(anchor="w", padx=(18, 0), pady=(5, 0))
+        cb_hud_show_on_activity = ModernCheckbox(
+            r_hud_sub,
+            text="Show HUD automatically while an agent is working or waiting",
+            variable=var_hud_show_on_activity,
+            fg="#CBD5E1",
+            bg="#1E1E22",
+            font=("Sans", 8),
+        )
+        cb_hud_show_on_activity.pack(anchor="w")
+        cb_hud_show_on_activity.set_enabled(bool(var_hud_auto_hide.get()))
 
         # 1. Antigravity Card
         f_anti = make_card()
@@ -1373,6 +1597,8 @@ class QuotaHubAppLinux:
             new_cfg["section_colors"] = dict(sec_colors_state)
             new_cfg["refresh_interval_seconds"] = 30
             new_cfg["hidden_hud_gauges"] = hidden_list
+            new_cfg["hud_auto_hide"] = bool(var_hud_auto_hide.get())
+            new_cfg["hud_show_on_activity"] = bool(var_hud_show_on_activity.get())
             save_config(new_cfg)
             close_dlg()
             self.setup_ui()
@@ -1432,7 +1658,109 @@ class QuotaHubAppLinux:
                                       font=("Sans", 9, "bold"), padx=14, pady=7, command=close_dlg)
         btn_cancel.pack(side="right")
 
+    def _hide_tooltip(self, _evt=None):
+        self._tooltip_text = None
+        if self._tooltip_win is not None:
+            try:
+                if self._tooltip_win.winfo_exists():
+                    self._tooltip_win.destroy()
+            except Exception:
+                pass
+            self._tooltip_win = None
+
+    def _show_tooltip(self, x_root, y_root, text):
+        if not text:
+            self._hide_tooltip()
+            return
+        if self._tooltip_win is not None and self._tooltip_win.winfo_exists() and self._tooltip_text == text:
+            try:
+                self._tooltip_win.geometry(f"+{int(x_root) + 12}+{int(y_root) + 12}")
+            except Exception:
+                pass
+            return
+        self._hide_tooltip()
+        self._tooltip_text = text
+        try:
+            tw = tk.Toplevel(self.root)
+            tw.wm_overrideredirect(True)
+            tw.attributes("-topmost", True)
+            tw.configure(bg="#34343B")
+            lbl = tk.Label(
+                tw, text=text, justify="left", anchor="w",
+                bg="#1E1E22", fg="#E5E7EB", font=("Sans", 8),
+                padx=8, pady=6
+            )
+            lbl.pack(padx=1, pady=1)
+            tw.geometry(f"+{int(x_root) + 12}+{int(y_root) + 12}")
+            self._tooltip_win = tw
+        except Exception:
+            self._tooltip_win = None
+
+    def _draw_glyph_on_canvas(self, canvas, cx, cy, r, status, accent_color):
+        if status == "working":
+            track_col = blend_hex(accent_color, "#181818", 0.28)
+            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, outline=track_col, width=1.4)
+            arc_id = canvas.create_arc(
+                cx - r, cy - r, cx + r, cy + r,
+                start=0, extent=135, style="arc", outline=accent_color, width=1.7
+            )
+            self._anim_targets.append(("arc", canvas, arc_id, []))
+            return []
+        if status == "waiting":
+            ring_id = canvas.create_oval(cx - r * 1.1, cy - r * 1.1, cx + r * 1.1, cy + r * 1.1, outline="#F5A623", width=1.2)
+            dot_r = max(1.8, r * 0.62)
+            canvas.create_oval(cx - dot_r, cy - dot_r, cx + dot_r, cy + dot_r, fill="#F5A623", outline="")
+            self._anim_targets.append(("pulse", canvas, ring_id, []))
+            return [ring_id]
+        idle_r = max(1.8, r * 0.68)
+        canvas.create_oval(cx - idle_r, cy - idle_r, cx + idle_r, cy + idle_r, outline="#7A7A86", width=1.2)
+        return []
+
+    def _start_activity_animation_if_needed(self):
+        if not self._anim_targets or self._anim_job is not None:
+            return
+        self._anim_job = self.root.after(90, self._tick_activity_animation)
+
+    def _tick_activity_animation(self):
+        self._anim_job = None
+        if not self._anim_targets:
+            return
+        self._anim_phase = (self._anim_phase + 1) % 36
+        pulse_t = 0.5 + 0.5 * math.sin((self._anim_phase / 18.0) * math.pi)
+        amber_pulse = blend_hex("#F5A623", "#181818", 0.45 + 0.55 * pulse_t)
+        alive = []
+        for kind, cv, item_id, extra_ids in self._anim_targets:
+            try:
+                if not cv.winfo_exists():
+                    continue
+                if kind == "arc":
+                    cv.itemconfigure(item_id, start=(self._anim_phase * 25) % 360)
+                elif kind == "pulse":
+                    cv.itemconfigure(item_id, outline=amber_pulse)
+                    for bid in extra_ids:
+                        try:
+                            cv.itemconfigure(bid, outline=amber_pulse)
+                        except Exception:
+                            try:
+                                cv.itemconfigure(bid, fill=amber_pulse)
+                            except Exception:
+                                pass
+                alive.append((kind, cv, item_id, extra_ids))
+            except Exception:
+                pass
+        self._anim_targets = alive
+        if self._anim_targets:
+            self._anim_job = self.root.after(90, self._tick_activity_animation)
+
     def setup_ui(self):
+        if self._anim_job is not None:
+            try:
+                self.root.after_cancel(self._anim_job)
+            except Exception:
+                pass
+            self._anim_job = None
+        self._anim_targets = []
+        self._hide_tooltip()
         self._active_scroll_canvas = None
         if not getattr(self, "_wheel_bound", False):
             self._wheel_bound = True
@@ -1469,12 +1797,71 @@ class QuotaHubAppLinux:
                 continue
             widget.destroy()
 
-        if self.mode == "full":
-            self.setup_full_ui()
-        else:
-            self.setup_hud_ui()
-
+        self.setup_hud_ui() if self.mode != "full" else self.setup_full_ui()
+        self._apply_hud_auto_hide_policy()
+        self._start_activity_animation_if_needed()
         self.check_and_schedule_promo()
+
+    def _any_agent_active(self) -> bool:
+        quota = self.quota if isinstance(self.quota, dict) else {}
+        act = quota.get("activity") if isinstance(quota.get("activity"), dict) else {}
+        if (act.get("working_count") or 0) > 0 or (act.get("waiting_count") or 0) > 0:
+            return True
+        for g in quota.get("groups", []) or []:
+            g_act = g.get("activity") if isinstance(g, dict) else None
+            if isinstance(g_act, dict) and g_act.get("state") in ("working", "waiting"):
+                return True
+        return False
+
+    def _apply_hud_auto_hide_policy(self):
+        if self.mode == "full":
+            self._hud_idle_since = None
+            self._hud_manual_override = False
+            try:
+                self.root.deiconify()
+            except Exception:
+                pass
+            return
+
+        cfg = load_config()
+        auto_hide = bool(cfg.get("hud_auto_hide", False))
+        if not auto_hide:
+            self._hud_idle_since = None
+            self._hud_manual_override = False
+            try:
+                self.root.deiconify()
+            except Exception:
+                pass
+            return
+
+        show_on_activity = bool(cfg.get("hud_show_on_activity", True))
+        if show_on_activity and self._any_agent_active():
+            self._hud_idle_since = None
+            self._hud_manual_override = False
+            try:
+                self.root.deiconify()
+                self.root.lift()
+            except Exception:
+                pass
+            return
+
+        if self._hud_manual_override:
+            try:
+                self.root.deiconify()
+            except Exception:
+                pass
+            return
+
+        now = time.time()
+        if self._hud_idle_since is None:
+            self._hud_idle_since = now
+            return
+
+        if (now - self._hud_idle_since) >= 12.0:
+            try:
+                self.root.withdraw()
+            except Exception:
+                pass
 
     def setup_full_ui(self):
         self._apply_window_chrome(borderless=False, topmost=False)
@@ -1521,11 +1908,25 @@ class QuotaHubAppLinux:
         tk.Label(title_row, text="⚡ AI Gauge", font=("Sans", 13, "bold"), fg="#FFFFFF", bg="#181818").pack(side="left")
         tk.Label(title_row, text=f"v{app_ver}", font=("Sans", 9, "bold"), fg="#8C8C96", bg="#181818").pack(side="left", padx=6, pady=(2, 0))
 
+        act_obj = quota.get("activity") if isinstance(quota.get("activity"), dict) else {}
+        w_cnt = int(act_obj.get("working_count") or 0)
+        wait_cnt = int(act_obj.get("waiting_count") or 0)
+        sum_parts = []
+        if w_cnt > 0:
+            sum_parts.append(f"{w_cnt} working")
+        if wait_cnt > 0:
+            sum_parts.append(f"{wait_cnt} waiting")
+        sum_txt = " · ".join(sum_parts) if sum_parts else "All idle"
+        sum_col = "#F5A623" if wait_cnt > 0 else "#8C8C96"
+        tk.Label(title_row, text=sum_txt, font=("Sans", 8, "bold"), fg=sum_col, bg="#181818").pack(side="right", pady=(2, 0))
+
         acc_text = f"{quota.get('account', 'Multi-Provider')}  •  Plan {quota.get('plan', 'Universal')}"
         tk.Label(header_box, text=acc_text, font=("Sans", 10), fg="#D9D9E0", bg="#181818", anchor="w").pack(fill="x", pady=(3, 0))
 
+        poll_secs = get_effective_poll_seconds(quota)
+        poll_lbl = "5 min (idle)" if poll_secs >= 300 else f"{poll_secs}s (active)"
         time_status = "(Live)" if not quota.get("from_cache") else f"(Cache {quota.get('cache_age_seconds', 0)}s)"
-        time_text = f"Updated at {quota.get('updated_at', 'now')} {time_status}"
+        time_text = f"Updated at {quota.get('updated_at', 'now')} {time_status} · Polling {poll_lbl}"
         tk.Label(header_box, text=time_text, font=("Sans", 8), fg="#8C8C96", bg="#181818", anchor="w").pack(fill="x", pady=(1, 8))
         tk.Frame(header_box, bg="#28282E", height=1).pack(fill="x")
 
@@ -1674,8 +2075,11 @@ class QuotaHubAppLinux:
             accent_col = sec_colors.get(pk) or PASTEL_DEFAULTS.get(pk, "#8FBCFF")
             card_title = get_section_clean_title(pk, g.get("name", "AI")) if pk != "antigravity" else (g.get("name") or "Antigravity")
             badge_label = prov_labels.get(pk, pk.upper())
+            act = get_provider_activity(quota, pk) or g.get("activity") or {}
+            st = (act.get("status") or "idle").lower()
+            card_border = "#F5A623" if st == "waiting" else "#2C2C30"
 
-            card = tk.Frame(main_frame, bg="#1E1E22", padx=14, pady=10, highlightbackground="#2C2C30", highlightthickness=1)
+            card = tk.Frame(main_frame, bg="#1E1E22", padx=14, pady=10, highlightbackground=card_border, highlightthickness=1)
             card.pack(fill="x", pady=(0, 10))
 
             # Card header INSIDE card
@@ -1683,8 +2087,23 @@ class QuotaHubAppLinux:
             hdr.pack(fill="x")
             tk.Label(hdr, text=card_title, font=("Sans", 10, "bold"), fg="#F2F2F4", bg="#1E1E22").pack(side="left")
             tk.Label(hdr, text=badge_label, font=("Sans", 7, "bold"), fg=accent_col, bg="#1E1E22").pack(side="right")
+            tk.Label(hdr, text=" · ", font=("Sans", 8, "bold"), fg="#52525B", bg="#1E1E22").pack(side="right")
+            st_lbl_txt = "Waiting" if st == "waiting" else ("Working" if st == "working" else "Idle")
+            st_lbl_col = "#F5A623" if st == "waiting" else ("#E5E7EB" if st == "working" else "#71717A")
+            tk.Label(hdr, text=st_lbl_txt, font=("Sans", 8), fg=st_lbl_col, bg="#1E1E22").pack(side="right")
+            g_cv = tk.Canvas(hdr, width=12, height=12, bg="#1E1E22", bd=0, highlightthickness=0)
+            g_cv.pack(side="right", padx=(0, 3))
+            self._draw_glyph_on_canvas(g_cv, 6, 6, 4.0, st, accent_col)
 
             tk.Frame(card, bg="#28282E", height=1).pack(fill="x", pady=(7, 7))
+
+            det_txt = (act.get("detail") or "").strip() if isinstance(act, dict) else ""
+            if st in ("working", "waiting") and det_txt:
+                prefix = "Paused" if st == "waiting" else "Active"
+                age_val = act.get("age_seconds")
+                age_sfx = f" · {age_val}s ago" if age_val is not None else ""
+                sess_col = "#F5B84D" if st == "waiting" else "#A1A1AA"
+                tk.Label(card, text=f"{prefix} · {det_txt}{age_sfx}", font=("Sans", 8), fg=sess_col, bg="#1E1E22", anchor="w").pack(fill="x", pady=(0, 6))
 
             for idx, b in enumerate(g.get("buckets", [])):
                 if idx > 0:
@@ -1847,9 +2266,12 @@ class QuotaHubAppLinux:
             hud_canvas = tk.Canvas(outer, bg="#181818", bd=0, highlightthickness=0)
             hud_canvas.pack(fill="both", expand=True)
             self._active_scroll_canvas = hud_canvas
-            hud_canvas.bind("<Button-1>", start_drag)
+            hud_canvas.bind("<Button-1>", lambda e: (self._hide_tooltip(), start_drag(e)))
             hud_canvas.bind("<B1-Motion>", do_drag)
             hud_canvas.bind("<Double-Button-1>", lambda _e: self.toggle_mode())
+
+            section_hit_areas = []
+            poll_secs = get_effective_poll_seconds(quota)
 
             if total_items == 0:
                 self.draw_section_frame(hud_canvas, 8, 10, 100, 102, "No Quotas", "#8FBCFF")
@@ -1860,13 +2282,27 @@ class QuotaHubAppLinux:
                 cur_y = 6
                 for sec in sections:
                     sec_h = 20 + len(sec["items"]) * item_h
-                    self.draw_section_frame(hud_canvas, 6, cur_y, 104, sec_h, sec["title"], sec["accent"])
+                    act = sec.get("activity")
+                    st = (act.get("status") if isinstance(act, dict) else None) or "idle"
+                    self.draw_section_frame(hud_canvas, 6, cur_y, 104, sec_h, sec["title"], sec["accent"], activity_status=st)
+                    section_hit_areas.append((6, cur_y, 110, cur_y + sec_h, format_activity_tooltip(sec["title"], act, poll_secs)))
                     gy = cur_y + 16
                     for item in sec["items"]:
                         self.draw_tachometer_gauge(hud_canvas, 58, gy + 44, item)
                         gy += item_h
                     cur_y += sec_h + 10
                 hud_canvas.configure(scrollregion=(0, 0, w, cur_y + 4))
+
+            def _on_hud_v_motion(event, areas=section_hit_areas, cv=hud_canvas):
+                cy = cv.canvasy(event.y)
+                cx = cv.canvasx(event.x)
+                for x1, y1, x2, y2, tip in areas:
+                    if x1 <= cx <= x2 and y1 <= cy <= y2:
+                        self._show_tooltip(event.x_root, event.y_root, tip)
+                        return
+                self._hide_tooltip()
+            hud_canvas.bind("<Motion>", _on_hud_v_motion)
+            hud_canvas.bind("<Leave>", self._hide_tooltip)
         else:
             # Horizontal Bar with right-edge control strip matching macOS Horizontal HUD
             ctrl_col = tk.Frame(outer, bg="#181818", width=26)
@@ -1880,9 +2316,12 @@ class QuotaHubAppLinux:
             hud_canvas = tk.Canvas(outer, bg="#181818", bd=0, highlightthickness=0)
             hud_canvas.pack(fill="both", expand=True)
             self._active_scroll_canvas = hud_canvas
-            hud_canvas.bind("<Button-1>", start_drag)
+            hud_canvas.bind("<Button-1>", lambda e: (self._hide_tooltip(), start_drag(e)))
             hud_canvas.bind("<B1-Motion>", do_drag)
             hud_canvas.bind("<Double-Button-1>", lambda _e: self.toggle_mode())
+
+            section_hit_areas_h = []
+            poll_secs = get_effective_poll_seconds(quota)
 
             if total_items == 0:
                 hud_canvas.create_text(120, 56, text="No active quotas · Open Settings", font=("Sans", 9, "bold"), fill="#8FBCFF")
@@ -1892,7 +2331,10 @@ class QuotaHubAppLinux:
                 for sec in sections:
                     n = len(sec["items"])
                     sec_w = 12 + n * 96 + 6
-                    self.draw_section_frame(hud_canvas, cur_x, 8, sec_w, 114, sec["title"], sec["accent"])
+                    act = sec.get("activity")
+                    st = (act.get("status") if isinstance(act, dict) else None) or "idle"
+                    self.draw_section_frame(hud_canvas, cur_x, 8, sec_w, 114, sec["title"], sec["accent"], activity_status=st)
+                    section_hit_areas_h.append((cur_x, 8, cur_x + sec_w, 122, format_activity_tooltip(sec["title"], act, poll_secs)))
                     gx = cur_x + 56
                     for item in sec["items"]:
                         self.draw_tachometer_gauge(hud_canvas, gx, 58, item)
@@ -1900,27 +2342,62 @@ class QuotaHubAppLinux:
                     cur_x += sec_w + 10
                 hud_canvas.configure(scrollregion=(0, 0, cur_x + 8, h))
 
-    def draw_section_frame(self, canvas, x, y, w, h, title, accent_color):
+            def _on_hud_h_motion(event, areas=section_hit_areas_h, cv=hud_canvas):
+                cy = cv.canvasy(event.y)
+                cx = cv.canvasx(event.x)
+                for x1, y1, x2, y2, tip in areas:
+                    if x1 <= cx <= x2 and y1 <= cy <= y2:
+                        self._show_tooltip(event.x_root, event.y_root, tip)
+                        return
+                self._hide_tooltip()
+            hud_canvas.bind("<Motion>", _on_hud_h_motion)
+            hud_canvas.bind("<Leave>", self._hide_tooltip)
+
+    def draw_section_frame(self, canvas, x, y, w, h, title, accent_color, activity_status="idle"):
         r = 11
         title_str = title or "AI"
-        gap_half = min((w / 2.0) - r - 2, max(20.0, len(title_str) * 3.8 + 6.0))
+        if activity_status == "waiting":
+            border_col = "#F5A623"
+            title_col = "#F5A623"
+        elif activity_status == "working":
+            border_col = accent_color
+            title_col = accent_color
+        else:
+            border_col = blend_hex(accent_color, "#181818", 0.42)
+            title_col = blend_hex(accent_color, "#181818", 0.75)
+
+        glyph_d = 8.0
+        glyph_gap = 4.0
+        content_w = glyph_d + glyph_gap + len(title_str) * 6.2
+        gap_half = min((w / 2.0) - r - 1.0, max(20.0, (content_w / 2.0) + 5.0))
         cx = x + w / 2.0
 
-        # Rounded border with clean top opening for the centered title
-        canvas.create_arc(x, y, x + 2 * r, y + 2 * r, start=90, extent=90, style="arc", outline=accent_color, width=1.6)
-        canvas.create_arc(x + w - 2 * r, y, x + w, y + 2 * r, start=0, extent=90, style="arc", outline=accent_color, width=1.6)
-        canvas.create_arc(x + w - 2 * r, y + h - 2 * r, x + w, y + h, start=270, extent=90, style="arc", outline=accent_color, width=1.6)
-        canvas.create_arc(x, y + h - 2 * r, x + 2 * r, y + h, start=180, extent=90, style="arc", outline=accent_color, width=1.6)
+        # Rounded border with clean top opening for the glyph + centered title
+        border_ids = [
+            canvas.create_arc(x, y, x + 2 * r, y + 2 * r, start=90, extent=90, style="arc", outline=border_col, width=1.6),
+            canvas.create_arc(x + w - 2 * r, y, x + w, y + 2 * r, start=0, extent=90, style="arc", outline=border_col, width=1.6),
+            canvas.create_arc(x + w - 2 * r, y + h - 2 * r, x + w, y + h, start=270, extent=90, style="arc", outline=border_col, width=1.6),
+            canvas.create_arc(x, y + h - 2 * r, x + 2 * r, y + h, start=180, extent=90, style="arc", outline=border_col, width=1.6),
+        ]
 
         if cx - gap_half > x + r:
-            canvas.create_line(x + r, y, cx - gap_half, y, fill=accent_color, width=1.6, capstyle="round")
+            border_ids.append(canvas.create_line(x + r, y, cx - gap_half, y, fill=border_col, width=1.6, capstyle="round"))
         if x + w - r > cx + gap_half:
-            canvas.create_line(cx + gap_half, y, x + w - r, y, fill=accent_color, width=1.6, capstyle="round")
-        canvas.create_line(x + w, y + r, x + w, y + h - r, fill=accent_color, width=1.6, capstyle="round")
-        canvas.create_line(x + r, y + h, x + w - r, y + h, fill=accent_color, width=1.6, capstyle="round")
-        canvas.create_line(x, y + r, x, y + h - r, fill=accent_color, width=1.6, capstyle="round")
+            border_ids.append(canvas.create_line(cx + gap_half, y, x + w - r, y, fill=border_col, width=1.6, capstyle="round"))
+        border_ids.append(canvas.create_line(x + w, y + r, x + w, y + h - r, fill=border_col, width=1.6, capstyle="round"))
+        border_ids.append(canvas.create_line(x + r, y + h, x + w - r, y + h, fill=border_col, width=1.6, capstyle="round"))
+        border_ids.append(canvas.create_line(x, y + r, x, y + h - r, fill=border_col, width=1.6, capstyle="round"))
 
-        canvas.create_text(cx, y, text=title_str, font=("Sans", 8, "bold"), fill=accent_color)
+        start_x = cx - (content_w / 2.0)
+        glyph_cx = start_x + (glyph_d / 2.0)
+        pulse_ids = self._draw_glyph_on_canvas(canvas, glyph_cx, y, 3.6, activity_status, accent_color)
+        if activity_status == "waiting" and self._anim_targets:
+            last_kind, last_cv, last_item, _ = self._anim_targets[-1]
+            if last_kind == "pulse":
+                self._anim_targets[-1] = (last_kind, last_cv, last_item, border_ids)
+
+        text_cx = start_x + glyph_d + glyph_gap + ((len(title_str) * 6.2) / 2.0)
+        canvas.create_text(text_cx, y, text=title_str, font=("Sans", 8, "bold"), fill=title_col)
 
     def draw_tachometer_gauge(self, canvas, cx, cy, item):
         is_outdated = (item.get("reset_in") == "Outdated")
