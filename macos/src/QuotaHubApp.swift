@@ -1287,7 +1287,33 @@ class TachometerGaugeView: NSView {
 // MARK: - HUD Container View
 class HudContainerView: NSView {
     weak var delegate: AppDelegate?
+    private var hoverTrackingArea: NSTrackingArea?
     override var acceptsFirstResponder: Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = hoverTrackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        hoverTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        delegate?.hudHoverChanged(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        delegate?.hudHoverChanged(false)
+    }
     
     override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) {
@@ -1310,6 +1336,37 @@ class HudContainerView: NSView {
             return
         }
         super.keyDown(with: event)
+    }
+}
+
+class HudPeekView: NSView {
+    weak var delegate: AppDelegate?
+    private var peekTrackingArea: NSTrackingArea?
+    var pillLayer: CALayer?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = peekTrackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        peekTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        delegate?.hudPeekTriggered()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        delegate?.hudPeekTriggered()
     }
 }
 
@@ -1883,6 +1940,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     var fullWindow: NSWindow?
     var hudWindow: NSPanel?
+    var hudPeekWindow: NSPanel?
     var settingsWindow: NSWindow?
     var statusItem: NSStatusItem?
     
@@ -1896,6 +1954,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var lastQuotaFetchDate: Date = .distantPast
     var hudIdleSince: Date?
     var hudManualOverride: Bool = false
+    var isHoveringHud: Bool = false
+    var hudHoverRevealUntil: Date = .distantPast
+    var hudHideWorkItem: DispatchWorkItem?
+    var isHudFadingOut: Bool = false
+    var hudRestFrame: NSRect?
     var refreshBtn: NSButton?
     var isRefreshing: Bool = false
     var isFirstLaunch: Bool = true
@@ -2241,26 +2304,236 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             hudManualOverride = false
             return true
         }
+        if isHoveringHud || Date() < hudHoverRevealUntil {
+            return true
+        }
         if hudManualOverride {
             return true
         }
         if hudIdleSince == nil {
             hudIdleSince = Date()
         }
-        return Date().timeIntervalSince(hudIdleSince!) < 12.0
+        return Date().timeIntervalSince(hudIdleSince!) < 4.0
+    }
+
+    private func scheduleHudAutoHideCheck(delay: TimeInterval) {
+        hudHideWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.applyHudAutoHidePolicy()
+        }
+        hudHideWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+
+    func hudHoverChanged(_ hovering: Bool) {
+        isHoveringHud = hovering
+        if hovering {
+            hudHideWorkItem?.cancel()
+            hudHoverRevealUntil = .distantPast
+        } else {
+            let cfg = QuotaManager.loadConfig()
+            if currentMode == .hud && cfg.hud_auto_hide == true {
+                hudManualOverride = false
+                hudHoverRevealUntil = .distantPast
+                if hudIdleSince == nil {
+                    hudIdleSince = Date().addingTimeInterval(-3.0)
+                }
+                scheduleHudAutoHideCheck(delay: 1.5)
+            }
+        }
+    }
+
+    func hudPeekTriggered() {
+        guard currentMode == .hud else { return }
+        hudHoverRevealUntil = Date().addingTimeInterval(2.5)
+        isHoveringHud = false
+        hideHudPeekHandle()
+        if hudWindow == nil, let quota = latestQuota {
+            setupHudUI(with: quota)
+        }
+        showHudAnimated()
+        scheduleHudAutoHideCheck(delay: 2.6)
+    }
+
+    private func offscreenHudFrame(for restFrame: NSRect) -> NSRect {
+        let screen = hudWindow?.screen ?? NSScreen.main
+        let sf = screen?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let vf = screen?.visibleFrame ?? sf
+        var off = restFrame
+        if hudOrientation == .vertical {
+            let onRight = restFrame.midX >= vf.midX
+            off.origin.x = onRight ? sf.maxX + 8 : (sf.minX - restFrame.width - 8)
+        } else {
+            let onTop = restFrame.midY >= vf.midY
+            off.origin.y = onTop ? (vf.maxY + 8) : (sf.minY - restFrame.height - 8)
+        }
+        return off
+    }
+
+    private func showHudAnimated() {
+        guard let panel = hudWindow else { return }
+        let wasFadingOut = isHudFadingOut
+        isHudFadingOut = false
+        let rest = hudRestFrame ?? panel.frame
+        if !panel.isVisible || wasFadingOut || panel.alphaValue < 0.99 {
+            if !panel.isVisible {
+                panel.setFrame(offscreenHudFrame(for: rest), display: false, animate: false)
+                panel.alphaValue = 0.0
+                panel.orderFront(nil)
+            }
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.28
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().setFrame(rest, display: true)
+                panel.animator().alphaValue = 1.0
+            }, completionHandler: { [weak self] in
+                self?.hudRestFrame = nil
+            })
+        } else {
+            hudRestFrame = nil
+            panel.orderFront(nil)
+        }
+    }
+
+    private func hideHudAnimated(showPeekAfter: Bool) {
+        guard let panel = hudWindow, panel.isVisible else {
+            if showPeekAfter { showHudPeekHandle() }
+            return
+        }
+        if isHudFadingOut { return }
+        isHudFadingOut = true
+        let rest = panel.frame
+        hudRestFrame = rest
+        let offFrame = offscreenHudFrame(for: rest)
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.24
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(offFrame, display: true)
+            panel.animator().alphaValue = 0.0
+        }, completionHandler: { [weak self] in
+            guard let self = self else { return }
+            guard self.isHudFadingOut else { return }
+            self.isHudFadingOut = false
+            panel.orderOut(nil)
+            panel.setFrame(rest, display: false, animate: false)
+            panel.alphaValue = 1.0
+            if showPeekAfter && self.currentMode == .hud {
+                self.showHudPeekHandle()
+            }
+        })
+    }
+
+    private func hideHudPeekHandle() {
+        guard let peek = hudPeekWindow, peek.isVisible else { return }
+        peek.orderOut(nil)
+        peek.alphaValue = 1.0
+    }
+
+    private func showHudPeekHandle() {
+        guard currentMode == .hud else {
+            hideHudPeekHandle()
+            return
+        }
+        let screen = hudWindow?.screen ?? NSScreen.main
+        guard let screen = screen else { return }
+        let sf = screen.frame
+        let vf = screen.visibleFrame
+        let hudFrame = hudRestFrame ?? hudWindow?.frame ?? NSRect(x: vf.maxX - 134, y: vf.midY - 120, width: 114, height: 240)
+
+        let peekW: CGFloat
+        let peekH: CGFloat
+        let peekX: CGFloat
+        let peekY: CGFloat
+        let pillFrame: NSRect
+
+        if hudOrientation == .vertical {
+            peekW = 10
+            peekH = 76
+            let onRight = hudFrame.midX >= vf.midX
+            peekX = onRight ? (sf.maxX - peekW) : sf.minX
+            let targetY = min(max(hudFrame.midY - peekH / 2.0, vf.minY + 12), vf.maxY - peekH - 12)
+            peekY = targetY
+            let pillX: CGFloat = onRight ? 4 : 2
+            pillFrame = NSRect(x: pillX, y: 12, width: 4, height: 52)
+        } else {
+            peekW = 76
+            peekH = 10
+            let onTop = hudFrame.midY >= vf.midY
+            peekY = onTop ? (vf.maxY - peekH) : sf.minY
+            let targetX = min(max(hudFrame.midX - peekW / 2.0, vf.minX + 12), vf.maxX - peekW - 12)
+            peekX = targetX
+            let pillY: CGFloat = onTop ? 4 : 2
+            pillFrame = NSRect(x: 12, y: pillY, width: 52, height: 4)
+        }
+
+        if hudPeekWindow == nil {
+            let p = NSPanel(
+                contentRect: NSRect(x: peekX, y: peekY, width: peekW, height: peekH),
+                styleMask: [.nonactivatingPanel, .borderless],
+                backing: .buffered,
+                defer: false
+            )
+            p.isFloatingPanel = true
+            p.level = .floating
+            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            p.backgroundColor = .clear
+            p.isOpaque = false
+            p.hasShadow = false
+            hudPeekWindow = p
+        }
+
+        guard let peekPanel = hudPeekWindow else { return }
+        peekPanel.setFrame(NSRect(x: peekX, y: peekY, width: peekW, height: peekH), display: true, animate: false)
+
+        let peekView = HudPeekView(frame: NSRect(x: 0, y: 0, width: peekW, height: peekH))
+        peekView.delegate = self
+        peekView.wantsLayer = true
+
+        let pill = CALayer()
+        pill.frame = pillFrame
+        pill.backgroundColor = NSColor(white: 0.78, alpha: 0.48).cgColor
+        pill.borderColor = NSColor(white: 1.0, alpha: 0.28).cgColor
+        pill.borderWidth = 0.5
+        pill.cornerRadius = 2.0
+        peekView.layer?.addSublayer(pill)
+        peekView.pillLayer = pill
+
+        peekPanel.contentView = peekView
+        if !peekPanel.isVisible {
+            peekPanel.alphaValue = 0.0
+            peekPanel.orderFront(nil)
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.20
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                peekPanel.animator().alphaValue = 1.0
+            })
+        } else {
+            peekPanel.orderFront(nil)
+        }
     }
 
     private func applyHudAutoHidePolicy() {
-        guard currentMode == .hud else { return }
+        guard currentMode == .hud else {
+            hideHudPeekHandle()
+            return
+        }
         if settingsWindow != nil && settingsWindow?.isVisible == true { return }
         if shouldShowHudForAutoHide() {
+            hideHudPeekHandle()
             if hudWindow == nil, let quota = latestQuota {
                 setupHudUI(with: quota)
                 return
             }
-            hudWindow?.orderFront(nil)
+            showHudAnimated()
+            let cfg = QuotaManager.loadConfig()
+            if cfg.hud_auto_hide == true, let idleSince = hudIdleSince {
+                let remaining = 4.0 - Date().timeIntervalSince(idleSince)
+                if remaining > 0 {
+                    scheduleHudAutoHideCheck(delay: remaining + 0.1)
+                }
+            }
         } else {
-            hudWindow?.orderOut(nil)
+            hideHudAnimated(showPeekAfter: true)
         }
     }
 
@@ -2398,6 +2671,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func switchToFullMode() {
         currentMode = .full
+        hideHudPeekHandle()
+        hudHideWorkItem?.cancel()
         UserDefaults.standard.set(currentMode.rawValue, forKey: "uaqm_display_mode")
         renderCurrentMode()
         NSApp.activate(ignoringOtherApps: true)
@@ -4602,6 +4877,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow?.orderOut(nil)
         performRefresh(animated: true)
         applyHudAutoHidePolicy()
+        if cfg.hud_auto_hide == true {
+            scheduleHudAutoHideCheck(delay: 4.1)
+        }
     }
     
     @objc func saveSettingsClicked() {

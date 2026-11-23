@@ -996,6 +996,154 @@ function Show-HudMenu {
 
 $global:hudIdleSince = $null
 $global:hudManualOverride = $false
+$global:hudPeekWin = $null
+$global:isHoveringHud = $false
+$global:hudHoverRevealUntil = [DateTime]::MinValue
+$global:hudHideTimer = $null
+$global:hudRestLeft = $null
+$global:isHudHiding = $false
+
+function Schedule-HudAutoHideCheck ([double]$delaySec) {
+    if ($null -eq $global:hudHideTimer) {
+        $global:hudHideTimer = New-Object System.Windows.Threading.DispatcherTimer
+        $global:hudHideTimer.Add_Tick({
+            $global:hudHideTimer.Stop()
+            Apply-HudAutoHidePolicy
+        })
+    }
+    $global:hudHideTimer.Stop()
+    $global:hudHideTimer.Interval = [TimeSpan]::FromSeconds([Math]::Max(0.1, $delaySec))
+    $global:hudHideTimer.Start()
+}
+
+function Hide-HudPeekHandle {
+    if ($global:hudPeekWin) {
+        try { $global:hudPeekWin.Hide() } catch {}
+    }
+}
+
+function Show-HudPeekHandle {
+    if (-not $global:isHudMode) { Hide-HudPeekHandle; return }
+    $workArea = [System.Windows.SystemParameters]::WorkArea
+    $hudMidX = if ($null -ne $global:hudRestLeft) { $global:hudRestLeft + ($global:HudWidth / 2.0) } else { $window.Left + ($window.Width / 2.0) }
+    $hudMidY = $window.Top + ($window.Height / 2.0)
+    $onRight = ($hudMidX -ge ($workArea.Left + ($workArea.Width / 2.0)))
+    $peekW = 10
+    $peekH = 76
+    $peekX = if ($onRight) { $workArea.Right - $peekW } else { $workArea.Left }
+    $peekY = [Math]::Min([Math]::Max($hudMidY - ($peekH / 2.0), $workArea.Top + 12), $workArea.Bottom - $peekH - 12)
+
+    if ($null -eq $global:hudPeekWin) {
+        $pw = New-Object System.Windows.Window
+        $pw.WindowStyle = [System.Windows.WindowStyle]::None
+        $pw.AllowsTransparency = $true
+        $pw.Background = [System.Windows.Media.Brushes]::Transparent
+        $pw.ShowInTaskbar = $false
+        $pw.Topmost = $true
+        $pw.ResizeMode = [System.Windows.ResizeMode]::NoResize
+        $pw.Width = $peekW
+        $pw.Height = $peekH
+
+        $grid = New-Object System.Windows.Controls.Grid
+        $pill = New-Object System.Windows.Controls.Border
+        $pill.Width = 4
+        $pill.Height = 52
+        $pill.CornerRadius = New-Object System.Windows.CornerRadius(2)
+        $pill.Background = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(130, 200, 200, 208)))
+        $pill.BorderBrush = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(75, 255, 255, 255)))
+        $pill.BorderThickness = New-Object System.Windows.Thickness(0.5)
+        $pill.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        $pill.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+        $grid.Children.Add($pill) | Out-Null
+        $pw.Content = $grid
+
+        $pw.Add_MouseEnter({ Invoke-HudPeekTrigger })
+        $pw.Add_MouseLeftButtonDown({ Invoke-HudPeekTrigger })
+        $global:hudPeekWin = $pw
+    }
+    $global:hudPeekWin.Left = $peekX
+    $global:hudPeekWin.Top = $peekY
+    try { $global:hudPeekWin.Show() } catch {}
+}
+
+function Invoke-HudPeekTrigger {
+    if (-not $global:isHudMode) { return }
+    $global:hudHoverRevealUntil = (Get-Date).AddSeconds(2.5)
+    $global:isHoveringHud = $false
+    Hide-HudPeekHandle
+    Show-HudAnimated
+    Schedule-HudAutoHideCheck 2.6
+}
+
+function Get-OffscreenHudLeft ([double]$restLeft) {
+    $workArea = [System.Windows.SystemParameters]::WorkArea
+    $onRight = (($restLeft + ($global:HudWidth / 2.0)) -ge ($workArea.Left + ($workArea.Width / 2.0)))
+    if ($onRight) { return ($workArea.Right + 8) } else { return ($workArea.Left - $global:HudWidth - 8) }
+}
+
+function Show-HudAnimated {
+    if (-not $window) { return }
+    $wasHiding = $global:isHudHiding
+    $global:isHudHiding = $false
+    $rest = if ($null -ne $global:hudRestLeft) { $global:hudRestLeft } else { $window.Left }
+    if ($window.Visibility -ne [System.Windows.Visibility]::Visible -or $wasHiding -or $window.Opacity -lt 0.99) {
+        if ($window.Visibility -ne [System.Windows.Visibility]::Visible) {
+            $window.Left = Get-OffscreenHudLeft $rest
+            $window.Opacity = 0.0
+            try { $window.Show() } catch {}
+        }
+        $easeOut = New-Object System.Windows.Media.Animation.CubicEase
+        $easeOut.EasingMode = [System.Windows.Media.Animation.EasingMode]::EaseOut
+        $dur = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(260))
+
+        $animX = New-Object System.Windows.Media.Animation.DoubleAnimation($rest, $dur)
+        $animX.EasingFunction = $easeOut
+        $animX.FillBehavior = [System.Windows.Media.Animation.FillBehavior]::Stop
+        $animX.Add_Completed({ $window.Left = $rest; $global:hudRestLeft = $null })
+
+        $animOp = New-Object System.Windows.Media.Animation.DoubleAnimation(1.0, $dur)
+        $animOp.EasingFunction = $easeOut
+        $animOp.FillBehavior = [System.Windows.Media.Animation.FillBehavior]::Stop
+        $animOp.Add_Completed({ $window.Opacity = 1.0 })
+
+        $window.BeginAnimation([System.Windows.Window]::LeftProperty, $animX)
+        $window.BeginAnimation([System.Windows.Window]::OpacityProperty, $animOp)
+    }
+}
+
+function Hide-HudAnimated {
+    if (-not $window -or $window.Visibility -ne [System.Windows.Visibility]::Visible) {
+        Show-HudPeekHandle
+        return
+    }
+    if ($global:isHudHiding) { return }
+    $global:isHudHiding = $true
+    $rest = $window.Left
+    $global:hudRestLeft = $rest
+    $offX = Get-OffscreenHudLeft $rest
+    $easeIn = New-Object System.Windows.Media.Animation.CubicEase
+    $easeIn.EasingMode = [System.Windows.Media.Animation.EasingMode]::EaseInOut
+    $dur = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(220))
+
+    $animX = New-Object System.Windows.Media.Animation.DoubleAnimation($offX, $dur)
+    $animX.EasingFunction = $easeIn
+    $animX.FillBehavior = [System.Windows.Media.Animation.FillBehavior]::Stop
+
+    $animOp = New-Object System.Windows.Media.Animation.DoubleAnimation(0.0, $dur)
+    $animOp.EasingFunction = $easeIn
+    $animOp.FillBehavior = [System.Windows.Media.Animation.FillBehavior]::Stop
+    $animOp.Add_Completed({
+        if (-not $global:isHudHiding) { return }
+        $global:isHudHiding = $false
+        try { $window.Hide() } catch {}
+        $window.Left = $rest
+        $window.Opacity = 1.0
+        if ($global:isHudMode) { Show-HudPeekHandle }
+    })
+
+    $window.BeginAnimation([System.Windows.Window]::LeftProperty, $animX)
+    $window.BeginAnimation([System.Windows.Window]::OpacityProperty, $animOp)
+}
 
 function Test-AnyAgentActive ($data) {
     if (-not $data) { return $false }
@@ -1018,6 +1166,8 @@ function Apply-HudAutoHidePolicy {
     if (-not $global:isHudMode) {
         $global:hudIdleSince = $null
         $global:hudManualOverride = $false
+        Hide-HudPeekHandle
+        if ($global:hudHideTimer) { $global:hudHideTimer.Stop() }
         if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
             try { $window.Show() } catch {}
         }
@@ -1028,9 +1178,9 @@ function Apply-HudAutoHidePolicy {
     if (-not $autoHide) {
         $global:hudIdleSince = $null
         $global:hudManualOverride = $false
-        if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
-            try { $window.Show() } catch {}
-        }
+        Hide-HudPeekHandle
+        if ($global:hudHideTimer) { $global:hudHideTimer.Stop() }
+        Show-HudAnimated
         return
     }
     $showOnActivity = $true
@@ -1041,25 +1191,30 @@ function Apply-HudAutoHidePolicy {
     if ($showOnActivity -and $hasActive) {
         $global:hudIdleSince = $null
         $global:hudManualOverride = $false
-        if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
-            try { $window.Show() } catch {}
-        }
+        Hide-HudPeekHandle
+        Show-HudAnimated
+        return
+    }
+    if ($global:isHoveringHud -or ((Get-Date) -lt $global:hudHoverRevealUntil)) {
+        Hide-HudPeekHandle
+        Show-HudAnimated
         return
     }
     if ($global:hudManualOverride) {
-        if ($window -and $window.Visibility -ne [System.Windows.Visibility]::Visible) {
-            try { $window.Show() } catch {}
-        }
+        Hide-HudPeekHandle
+        Show-HudAnimated
         return
     }
     if ($null -eq $global:hudIdleSince) {
         $global:hudIdleSince = Get-Date
+        Schedule-HudAutoHideCheck 4.1
         return
     }
-    if (((Get-Date) - $global:hudIdleSince).TotalSeconds -ge 12) {
-        if ($window -and $window.Visibility -eq [System.Windows.Visibility]::Visible) {
-            try { $window.Hide() } catch {}
-        }
+    $elapsed = ((Get-Date) - $global:hudIdleSince).TotalSeconds
+    if ($elapsed -ge 4.0) {
+        Hide-HudAnimated
+    } else {
+        Schedule-HudAutoHideCheck (4.0 - $elapsed + 0.1)
     }
 }
 
@@ -1125,9 +1280,27 @@ $btnTopClose.Add_Click({ $window.Close() })
 $btnClose.Add_Click({ $window.Close() })
 $btnHud.Add_Click({ Toggle-HudMode })
 
-$btnHudClose.Add_Click({ $window.Close() })
+$btnHudClose.Add_Click({ Hide-HudPeekHandle; $window.Close() })
 $btnHudCockpit.Add_Click({ Toggle-HudMode })
 $btnHudMenu.Add_Click({ Show-HudMenu })
+
+$hudView.Add_MouseEnter({
+    $global:isHoveringHud = $true
+    $global:hudHoverRevealUntil = [DateTime]::MinValue
+    if ($global:hudHideTimer) { $global:hudHideTimer.Stop() }
+})
+$hudView.Add_MouseLeave({
+    $global:isHoveringHud = $false
+    if ($global:isHudMode) {
+        $cfg = Load-CurrentConfig
+        if ($cfg -and $cfg.hud_auto_hide) {
+            $global:hudManualOverride = $false
+            $global:hudHoverRevealUntil = [DateTime]::MinValue
+            if ($null -eq $global:hudIdleSince) { $global:hudIdleSince = (Get-Date).AddSeconds(-3.0) }
+            Schedule-HudAutoHideCheck 1.5
+        }
+    }
+})
 
 # Dragging Support
 $cockpitTitleBar.Add_MouseLeftButtonDown({

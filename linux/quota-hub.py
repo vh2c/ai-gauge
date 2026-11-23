@@ -824,6 +824,14 @@ class QuotaHubAppLinux:
         self._tooltip_text = None
         self._hud_idle_since = None
         self._hud_manual_override = False
+        self._hud_peek_win = None
+        self._is_hovering_hud = False
+        self._hud_hover_reveal_until = 0.0
+        self._hud_hide_job = None
+        self._is_hud_fading = False
+
+        self.root.bind("<Enter>", self._on_hud_enter)
+        self.root.bind("<Leave>", self._on_hud_leave)
 
         self.root.bind("<Control-m>", lambda e: self.toggle_mode())
         self.root.bind("<Control-M>", lambda e: self.toggle_mode())
@@ -1217,6 +1225,14 @@ class QuotaHubAppLinux:
         self.mode = "hud" if self.mode == "full" else "full"
         self._hud_idle_since = None
         self._hud_manual_override = False
+        self._hud_peek_win = None
+        self._is_hovering_hud = False
+        self._hud_hover_reveal_until = 0.0
+        self._hud_hide_job = None
+        self._is_hud_fading = False
+
+        self.root.bind("<Enter>", self._on_hud_enter)
+        self.root.bind("<Leave>", self._on_hud_leave)
         self.save_prefs()
         self.setup_ui()
         if self.mode == "full" and (time.time() - self.last_quota_fetch_at) > 15:
@@ -1813,14 +1829,161 @@ class QuotaHubAppLinux:
                 return True
         return False
 
+    def _schedule_hud_auto_hide_check(self, delay_ms: int):
+        if self._hud_hide_job is not None:
+            try:
+                self.root.after_cancel(self._hud_hide_job)
+            except Exception:
+                pass
+            self._hud_hide_job = None
+        try:
+            self._hud_hide_job = self.root.after(max(100, int(delay_ms)), self._apply_hud_auto_hide_policy)
+        except Exception:
+            pass
+
+    def _on_hud_enter(self, _e=None):
+        if self.mode == "full":
+            return
+        self._is_hovering_hud = True
+        self._hud_hover_reveal_until = 0.0
+        if self._hud_hide_job is not None:
+            try:
+                self.root.after_cancel(self._hud_hide_job)
+            except Exception:
+                pass
+            self._hud_hide_job = None
+
+    def _on_hud_leave(self, event=None):
+        if self.mode == "full":
+            return
+        # Only treat as leaving the HUD when cursor exits root bounds
+        try:
+            rx = self.root.winfo_rootx()
+            ry = self.root.winfo_rooty()
+            rw = self.root.winfo_width()
+            rh = self.root.winfo_height()
+            px, py = self.root.winfo_pointerxy()
+            if rx <= px <= (rx + rw) and ry <= py <= (ry + rh):
+                return
+        except Exception:
+            pass
+        self._is_hovering_hud = False
+        cfg = load_config()
+        if bool(cfg.get("hud_auto_hide", False)):
+            self._hud_manual_override = False
+            self._hud_hover_reveal_until = 0.0
+            if self._hud_idle_since is None:
+                self._hud_idle_since = time.time() - 3.0
+            self._schedule_hud_auto_hide_check(1500)
+
+    def _hide_hud_peek_handle(self):
+        if self._hud_peek_win is not None:
+            try:
+                if self._hud_peek_win.winfo_exists():
+                    self._hud_peek_win.withdraw()
+            except Exception:
+                pass
+
+    def _show_hud_peek_handle(self):
+        if self.mode == "full":
+            self._hide_hud_peek_handle()
+            return
+        try:
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            rx = self.root.winfo_x()
+            ry = self.root.winfo_y()
+            rw = max(1, self.root.winfo_width())
+            rh = max(1, self.root.winfo_height())
+            mid_x = rx + rw / 2.0
+            mid_y = ry + rh / 2.0
+
+            if self.orientation == "vertical":
+                pw, ph = 10, 76
+                on_right = mid_x >= (sw / 2.0)
+                px = (sw - pw) if on_right else 0
+                py = int(min(max(mid_y - ph / 2.0, 24), sh - ph - 24))
+            else:
+                pw, ph = 76, 10
+                on_top = mid_y < (sh / 2.0)
+                py = 0 if on_top else (sh - ph)
+                px = int(min(max(mid_x - pw / 2.0, 24), sw - pw - 24))
+
+            if self._hud_peek_win is None or not self._hud_peek_win.winfo_exists():
+                w = tk.Toplevel(self.root)
+                w.overrideredirect(True)
+                try:
+                    w.attributes("-topmost", True)
+                except Exception:
+                    pass
+                w.configure(bg="#2A2A30")
+                pill = tk.Frame(w, bg="#B4B4BE")
+                pill.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.45 if self.orientation == "vertical" else 0.72, relheight=0.72 if self.orientation == "vertical" else 0.45)
+                for target in (w, pill):
+                    target.bind("<Enter>", lambda _e: self._on_hud_peek_triggered())
+                    target.bind("<Button-1>", lambda _e: self._on_hud_peek_triggered())
+                self._hud_peek_win = w
+
+            self._hud_peek_win.geometry(f"{pw}x{ph}+{px}+{py}")
+            self._hud_peek_win.deiconify()
+            self._hud_peek_win.lift()
+        except Exception:
+            pass
+
+    def _on_hud_peek_triggered(self):
+        if self.mode == "full":
+            return
+        self._hud_hover_reveal_until = time.time() + 2.5
+        self._is_hovering_hud = False
+        self._hide_hud_peek_handle()
+        self._show_hud_animated()
+        self._schedule_hud_auto_hide_check(2600)
+
+    def _show_hud_animated(self):
+        self._is_hud_fading = False
+        try:
+            self.root.attributes("-alpha", 1.0)
+        except Exception:
+            pass
+        try:
+            self.root.deiconify()
+            self.root.lift()
+        except Exception:
+            pass
+
+    def _hide_hud_animated(self):
+        if self._is_hud_fading:
+            return
+        self._is_hud_fading = True
+        steps = [0.85, 0.65, 0.42, 0.20, 0.0]
+
+        def step_fade(idx=0):
+            if not self._is_hud_fading:
+                return
+            if idx < len(steps):
+                try:
+                    self.root.attributes("-alpha", steps[idx])
+                    self.root.after(35, lambda: step_fade(idx + 1))
+                    return
+                except Exception:
+                    pass
+            self._is_hud_fading = False
+            try:
+                self.root.withdraw()
+                self.root.attributes("-alpha", 1.0)
+            except Exception:
+                pass
+            if self.mode != "full":
+                self._show_hud_peek_handle()
+
+        step_fade(0)
+
     def _apply_hud_auto_hide_policy(self):
         if self.mode == "full":
             self._hud_idle_since = None
             self._hud_manual_override = False
-            try:
-                self.root.deiconify()
-            except Exception:
-                pass
+            self._hide_hud_peek_handle()
+            self._show_hud_animated()
             return
 
         cfg = load_config()
@@ -1828,40 +1991,39 @@ class QuotaHubAppLinux:
         if not auto_hide:
             self._hud_idle_since = None
             self._hud_manual_override = False
-            try:
-                self.root.deiconify()
-            except Exception:
-                pass
+            self._hide_hud_peek_handle()
+            self._show_hud_animated()
             return
 
         show_on_activity = bool(cfg.get("hud_show_on_activity", True))
         if show_on_activity and self._any_agent_active():
             self._hud_idle_since = None
             self._hud_manual_override = False
-            try:
-                self.root.deiconify()
-                self.root.lift()
-            except Exception:
-                pass
+            self._hide_hud_peek_handle()
+            self._show_hud_animated()
+            return
+
+        if self._is_hovering_hud or time.time() < self._hud_hover_reveal_until:
+            self._hide_hud_peek_handle()
+            self._show_hud_animated()
             return
 
         if self._hud_manual_override:
-            try:
-                self.root.deiconify()
-            except Exception:
-                pass
+            self._hide_hud_peek_handle()
+            self._show_hud_animated()
             return
 
         now = time.time()
         if self._hud_idle_since is None:
             self._hud_idle_since = now
+            self._schedule_hud_auto_hide_check(4100)
             return
 
-        if (now - self._hud_idle_since) >= 12.0:
-            try:
-                self.root.withdraw()
-            except Exception:
-                pass
+        elapsed = now - self._hud_idle_since
+        if elapsed >= 4.0:
+            self._hide_hud_animated()
+        else:
+            self._schedule_hud_auto_hide_check(int((4.0 - elapsed + 0.1) * 1000))
 
     def setup_full_ui(self):
         self._apply_window_chrome(borderless=False, topmost=False)
