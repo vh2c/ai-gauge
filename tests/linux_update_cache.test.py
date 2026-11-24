@@ -150,6 +150,11 @@ class LinuxUpdateCache(unittest.TestCase):
         self.assertEqual(fn(10, 450, 500, 134, 1920, 1080, "horizontal"), "vertical")
         # Near right edge -> vertical
         self.assertEqual(fn(1400, 450, 500, 134, 1920, 1080, "horizontal"), "vertical")
+        # Corners (top-left, bottom-left, top-right, bottom-right) -> vertical always wins
+        self.assertEqual(fn(20, 10, 500, 134, 1920, 1080, "horizontal"), "vertical")
+        self.assertEqual(fn(20, 930, 500, 134, 1920, 1080, "horizontal"), "vertical")
+        self.assertEqual(fn(1400, 10, 500, 134, 1920, 1080, "horizontal"), "vertical")
+        self.assertEqual(fn(1400, 930, 500, 134, 1920, 1080, "horizontal"), "vertical")
         # Middle of screen -> keeps current orientation
         self.assertEqual(fn(700, 400, 118, 220, 1920, 1080, "vertical"), "vertical")
         self.assertEqual(fn(700, 400, 500, 134, 1920, 1080, "horizontal"), "horizontal")

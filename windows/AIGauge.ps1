@@ -782,7 +782,7 @@ $global:quotaPoll.Add_Tick({
                     </Grid>
                     
                     <!-- HUD Tachometer Gauges List (Zero wide scrollbar, smooth wheel scroll) -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Name="HudScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Name="HudCardsPanel" HorizontalAlignment="Center"/>
                     </ScrollViewer>
                     
@@ -830,6 +830,7 @@ $btnClose = $window.FindName("BtnClose")
 $txtBrand = $window.FindName("TxtBrand")
 
 $hudView = $window.FindName("HudView")
+$hudScrollViewer = $window.FindName("HudScrollViewer")
 $hudCardsPanel = $window.FindName("HudCardsPanel")
 $btnHudClose = $window.FindName("BtnHudClose")
 $btnHudCockpit = $window.FindName("BtnHudCockpit")
@@ -843,6 +844,11 @@ $global:prevTop = $null
 
 # ---------- HUD helpers (metrics identical in spirit to the macOS HUD) ----------
 $global:HudWidth = 116
+$global:HudOrientation = "vertical"
+try {
+    $initCfg = Load-CurrentConfig
+    if ($initCfg -and $initCfg.hud_orientation -eq "horizontal") { $global:HudOrientation = "horizontal" }
+} catch {}
 
 function Get-GaugeKey ($b) {
     if ($b.id) { return "$($b.id)" }
@@ -897,7 +903,8 @@ function Get-HudSections ($data) {
     return @($sectionOrder)
 }
 
-function Get-HudHeight ($data) {
+function Get-HudDimensions ($data, $orientation = $null) {
+    $orient = if ($orientation) { $orientation } else { $global:HudOrientation }
     $workArea = [System.Windows.SystemParameters]::WorkArea
     $sections = @(Get-HudSections $data)
     $secCount = $sections.Count
@@ -905,10 +912,54 @@ function Get-HudHeight ($data) {
     foreach ($s in $sections) {
         $items += $s.Items.Count
     }
-    if ($items -eq 0) { return 180 }
+    if ($orient -eq "horizontal") {
+        if ($items -eq 0) {
+            return @{ Width = 260; Height = 152 }
+        }
+        $totalW = 24
+        foreach ($s in $sections) {
+            $totalW += [Math]::Max(108, ($s.Items.Count * 96) + 14) + 10
+        }
+        $maxW = [Math]::Max(300, $workArea.Width - 40)
+        return @{ Width = [Math]::Min($maxW, [Math]::Max(260, $totalW)); Height = 166 }
+    }
+    if ($items -eq 0) {
+        return @{ Width = $global:HudWidth; Height = 180 }
+    }
     $calc = 56 + ($secCount * 28) + ($items * 106)
     $maxH = [Math]::Min(780, $workArea.Height - 60)
-    return [Math]::Min($maxH, [Math]::Max(160, $calc))
+    return @{ Width = $global:HudWidth; Height = [Math]::Min($maxH, [Math]::Max(160, $calc)) }
+}
+
+function Get-HudHeight ($data) {
+    return (Get-HudDimensions $data "vertical").Height
+}
+
+function Save-HudOrientation ($orient) {
+    $global:HudOrientation = $orient
+    $cfg = Load-CurrentConfig
+    if ($cfg) {
+        $cfg | Add-Member -NotePropertyName "hud_orientation" -NotePropertyValue $orient -Force
+        Write-Utf8NoBom $ConfigFile ($cfg | ConvertTo-Json -Depth 6)
+    }
+}
+
+function Toggle-HudOrientation {
+    $next = if ($global:HudOrientation -eq "vertical") { "horizontal" } else { "vertical" }
+    Save-HudOrientation $next
+    if ($global:isHudMode) {
+        $dims = Get-HudDimensions $global:currentData $next
+        $workArea = [System.Windows.SystemParameters]::WorkArea
+        $cx = $window.Left + ($window.Width / 2)
+        $cy = $window.Top + ($window.Height / 2)
+        $window.Width = $dims.Width
+        $window.Height = $dims.Height
+        $nx = [Math]::Max($workArea.Left, [Math]::Min($cx - ($dims.Width / 2), $workArea.Right - $dims.Width))
+        $ny = [Math]::Max($workArea.Top, [Math]::Min($cy - ($dims.Height / 2), $workArea.Bottom - $dims.Height))
+        $window.Left = $nx
+        $window.Top = $ny
+        Render-HUD $global:currentData
+    }
 }
 
 function Set-HudChrome ($hud) {
@@ -931,7 +982,9 @@ function Set-HudGaugeHidden ($key, $hide) {
     $cfg | Add-Member -NotePropertyName "hidden_hud_gauges" -NotePropertyValue @($list) -Force
     Write-Utf8NoBom $ConfigFile ($cfg | ConvertTo-Json -Depth 6)
     if ($global:isHudMode) {
-        $window.Height = Get-HudHeight $global:currentData
+        $dims = Get-HudDimensions $global:currentData
+        $window.Width = $dims.Width
+        $window.Height = $dims.Height
         Render-HUD $global:currentData
     }
 }
@@ -983,6 +1036,11 @@ function Show-HudMenu {
     $menu.Items.Add($miGauges) | Out-Null
 
     $menu.Items.Add((New-Object System.Windows.Controls.Separator)) | Out-Null
+
+    $miOrient = New-Object System.Windows.Controls.MenuItem
+    $miOrient.Header = if ($global:HudOrientation -eq "vertical") { "Switch to Horizontal Bar" } else { "Switch to Vertical Bar" }
+    $miOrient.Add_Click({ Toggle-HudOrientation })
+    $menu.Items.Add($miOrient) | Out-Null
 
     $miCockpit = New-Object System.Windows.Controls.MenuItem
     $miCockpit.Header = "Open full window"
@@ -1260,14 +1318,19 @@ function Toggle-HudMode {
         $hudView.Visibility = [System.Windows.Visibility]::Visible
         
         Set-HudChrome $true
-        $hudH = Get-HudHeight $global:currentData
+        $dims = Get-HudDimensions $global:currentData
         
         $window.Title = "AI Gauge HUD"
         $window.Topmost = $true
-        $window.Width = $global:HudWidth
-        $window.Height = $hudH
-        $window.Left = $workArea.Right - ($global:HudWidth + 16)
-        $window.Top = [Math]::Max(20, ($workArea.Height - $hudH) / 2)
+        $window.Width = $dims.Width
+        $window.Height = $dims.Height
+        if ($global:HudOrientation -eq "horizontal") {
+            $window.Left = [Math]::Max($workArea.Left, ($workArea.Width - $dims.Width) / 2)
+            $window.Top = $workArea.Bottom - ($dims.Height + 16)
+        } else {
+            $window.Left = $workArea.Right - ($dims.Width + 16)
+            $window.Top = [Math]::Max(20, ($workArea.Height - $dims.Height) / 2)
+        }
         
         Render-HUD $global:currentData
         Apply-HudAutoHidePolicy
@@ -1310,10 +1373,57 @@ $cockpitTitleBar.Add_MouseLeftButtonDown({
     }
 })
 
+function Update-HudAutoOrientationAfterDrag ($startL, $startT) {
+    if (-not $global:isHudMode) { return }
+    if ([Math]::Abs($window.Left - $startL) -lt 3 -and [Math]::Abs($window.Top - $startT) -lt 3) { return }
+    $workArea = [System.Windows.SystemParameters]::WorkArea
+    $leftDist = [Math]::Max(0, $window.Left - $workArea.Left)
+    $rightDist = [Math]::Max(0, $workArea.Right - ($window.Left + $window.Width))
+    $topDist = [Math]::Max(0, $window.Top - $workArea.Top)
+    $bottomDist = [Math]::Max(0, $workArea.Bottom - ($window.Top + $window.Height))
+    $minLR = [Math]::Min($leftDist, $rightDist)
+    $minTB = [Math]::Min($topDist, $bottomDist)
+    $edgeMargin = 90
+
+    $newOrient = $global:HudOrientation
+    if ($minLR -le $edgeMargin -and $minTB -le $edgeMargin) {
+        $newOrient = "vertical"
+    } elseif ($minTB -le $edgeMargin) {
+        $newOrient = "horizontal"
+    } elseif ($minLR -le $edgeMargin) {
+        $newOrient = "vertical"
+    }
+
+    if ($newOrient -eq $global:HudOrientation) { return }
+
+    $cx = $window.Left + ($window.Width / 2)
+    $cy = $window.Top + ($window.Height / 2)
+    Save-HudOrientation $newOrient
+
+    $dims = Get-HudDimensions $global:currentData $newOrient
+    $window.Width = $dims.Width
+    $window.Height = $dims.Height
+    $nx = $cx - ($dims.Width / 2)
+    $ny = $cy - ($dims.Height / 2)
+    if ($newOrient -eq "horizontal") {
+        if ($topDist -le 48) { $ny = $workArea.Top + 12 }
+        elseif ($bottomDist -le 48) { $ny = $workArea.Bottom - $dims.Height - 12 }
+    } else {
+        if ($leftDist -le 48) { $nx = $workArea.Left + 12 }
+        elseif ($rightDist -le 48) { $nx = $workArea.Right - $dims.Width - 12 }
+    }
+    $window.Left = [Math]::Max($workArea.Left, [Math]::Min($nx, [Math]::Max($workArea.Left, $workArea.Right - $dims.Width)))
+    $window.Top = [Math]::Max($workArea.Top, [Math]::Min($ny, [Math]::Max($workArea.Top, $workArea.Bottom - $dims.Height)))
+    Render-HUD $global:currentData
+}
+
 $window.Add_MouseLeftButtonDown({
     param($s, $e)
     if ($global:isHudMode -and $e.LeftButton -eq [System.Windows.Input.MouseButtonState]::Pressed) {
+        $startL = $window.Left
+        $startT = $window.Top
         try { $window.DragMove() } catch {}
+        Update-HudAutoOrientationAfterDrag $startL $startT
     }
 })
 
@@ -2195,6 +2305,12 @@ function Render-UI ($data) {
 # 6. Render HUD UI (Framed Section Capsules & Signature Tachometer Dials)
 function Render-HUD ($data) {
     $hudCardsPanel.Children.Clear()
+    $isHoriz = ($global:HudOrientation -eq "horizontal")
+    $hudCardsPanel.Orientation = if ($isHoriz) { [System.Windows.Controls.Orientation]::Horizontal } else { [System.Windows.Controls.Orientation]::Vertical }
+    if ($hudScrollViewer) {
+        $hudScrollViewer.VerticalScrollBarVisibility = if ($isHoriz) { [System.Windows.Controls.ScrollBarVisibility]::Disabled } else { [System.Windows.Controls.ScrollBarVisibility]::Hidden }
+        $hudScrollViewer.HorizontalScrollBarVisibility = if ($isHoriz) { [System.Windows.Controls.ScrollBarVisibility]::Hidden } else { [System.Windows.Controls.ScrollBarVisibility]::Disabled }
+    }
     
     $hasGroups = ($data -and $data.groups -and $data.groups.Count -gt 0)
     
@@ -2252,11 +2368,17 @@ function Render-HUD ($data) {
         $act = Get-ProviderActivity $data $sec.Key
         $actStatus = if ($act -and $act.status) { "$($act.status)" } else { "idle" }
 
-        # Section Frame Container Grid (Mac-aligned 102px width)
+        # Section Frame Container Grid (Mac-aligned 102px width in vertical, auto width in horizontal)
         $secGrid = New-Object System.Windows.Controls.Grid
-        $secGrid.Width = 102
-        $secGrid.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)
-        $secGrid.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        if ($isHoriz) {
+            $secGrid.Width = [double]::NaN
+            $secGrid.Margin = New-Object System.Windows.Thickness(0, 0, 8, 0)
+            $secGrid.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
+        } else {
+            $secGrid.Width = 102
+            $secGrid.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)
+            $secGrid.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+        }
         $secGrid.ToolTip = Get-ActivityTooltip $cleanTitle $act $pollSecs
 
         # Outer Rounded Border (Proposta A: color/opacity responds to working / waiting / idle)
@@ -2284,7 +2406,8 @@ function Render-HUD ($data) {
 
         # Stack inside the Section Frame
         $secStack = New-Object System.Windows.Controls.StackPanel
-        $secStack.Margin = New-Object System.Windows.Thickness(0, 9, 0, 6)
+        $secStack.Orientation = if ($isHoriz) { [System.Windows.Controls.Orientation]::Horizontal } else { [System.Windows.Controls.Orientation]::Vertical }
+        $secStack.Margin = if ($isHoriz) { New-Object System.Windows.Thickness(6, 11, 6, 6) } else { New-Object System.Windows.Thickness(0, 9, 0, 6) }
         $secBorder.Child = $secStack
         $secGrid.Children.Add($secBorder) | Out-Null
 

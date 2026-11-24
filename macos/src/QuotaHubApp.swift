@@ -1959,6 +1959,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
     var hudHideWorkItem: DispatchWorkItem?
     var isHudFadingOut: Bool = false
     var hudRestFrame: NSRect?
+    var hudMoveEndTimer: Timer?
+    var isProgrammaticHudMove: Bool = false
     var refreshBtn: NSButton?
     var isRefreshing: Bool = false
     var isFirstLaunch: Bool = true
@@ -2683,6 +2685,81 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
         }
     }
     
+    func windowDidMove(_ notification: Notification) {
+        guard let win = notification.object as? NSWindow,
+              win === hudWindow,
+              currentMode == .hud,
+              !isProgrammaticHudMove,
+              !isHudFadingOut else { return }
+        hudMoveEndTimer?.invalidate()
+        hudMoveEndTimer = Timer.scheduledTimer(withTimeInterval: 0.14, repeats: false) { [weak self] _ in
+            self?.handleHudDragEnded()
+        }
+    }
+
+    private func handleHudDragEnded() {
+        guard currentMode == .hud, let panel = hudWindow, panel.isVisible, !isHudFadingOut else { return }
+        if NSEvent.pressedMouseButtons != 0 {
+            hudMoveEndTimer?.invalidate()
+            hudMoveEndTimer = Timer.scheduledTimer(withTimeInterval: 0.14, repeats: false) { [weak self] _ in
+                self?.handleHudDragEnded()
+            }
+            return
+        }
+        guard let vf = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
+        let frame = panel.frame
+        let leftDist = max(0, frame.minX - vf.minX)
+        let rightDist = max(0, vf.maxX - frame.maxX)
+        let bottomDist = max(0, frame.minY - vf.minY)
+        let topDist = max(0, vf.maxY - frame.maxY)
+        let minLR = min(leftDist, rightDist)
+        let minTB = min(topDist, bottomDist)
+        let edgeMargin: CGFloat = 90
+
+        let newOrient: HudOrientation
+        if minLR <= edgeMargin && minTB <= edgeMargin {
+            // Corner (top-left, bottom-left, top-right, bottom-right): vertical always wins
+            newOrient = .vertical
+        } else if minTB <= edgeMargin {
+            newOrient = .horizontal
+        } else if minLR <= edgeMargin {
+            newOrient = .vertical
+        } else {
+            newOrient = hudOrientation
+        }
+
+        guard newOrient != hudOrientation else { return }
+
+        hudMoveEndTimer?.invalidate()
+        let oldCenter = NSPoint(x: frame.midX, y: frame.midY)
+        hudOrientation = newOrient
+        UserDefaults.standard.set(hudOrientation.rawValue, forKey: "uaqm_hud_orientation")
+
+        isProgrammaticHudMove = true
+        renderCurrentMode()
+        let newSize = panel.frame.size
+        var nx = oldCenter.x - newSize.width / 2.0
+        var ny = oldCenter.y - newSize.height / 2.0
+        if newOrient == .horizontal {
+            if bottomDist <= 48 {
+                ny = vf.minY + 12
+            } else if topDist <= 48 {
+                ny = vf.maxY - newSize.height - 12
+            }
+        } else {
+            if leftDist <= 48 {
+                nx = vf.minX + 12
+            } else if rightDist <= 48 {
+                nx = vf.maxX - newSize.width - 12
+            }
+        }
+        nx = max(vf.minX, min(nx, max(vf.minX, vf.maxX - newSize.width)))
+        ny = max(vf.minY, min(ny, max(vf.minY, vf.maxY - newSize.height)))
+        panel.setFrameOrigin(NSPoint(x: nx, y: ny))
+        hudMoveEndTimer?.invalidate()
+        isProgrammaticHudMove = false
+    }
+
     @objc func toggleHudOrientation() {
         hudOrientation = (hudOrientation == .vertical) ? .horizontal : .vertical
         UserDefaults.standard.set(hudOrientation.rawValue, forKey: "uaqm_hud_orientation")
@@ -2784,7 +2861,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
             newY = currentFrame.origin.y + (currentFrame.height - hudH)
         }
         
+        isProgrammaticHudMove = true
         panel.setFrame(NSRect(x: newX, y: newY, width: hudW, height: hudH), display: true, animate: false)
+        isProgrammaticHudMove = false
         
         let container = HudContainerView(frame: NSRect(x: 0, y: 0, width: hudW, height: hudH))
         container.delegate = self

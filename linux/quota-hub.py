@@ -458,7 +458,7 @@ def infer_hud_orientation_for_rect(x: int, y: int, w: int, h: int, sw: int, sh: 
     min_tb = min(top_d, bottom_d)
 
     if min_lr <= edge_margin and min_tb <= edge_margin:
-        return "horizontal" if min_tb < min_lr else "vertical"
+        return "vertical"
     if min_tb <= edge_margin:
         return "horizontal"
     if min_lr <= edge_margin:
