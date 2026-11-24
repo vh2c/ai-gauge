@@ -1,6 +1,6 @@
 /**
  * Google Gemini API Provider (AI Studio / Google Cloud)
- * Supports standard Gemini API keys (AIzaSy...) and OAuth Bearer tokens
+ * Supports Gemini API keys (AIzaSy..., AQ....) and OAuth Bearer tokens (ya29....)
  */
 
 const https = require('https');
@@ -18,7 +18,7 @@ class GeminiProvider {
   async fetch() {
     if (!this.apiKey) return null;
 
-    const isBearer = this.apiKey.startsWith('ya29.') || this.apiKey.startsWith('AQ.');
+    const isBearer = this.apiKey.startsWith('ya29.');
     const url = 'https://generativelanguage.googleapis.com/v1beta/models';
 
     const headers = {

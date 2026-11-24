@@ -1496,8 +1496,8 @@ class QuotaHubAppLinux:
                 if not key:
                     status_lbl.config(text="⚠️ Enter an API key first", fg="#F5A623")
                     return
-                btn_test.config(state="disabled", text="...")
-                status_lbl.config(text="Testing key...", fg="#94A3B8")
+                btn_test.config(state="disabled", text="Loading...")
+                status_lbl.config(text="Testing API key...", fg="#94A3B8")
 
                 def worker():
                     res = test_api_key_sync(prov_key, key)

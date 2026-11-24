@@ -2851,7 +2851,7 @@ function Show-SettingsDialog {
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <PasswordBox Name="TxtGeminiKey" Grid.Column="0" Height="26" Background="#141416" Foreground="#FFFFFF" BorderBrush="#33333A" Padding="6,3" Margin="0,0,6,0"/>
-                            <Button Name="BtnTestGemini" Grid.Column="1" Content="Test" Width="62" Height="26" Background="#282832" Foreground="#FFFFFF" BorderBrush="#383846" BorderThickness="1" FontSize="11" FontWeight="SemiBold"/>
+                            <Button Name="BtnTestGemini" Grid.Column="1" Content="Test" Width="76" Height="26" Background="#282832" Foreground="#FFFFFF" BorderBrush="#383846" BorderThickness="1" FontSize="11" FontWeight="SemiBold"/>
                         </Grid>
                         <TextBlock Name="TxtGeminiStatus" Text="" Foreground="#00E699" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,2" Visibility="Collapsed"/>
                         <TextBlock Name="LinkAiStudio" Text="Get API Key at Google AI Studio (aistudio.google.com) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
@@ -2871,7 +2871,7 @@ function Show-SettingsDialog {
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <PasswordBox Name="TxtOpenAIKey" Grid.Column="0" Height="26" Background="#141416" Foreground="#FFFFFF" BorderBrush="#33333A" Padding="6,3" Margin="0,0,6,0"/>
-                            <Button Name="BtnTestOpenAI" Grid.Column="1" Content="Test" Width="62" Height="26" Background="#282832" Foreground="#FFFFFF" BorderBrush="#383846" BorderThickness="1" FontSize="11" FontWeight="SemiBold"/>
+                            <Button Name="BtnTestOpenAI" Grid.Column="1" Content="Test" Width="76" Height="26" Background="#282832" Foreground="#FFFFFF" BorderBrush="#383846" BorderThickness="1" FontSize="11" FontWeight="SemiBold"/>
                         </Grid>
                         <TextBlock Name="TxtOpenAIStatus" Text="" Foreground="#00E699" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,2" Visibility="Collapsed"/>
                         <TextBlock Name="LinkOpenAIKeys" Text="Get OpenAI API Key (platform.openai.com/api-keys) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
@@ -2891,7 +2891,7 @@ function Show-SettingsDialog {
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <PasswordBox Name="TxtClaudeKey" Grid.Column="0" Height="26" Background="#141416" Foreground="#FFFFFF" BorderBrush="#33333A" Padding="6,3" Margin="0,0,6,0"/>
-                            <Button Name="BtnTestAnthropic" Grid.Column="1" Content="Test" Width="62" Height="26" Background="#282832" Foreground="#FFFFFF" BorderBrush="#383846" BorderThickness="1" FontSize="11" FontWeight="SemiBold"/>
+                            <Button Name="BtnTestAnthropic" Grid.Column="1" Content="Test" Width="76" Height="26" Background="#282832" Foreground="#FFFFFF" BorderBrush="#383846" BorderThickness="1" FontSize="11" FontWeight="SemiBold"/>
                         </Grid>
                         <TextBlock Name="TxtAnthropicStatus" Text="" Foreground="#00E699" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,2" Visibility="Collapsed"/>
                         <TextBlock Name="LinkAnthropicKeys" Text="Get Anthropic API Key (console.anthropic.com) -&gt;" Foreground="#38BDF8" FontSize="9.5" Cursor="Hand"/>
@@ -3195,7 +3195,7 @@ function Show-SettingsDialog {
                 return
             }
             $s.IsEnabled = $false
-            $s.Content = "..."
+            $s.Content = "Loading..."
             $c.Status.Text = "Testing API key..."
             $c.Status.Foreground = (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x94, 0xA3, 0xB8)))
             $c.Status.Visibility = [System.Windows.Visibility]::Visible

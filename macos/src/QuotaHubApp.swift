@@ -1934,7 +1934,7 @@ class SectionFrameView: NSView {
 }
 
 // MARK: - App Delegate
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFieldDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
     }
@@ -4319,7 +4319,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.geminiCheck = geminiBtn
         addPastelPicker(providerKey: "gemini", in: geminiCard)
         
-        let geminiHint = NSTextField(labelWithString: "💡 Google AI Studio keys start with AIzaSy...")
+        let geminiHint = NSTextField(labelWithString: "💡 Google AI Studio keys start with AQ. or AIzaSy...")
         geminiHint.font = NSFont.systemFont(ofSize: 10.5, weight: .regular)
         geminiHint.textColor = NSColor(white: 0.55, alpha: 1.0)
         geminiHint.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
@@ -4328,9 +4328,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let fieldW: CGFloat = cardW - 28 - 92
         let geminiField = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: fieldW, height: 34),
-            placeholder: "Gemini API Key (AIzaSy...)",
+            placeholder: "Gemini API Key (AQ. or AIzaSy...)",
             value: geminiCfg?.api_key ?? ""
         )
+        geminiField.delegate = self
         geminiCard.addSubview(geminiField)
         self.geminiKeyField = geminiField
         
@@ -4432,6 +4433,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             placeholder: "OpenAI API Key (sk-...)",
             value: openCfg?.api_key ?? ""
         )
+        openField.delegate = self
         openCard.addSubview(openField)
         self.openaiKeyField = openField
 
@@ -4519,6 +4521,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             placeholder: "Anthropic API Key (sk-ant-...)",
             value: antCfg?.api_key ?? ""
         )
+        antField.delegate = self
         antCard.addSubview(antField)
         self.anthropicKeyField = antField
 
@@ -4659,6 +4662,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
     }
 
+    func controlTextDidChange(_ obj: Notification) {
+        guard let field = obj.object as? NSTextField else { return }
+        let mappings: [(NSTextField?, String, NSButton?, NSTextField?)] = [
+            (geminiKeyField, "gemini", geminiTestBtn, geminiStatusLabel),
+            (openaiKeyField, "openai", openaiTestBtn, openaiStatusLabel),
+            (anthropicKeyField, "anthropic", anthropicTestBtn, anthropicStatusLabel)
+        ]
+        for (targetField, provider, button, statusLabel) in mappings where targetField === field {
+            let cur = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let tested = testedApiKeyValues[provider] ?? ""
+            if cur.isEmpty || cur != tested {
+                validatedApiKeys[provider] = false
+                setTestBtnLabel(button, text: "Test", isOk: false)
+                statusLabel?.stringValue = ""
+            } else if !tested.isEmpty {
+                validatedApiKeys[provider] = true
+                setTestBtnLabel(button, text: "✓ OK", isOk: true)
+                statusLabel?.stringValue = "✓ OK — Valid API Key"
+                statusLabel?.textColor = NSColor(srgbRed: 0x00/255.0, green: 0xE6/255.0, blue: 0x99/255.0, alpha: 1.0)
+            }
+            break
+        }
+    }
+
     func runProviderApiKeyTest(
         provider: String,
         key: String,
@@ -4667,6 +4694,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         checkbox: NSButton?,
         completion: ((Bool) -> Void)? = nil
     ) {
+        if button?.isEnabled == false {
+            completion?(false)
+            return
+        }
         let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleanKey.isEmpty {
             statusLabel?.stringValue = "⚠️ Enter an API key to test"
@@ -4678,8 +4709,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        if provider == "gemini" && (cleanKey.hasPrefix("AQ.") || cleanKey.hasPrefix("ya29.")) {
-            statusLabel?.stringValue = "⚠️ Use a Google AI Studio key (starts with AIzaSy...)"
+        if provider == "gemini" && cleanKey.hasPrefix("ya29.") {
+            statusLabel?.stringValue = "⚠️ Use a Google AI Studio API key (starts with AQ. or AIzaSy...)"
             statusLabel?.textColor = NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
             setTestBtnLabel(button, text: "Test", isOk: false)
             validatedApiKeys[provider] = false
@@ -4689,7 +4720,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         button?.isEnabled = false
-        setTestBtnLabel(button, text: "...", isOk: false)
+        setTestBtnLabel(button, text: "Loading...", isOk: false)
         statusLabel?.stringValue = "Testing API key..."
         statusLabel?.textColor = NSColor(white: 0.70, alpha: 1.0)
 
