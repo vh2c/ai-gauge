@@ -25,6 +25,8 @@ import threading
 import re
 import tempfile
 import shutil
+import hashlib
+import zipfile
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
@@ -305,6 +307,163 @@ def test_api_key_sync(provider, key):
     except Exception as e:
         return {"ok": False, "provider": provider, "error": str(e)}
     return {"ok": False, "provider": provider, "error": "Invalid key"}
+
+
+def parse_sha256sums(text: str, filename: str):
+    for line in (text or "").splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 2:
+            digest = parts[0].strip().lower()
+            fname = parts[1].lstrip("*").strip()
+            if fname == filename and len(digest) == 64:
+                return digest
+    return None
+
+
+def perform_linux_in_place_update(target_dir: Path, version: str = "", base_url: str = None, log_path: Path = None):
+    """Download AI-Gauge-Linux-vh2c.zip, verify SHA-256, replace files in-place with rollback."""
+    zip_name = "AI-Gauge-Linux-vh2c.zip"
+    ver_clean = (version or "").strip().lstrip("v")
+    if base_url:
+        dl_base = base_url.rstrip("/")
+    elif ver_clean:
+        dl_base = f"https://github.com/vh2c/ai-gauge/releases/download/v{ver_clean}"
+    else:
+        dl_base = "https://github.com/vh2c/ai-gauge/releases/latest/download"
+
+    logs = []
+    def log(msg: str):
+        logs.append(msg)
+        if log_path is not None:
+            try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(log_path, "a", encoding="utf-8") as lf:
+                    lf.write(msg + "\n")
+            except Exception:
+                pass
+
+    if log_path is not None:
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text("", encoding="utf-8")
+        except Exception:
+            pass
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="aigauge-update-"))
+    backup_dir = tmp_dir / "backup"
+    extracted_dir = tmp_dir / "extracted"
+    is_repo_layout = (target_dir.name == "linux" and (target_dir.parent / "core").is_dir())
+    core_dest = (target_dir.parent / "core") if is_repo_layout else (target_dir / "core")
+    linux_dest = target_dir
+
+    def rollback():
+        try:
+            if (backup_dir / "quota-hub.py").exists():
+                shutil.copy2(backup_dir / "quota-hub.py", linux_dest / "quota-hub.py")
+            if (backup_dir / "core").is_dir():
+                if core_dest.exists():
+                    shutil.rmtree(core_dest, ignore_errors=True)
+                shutil.copytree(backup_dir / "core", core_dest)
+            log("Previous version restored.")
+        except Exception as rb_err:
+            log(f"Rollback warning: {rb_err}")
+
+    try:
+        zip_path = tmp_dir / zip_name
+        sums_path = tmp_dir / "SHA256SUMS.txt"
+        log(f"Downloading {dl_base}/{zip_name} ...")
+        req_zip = urllib.request.Request(f"{dl_base}/{zip_name}", headers={"User-Agent": "AIGauge/1.3"})
+        with urllib.request.urlopen(req_zip, timeout=45) as resp, open(zip_path, "wb") as out:
+            shutil.copyfileobj(resp, out)
+
+        req_sums = urllib.request.Request(f"{dl_base}/SHA256SUMS.txt", headers={"User-Agent": "AIGauge/1.3"})
+        with urllib.request.urlopen(req_sums, timeout=20) as resp:
+            sums_text = resp.read().decode("utf-8", errors="replace")
+        sums_path.write_text(sums_text, encoding="utf-8")
+
+        expected = parse_sha256sums(sums_text, zip_name)
+        if not expected:
+            return False, f"SHA256SUMS.txt has no entry for {zip_name}."
+
+        h = hashlib.sha256()
+        with open(zip_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        actual = h.hexdigest().lower()
+        if actual != expected:
+            return False, f"Checksum mismatch (expected {expected[:12]}..., got {actual[:12]}...)."
+        log("Checksum verified (SHA-256).")
+
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(extracted_dir)
+
+        src_core = extracted_dir / "core"
+        src_linux = extracted_dir / "linux"
+        if not src_core.is_dir() or not (src_linux / "quota-hub.py").is_file():
+            return False, "Downloaded package is missing core/ or linux/quota-hub.py."
+
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        if (linux_dest / "quota-hub.py").is_file():
+            shutil.copy2(linux_dest / "quota-hub.py", backup_dir / "quota-hub.py")
+        if core_dest.is_dir():
+            shutil.copytree(core_dest, backup_dir / "core")
+
+        if core_dest.exists():
+            shutil.rmtree(core_dest)
+        shutil.copytree(src_core, core_dest)
+
+        for fname in ("quota-hub.py", "quota-hub", "gemini-gauge", "ai-gauge", "icon.png", "install.sh", "quota-hub.desktop"):
+            src_f = src_linux / fname
+            if src_f.is_file():
+                dst_f = linux_dest / fname
+                shutil.copy2(src_f, dst_f)
+                if fname in ("quota-hub.py", "quota-hub", "gemini-gauge", "ai-gauge", "install.sh"):
+                    try:
+                        os.chmod(dst_f, 0o755)
+                    except Exception:
+                        pass
+
+        log("Update installed successfully.")
+        return True, ""
+    except Exception as exc:
+        rollback()
+        log(f"Update failed: {exc}")
+        return False, str(exc)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def compute_hud_dimensions(total_items: int, sections: list, orientation: str, sw: int, sh: int):
+    item_h = 104
+    if orientation == "vertical":
+        w = 118
+        top_h = 26
+        bot_h = 20
+        content_h = 120 if total_items == 0 else sum(22 + len(s["items"]) * item_h + 10 for s in sections) + 8
+        h = min(max(170, top_h + content_h + bot_h), max(220, sh - 64))
+    else:
+        w_content = 250 if total_items == 0 else sum(max(106, len(s["items"]) * 96 + 14) + 10 for s in sections) + 34
+        w = min(max(260, w_content), max(300, sw - 40))
+        h = 134
+    return w, h
+
+
+def infer_hud_orientation_for_rect(x: int, y: int, w: int, h: int, sw: int, sh: int, current_orientation: str, edge_margin: int = 90) -> str:
+    """Choose HUD orientation automatically from proximity to screen edges."""
+    left_d = max(0, x)
+    right_d = max(0, sw - (x + w))
+    top_d = max(0, y)
+    bottom_d = max(0, sh - (y + h))
+    min_lr = min(left_d, right_d)
+    min_tb = min(top_d, bottom_d)
+
+    if min_lr <= edge_margin and min_tb <= edge_margin:
+        return "horizontal" if min_tb < min_lr else "vertical"
+    if min_tb <= edge_margin:
+        return "horizontal"
+    if min_lr <= edge_margin:
+        return "vertical"
+    return current_orientation
 
 def load_quota(force=False):
     if DEMO_MODE:
@@ -813,6 +972,9 @@ class QuotaHubAppLinux:
                 pass
 
         self.is_refreshing = False
+        self.is_updating = False
+        self._hud_menu_open = False
+        self._hud_menu = None
         self.poll_interval_ms = get_effective_poll_seconds(self.quota) * 1000
         self.last_quota_fetch_at = 0.0
         self._auto_refresh_job = None
@@ -1854,7 +2016,7 @@ class QuotaHubAppLinux:
             self._hud_hide_job = None
 
     def _on_hud_leave(self, event=None):
-        if self.mode == "full":
+        if self.mode == "full" or self._hud_menu_open:
             return
         # Only treat as leaving the HUD when cursor exits root bounds
         try:
@@ -2003,7 +2165,7 @@ class QuotaHubAppLinux:
             self._show_hud_animated()
             return
 
-        if self._is_hovering_hud or time.time() < self._hud_hover_reveal_until:
+        if self._hud_menu_open or self._is_hovering_hud or time.time() < self._hud_hover_reveal_until:
             self._hide_hud_peek_handle()
             self._show_hud_animated()
             return
@@ -2157,8 +2319,13 @@ class QuotaHubAppLinux:
             new_v = update_info.get("latest_version", "")
             tk.Label(up_box, text=f"New release v{new_v} available", font=("Sans", 9, "bold"), fg="#34D399", bg="#062A1E").pack(side="left")
             d_url = update_info.get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
-            make_flat_button(up_box, "Update", fg="#121214", bg="#00E699", hover_bg="#2BFFB5",
-                             font=("Sans", 8, "bold"), padx=12, pady=3, command=lambda u=d_url: webbrowser.open(u)).pack(side="right")
+            up_lbl = "Updating..." if self.is_updating else "Update"
+            up_btn = make_flat_button(up_box, up_lbl, fg="#121214", bg="#00E699", hover_bg="#2BFFB5",
+                                      font=("Sans", 8, "bold"), padx=12, pady=3,
+                                      command=lambda v=new_v, u=d_url: self.start_self_update(v, u))
+            if self.is_updating:
+                up_btn.config(state="disabled")
+            up_btn.pack(side="right")
 
         # Announcement Notice Banner (versao = green strip, info = amber; ads NEVER render inline)
         if show_inline_ann:
@@ -2181,9 +2348,14 @@ class QuotaHubAppLinux:
                 tk.Label(left_v, text=announcement.get("message", ""),
                          font=("Sans", 8), fg="#D1D5DB", bg=ann_bg, anchor="w", justify="left", wraplength=260).pack(fill="x", pady=(2, 0))
                 a_url = announcement.get("action_url") or update_info.get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
-                act_label = (announcement.get("action_label") or "Download Now").strip()
-                make_flat_button(row_v, act_label, fg=btn_fg, bg=btn_bg, hover_bg=btn_hover,
-                                 font=("Sans", 8, "bold"), padx=12, pady=5, command=lambda u=a_url: webbrowser.open(u)).pack(side="right", padx=(8, 0))
+                new_v_ann = update_info.get("latest_version", "")
+                act_label = "Updating..." if self.is_updating else (announcement.get("action_label") or "Update now").strip()
+                ann_btn = make_flat_button(row_v, act_label, fg=btn_fg, bg=btn_bg, hover_bg=btn_hover,
+                                           font=("Sans", 8, "bold"), padx=12, pady=5,
+                                           command=lambda v=new_v_ann, u=a_url: self.start_self_update(v, u))
+                if self.is_updating:
+                    ann_btn.config(state="disabled")
+                ann_btn.pack(side="right", padx=(8, 0))
             else:
                 tk.Label(ann_box, text=announcement.get("title", "Notice"), font=("Sans", 9, "bold"), fg=ann_title_col, bg=ann_bg, anchor="w").pack(fill="x")
                 tk.Label(ann_box, text=announcement.get("message", ""), font=("Sans", 8), fg="#D1D5DB", bg=ann_bg,
@@ -2317,8 +2489,74 @@ class QuotaHubAppLinux:
 
         _sync_scroll()
 
+    def start_self_update(self, version: str = "", fallback_url: str = None):
+        if self.is_updating:
+            return
+        from tkinter import messagebox
+        url_fallback = (fallback_url or "").strip() or "https://github.com/vh2c/ai-gauge/releases/latest"
+        is_repo_layout = (APP_DIR.name == "linux" and (APP_DIR.parent / "core").is_dir())
+        write_target = APP_DIR.parent if is_repo_layout else APP_DIR
+        if not os.access(APP_DIR, os.W_OK) or not os.access(write_target, os.W_OK):
+            if messagebox.askyesno(
+                "AI Gauge Update",
+                "AI Gauge cannot update itself because the installation folder is not writable.\n\nOpen the release page to download manually?"
+            ):
+                webbrowser.open(url_fallback)
+            return
+
+        ver_label = f"v{version.lstrip('v')}" if version else "the latest version"
+        if not messagebox.askyesno(
+            "AI Gauge Update",
+            f"Update AI Gauge to {ver_label}?\n\nAI Gauge will download the new version, verify its SHA-256 checksum, install it and restart automatically."
+        ):
+            return
+
+        self.is_updating = True
+        self.setup_ui()
+
+        def worker():
+            ok, err = perform_linux_in_place_update(APP_DIR, version, log_path=CONFIG_DIR / "update.log")
+            def finish():
+                if ok:
+                    try:
+                        subprocess.Popen(
+                            [sys.executable, str(Path(__file__).resolve()), *sys.argv[1:]],
+                            start_new_session=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        self.root.destroy()
+                    except Exception:
+                        os._exit(0)
+                    return
+                self.is_updating = False
+                self.setup_ui()
+                if messagebox.askyesno(
+                    "Update Failed",
+                    f"The update could not be completed:\n{err}\n\nYour current version was kept. Open the release page instead?"
+                ):
+                    webbrowser.open(url_fallback)
+            try:
+                self.root.after(0, finish)
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _show_hud_menu(self, widget_event=None):
+        self._hud_menu_open = True
+        if self._hud_hide_job is not None:
+            try:
+                self.root.after_cancel(self._hud_hide_job)
+            except Exception:
+                pass
+            self._hud_hide_job = None
+
         menu = tk.Menu(self.root, tearoff=0, bg="#1E1E24", fg="#FFFFFF", activebackground="#2E3242", activeforeground="#FFFFFF", bd=0)
+        self._hud_menu = menu
         menu.add_command(label="Open Full Window (Ctrl+M)", command=self.toggle_mode)
         orient_lbl = "Switch to Horizontal Bar" if self.orientation == "vertical" else "Switch to Vertical Bar"
         menu.add_command(label=orient_lbl, command=self.toggle_orientation)
@@ -2326,15 +2564,26 @@ class QuotaHubAppLinux:
         menu.add_command(label="Settings...", command=self.open_settings)
         menu.add_separator()
         menu.add_command(label="Quit AI Gauge", command=self.root.destroy)
+
+        def _on_menu_unmap(_evt=None):
+            self._hud_menu_open = False
+        menu.bind("<Unmap>", _on_menu_unmap)
+
         try:
             rx = widget_event.x_root if widget_event else (self.root.winfo_rootx() + 50)
-            ry = widget_event.y_root if widget_event else (self.root.winfo_rooty() + 26)
+            ry = (widget_event.y_root + 10) if widget_event else (self.root.winfo_rooty() + 26)
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            rx = max(4, min(rx, max(4, sw - 210)))
+            ry = max(4, min(ry, max(4, sh - 160)))
             menu.tk_popup(rx, ry)
         finally:
             try:
                 menu.grab_release()
             except Exception:
                 pass
+            self._hud_menu_open = False
+        return "break"
 
     def setup_hud_ui(self):
         self._apply_window_chrome(borderless=True, topmost=True)
@@ -2349,17 +2598,7 @@ class QuotaHubAppLinux:
         sw = max(640, self.root.winfo_screenwidth())
         sh = max(480, self.root.winfo_screenheight())
 
-        item_h = 104
-        if is_vert:
-            w = 118
-            top_h = 26
-            bot_h = 20
-            content_h = 120 if total_items == 0 else sum(22 + len(s["items"]) * item_h + 10 for s in sections) + 8
-            h = min(max(170, top_h + content_h + bot_h), max(220, sh - 64))
-        else:
-            w_content = 250 if total_items == 0 else sum(max(106, len(s["items"]) * 96 + 14) + 10 for s in sections) + 34
-            w = min(max(260, w_content), max(300, sw - 40))
-            h = 134
+        w, h = compute_hud_dimensions(total_items, sections, self.orientation, sw, sh)
 
         if self._hud_pos is not None:
             x, y = self._hud_pos
@@ -2374,11 +2613,13 @@ class QuotaHubAppLinux:
         self._hud_pos = (x, y)
         self.root.geometry(f"{w}x{h}+{x}+{y}")
 
-        self._drag_data = {"x": 0, "y": 0}
+        self._drag_data = {"x": 0, "y": 0, "moved": False}
         def start_drag(event):
             self._drag_data["x"] = event.x_root - self.root.winfo_rootx()
             self._drag_data["y"] = event.y_root - self.root.winfo_rooty()
+            self._drag_data["moved"] = False
         def do_drag(event):
+            self._drag_data["moved"] = True
             nx = max(0, min(event.x_root - self._drag_data["x"], max(0, sw - w)))
             ny = max(0, min(event.y_root - self._drag_data["y"], max(0, sh - h)))
             self._hud_pos = (nx, ny)
@@ -2386,6 +2627,34 @@ class QuotaHubAppLinux:
                 self.root.geometry(f"+{nx}+{ny}")
             except Exception:
                 pass
+        def end_drag(_event=None):
+            if not self._drag_data.get("moved") or self._hud_pos is None:
+                return
+            self._drag_data["moved"] = False
+            nx, ny = self._hud_pos
+            new_orient = infer_hud_orientation_for_rect(nx, ny, w, h, sw, sh, self.orientation)
+            if new_orient != self.orientation:
+                cx = nx + w / 2.0
+                cy = ny + h / 2.0
+                new_w, new_h = compute_hud_dimensions(total_items, sections, new_orient, sw, sh)
+                new_x = int(cx - new_w / 2.0)
+                new_y = int(cy - new_h / 2.0)
+                if new_orient == "horizontal":
+                    if ny <= 48:
+                        new_y = 12
+                    elif (sh - (ny + h)) <= 48:
+                        new_y = sh - new_h - 12
+                else:
+                    if nx <= 48:
+                        new_x = 12
+                    elif (sw - (nx + w)) <= 48:
+                        new_x = sw - new_w - 12
+                new_x = max(0, min(new_x, max(0, sw - new_w)))
+                new_y = max(0, min(new_y, max(0, sh - new_h)))
+                self.orientation = new_orient
+                self._hud_pos = (new_x, new_y)
+                self.save_prefs()
+                self.root.after_idle(self.setup_ui)
 
         outer = tk.Frame(self.root, bg="#181818", highlightbackground="#2A2A2E", highlightthickness=1, bd=0)
         outer.pack(fill="both", expand=True)
@@ -2396,6 +2665,7 @@ class QuotaHubAppLinux:
             top_bar.pack(fill="x", side="top", padx=4, pady=(4, 2))
             top_bar.bind("<Button-1>", start_drag)
             top_bar.bind("<B1-Motion>", do_drag)
+            top_bar.bind("<ButtonRelease-1>", end_drag)
 
             b_cockpit = make_flat_button(top_bar, "⤢", fg="#A6A6AE", bg="#181818", hover_bg="#26262E", font=("Sans", 10, "bold"), padx=4, pady=0, command=self.toggle_mode)
             b_cockpit.pack(side="left")
@@ -2412,11 +2682,14 @@ class QuotaHubAppLinux:
             bot_bar.pack(fill="x", side="bottom", pady=(2, 4))
             bot_bar.bind("<Button-1>", start_drag)
             bot_bar.bind("<B1-Motion>", do_drag)
+            bot_bar.bind("<ButtonRelease-1>", end_drag)
             if quota.get("update", {}).get("update_available"):
                 d_url = quota.get("update", {}).get("download_url") or "https://github.com/vh2c/ai-gauge/releases/latest"
-                lbl_up = tk.Label(bot_bar, text="● NEW VERSION", font=("Sans", 7, "bold"), fg="#00E699", bg="#181818", cursor="hand2")
+                hud_v = quota.get("update", {}).get("latest_version", "")
+                hud_up_txt = "● UPDATING..." if self.is_updating else "● NEW VERSION"
+                lbl_up = tk.Label(bot_bar, text=hud_up_txt, font=("Sans", 7, "bold"), fg="#00E699", bg="#181818", cursor="hand2")
                 lbl_up.pack()
-                lbl_up.bind("<Button-1>", lambda _e, u=d_url: webbrowser.open(u))
+                lbl_up.bind("<Button-1>", lambda _e, v=hud_v, u=d_url: self.start_self_update(v, u))
             else:
                 mid = get_machine_id()
                 donate_url = f"https://ai-gauge.vh2c.com.br/donate?mid={mid}" if mid else "https://ai-gauge.vh2c.com.br/donate"
@@ -2430,6 +2703,7 @@ class QuotaHubAppLinux:
             self._active_scroll_canvas = hud_canvas
             hud_canvas.bind("<Button-1>", lambda e: (self._hide_tooltip(), start_drag(e)))
             hud_canvas.bind("<B1-Motion>", do_drag)
+            hud_canvas.bind("<ButtonRelease-1>", end_drag)
             hud_canvas.bind("<Double-Button-1>", lambda _e: self.toggle_mode())
 
             section_hit_areas = []
@@ -2480,6 +2754,7 @@ class QuotaHubAppLinux:
             self._active_scroll_canvas = hud_canvas
             hud_canvas.bind("<Button-1>", lambda e: (self._hide_tooltip(), start_drag(e)))
             hud_canvas.bind("<B1-Motion>", do_drag)
+            hud_canvas.bind("<ButtonRelease-1>", end_drag)
             hud_canvas.bind("<Double-Button-1>", lambda _e: self.toggle_mode())
 
             section_hit_areas_h = []

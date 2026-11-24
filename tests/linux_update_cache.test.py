@@ -92,6 +92,68 @@ class LinuxUpdateCache(unittest.TestCase):
         self.assertTrue(n("1.2.1", "1.2.0")); self.assertTrue(n("1.10.0", "1.9.9")); self.assertTrue(n("v1.3", "1.2.9"))
         self.assertFalse(n("1.2.1", "1.2.1")); self.assertFalse(n("1.2", "1.2.0")); self.assertFalse(n("1.2.0", "1.2.1"))
 
+    def test_parse_sha256sums(self):
+        h = "a" * 64
+        txt = f"{h}  AI-Gauge-Linux-vh2c.zip\n{'b'*64} *other.zip\n"
+        self.assertEqual(qh.parse_sha256sums(txt, "AI-Gauge-Linux-vh2c.zip"), h)
+        self.assertEqual(qh.parse_sha256sums(txt, "other.zip"), "b" * 64)
+        self.assertIsNone(qh.parse_sha256sums(txt, "missing.zip"))
+
+    def test_perform_linux_in_place_update_and_checksum_guard(self):
+        import hashlib, io, zipfile
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            install_dir = td_path / "installed"
+            (install_dir / "core").mkdir(parents=True)
+            (install_dir / "core" / "updater.js").write_text("old", encoding="utf-8")
+            (install_dir / "quota-hub.py").write_text("old-py", encoding="utf-8")
+
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as zf:
+                zf.writestr("core/updater.js", "new-core")
+                zf.writestr("linux/quota-hub.py", "new-py")
+            zip_bytes = buf.getvalue()
+            good_hash = hashlib.sha256(zip_bytes).hexdigest()
+
+            def fake_urlopen(req, timeout=30):
+                url = req.full_url if hasattr(req, "full_url") else str(req)
+                if url.endswith("SHA256SUMS.txt"):
+                    return io.BytesIO(f"{good_hash}  AI-Gauge-Linux-vh2c.zip\n".encode("utf-8"))
+                return io.BytesIO(zip_bytes)
+
+            with mock.patch.object(qh.urllib.request, "urlopen", side_effect=fake_urlopen):
+                ok, err = qh.perform_linux_in_place_update(install_dir, "1.3.2", base_url="https://example.test")
+            self.assertTrue(ok, err)
+            self.assertEqual((install_dir / "core" / "updater.js").read_text(encoding="utf-8"), "new-core")
+            self.assertEqual((install_dir / "quota-hub.py").read_text(encoding="utf-8"), "new-py")
+
+            def bad_urlopen(req, timeout=30):
+                url = req.full_url if hasattr(req, "full_url") else str(req)
+                if url.endswith("SHA256SUMS.txt"):
+                    return io.BytesIO(f"{'0'*64}  AI-Gauge-Linux-vh2c.zip\n".encode("utf-8"))
+                return io.BytesIO(zip_bytes)
+
+            (install_dir / "quota-hub.py").write_text("keep-me", encoding="utf-8")
+            with mock.patch.object(qh.urllib.request, "urlopen", side_effect=bad_urlopen):
+                ok2, err2 = qh.perform_linux_in_place_update(install_dir, "1.3.2", base_url="https://example.test")
+            self.assertFalse(ok2)
+            self.assertIn("Checksum mismatch", err2)
+            self.assertEqual((install_dir / "quota-hub.py").read_text(encoding="utf-8"), "keep-me")
+
+    def test_hud_auto_orientation_edges_and_center(self):
+        fn = qh.infer_hud_orientation_for_rect
+        # Near bottom center -> horizontal
+        self.assertEqual(fn(850, 920, 118, 220, 1920, 1080, "vertical"), "horizontal")
+        # Near top center -> horizontal
+        self.assertEqual(fn(850, 10, 118, 220, 1920, 1080, "vertical"), "horizontal")
+        # Near left edge -> vertical
+        self.assertEqual(fn(10, 450, 500, 134, 1920, 1080, "horizontal"), "vertical")
+        # Near right edge -> vertical
+        self.assertEqual(fn(1400, 450, 500, 134, 1920, 1080, "horizontal"), "vertical")
+        # Middle of screen -> keeps current orientation
+        self.assertEqual(fn(700, 400, 118, 220, 1920, 1080, "vertical"), "vertical")
+        self.assertEqual(fn(700, 400, 500, 134, 1920, 1080, "horizontal"), "horizontal")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
