@@ -1542,15 +1542,40 @@ class QuotaHubAppLinux:
         add_card_header(f_anti, "Antigravity IDE", var_anti, "antigravity")
         tk.Label(f_anti, text="Detects quotas from running IDE or headless probe.", font=("Sans", 7), fg="#8C8C96", bg="#1E1E22").pack(anchor="w", pady=(3, 0))
         tk.Label(f_anti, text="HUD Side Panel Gauges:", font=("Sans", 7, "bold"), fg="#8C8C96", bg="#1E1E22").pack(anchor="w", pady=(5, 3))
-        r_anti1 = tk.Frame(f_anti, bg="#1E1E22")
-        r_anti1.pack(anchor="w")
-        add_hud_cb(r_anti1, "gemini-weekly", "Gemini Weekly")
-        add_hud_cb(r_anti1, "gemini-5h", "Gemini (5h)")
-        add_hud_cb(r_anti1, "gemini-argon-wtu-weekly", "Argon")
-        r_anti2 = tk.Frame(f_anti, bg="#1E1E22")
-        r_anti2.pack(anchor="w", pady=(4, 0))
-        add_hud_cb(r_anti2, "3p-weekly", "Claude/GPT Weekly")
-        add_hud_cb(r_anti2, "3p-5h", "Claude/GPT (5h)")
+        anti_opts = []
+        seen_anti_ids = set()
+        for g in (self.quota or {}).get("groups", []):
+            gname = g.get("name", "")
+            prov = g.get("provider", "")
+            if get_provider_key(gname, prov) != "antigravity":
+                continue
+            for b in g.get("buckets", []):
+                bid = b.get("id") or ""
+                bname = b.get("name") or ""
+                if not bid or bid in seen_anti_ids:
+                    continue
+                seen_anti_ids.add(bid)
+                model_lbl = get_bucket_model_name(bname, gname)
+                bl = f"{bname} {bid}".lower()
+                if "five" in bl or "5h" in bl or "5" in bl:
+                    win_lbl = "(5h)"
+                elif "weekly" in bl:
+                    win_lbl = "Weekly"
+                else:
+                    win_lbl = bname
+                anti_opts.append((bid, f"{model_lbl} {win_lbl}".strip()))
+        if not anti_opts:
+            anti_opts = [
+                ("gemini-weekly", "Gemini Weekly"),
+                ("gemini-5h", "Gemini (5h)"),
+                ("3p-weekly", "Claude/GPT Weekly"),
+                ("3p-5h", "Claude/GPT (5h)"),
+            ]
+        for row_idx in range(0, len(anti_opts), 2):
+            r_anti = tk.Frame(f_anti, bg="#1E1E22")
+            r_anti.pack(anchor="w", pady=(0 if row_idx == 0 else 4, 0))
+            for bid, title in anti_opts[row_idx:row_idx + 2]:
+                add_hud_cb(r_anti, bid, title)
 
         # 2. Claude Pro Card
         cpro_cfg = pCfg.get("claude_pro", {})
@@ -2430,6 +2455,14 @@ class QuotaHubAppLinux:
             self._draw_glyph_on_canvas(g_cv, 6, 6, 4.0, st, accent_col)
 
             tk.Frame(card, bg="#28282E", height=1).pack(fill="x", pady=(7, 7))
+
+            if pk == "antigravity":
+                raw_desc = (g.get("description") or "").strip()
+                if raw_desc.lower().startswith("models within this group:"):
+                    raw_desc = raw_desc[len("models within this group:"):].strip()
+                if raw_desc:
+                    tk.Label(card, text=raw_desc, font=("Sans", 7.5), fg="#8C8C96", bg="#1E1E22",
+                             anchor="w", justify="left", wraplength=330).pack(fill="x", pady=(0, 5))
 
             det_txt = (act.get("detail") or "").strip() if isinstance(act, dict) else ""
             if st in ("working", "waiting") and det_txt:

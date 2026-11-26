@@ -290,6 +290,20 @@ extension QuotaData {
         return lines.joined(separator: "\n")
     }
 
+    func antigravityModelsLine(for group: Group) -> String? {
+        guard QuotaData.providerKey(groupName: group.name, provider: group.provider) == "antigravity" else { return nil }
+        let raw = (group.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return nil }
+        let prefix = "models within this group:"
+        let cleaned: String
+        if raw.lowercased().hasPrefix(prefix) {
+            cleaned = String(raw.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            cleaned = raw
+        }
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
     func cardSessionLine(for group: Group) -> (text: String, status: String)? {
         let pk = QuotaData.providerKey(groupName: group.name, provider: group.provider)
         let act = resolvedActivity(for: pk, group: group)
@@ -758,6 +772,36 @@ class QuotaManager {
         } catch {
             return false
         }
+    }
+
+    static func hasActiveClaudeProSession(latestQuota: QuotaData? = nil) -> Bool {
+        if let groups = latestQuota?.groups {
+            for g in groups where QuotaData.providerKey(groupName: g.name, provider: g.provider) == "claude_pro" {
+                if g.buckets.contains(where: { $0.reset_in != "Outdated" }) {
+                    return true
+                }
+            }
+        }
+        let tokenCachePath = (configDir as NSString).appendingPathComponent("claude_pro_token_cache.json")
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: tokenCachePath)),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let token = json["token"] as? String, !token.isEmpty {
+            if let exp = json["expiresAt"] as? Double {
+                if exp > (Date().timeIntervalSince1970 * 1000.0 + 60_000.0) {
+                    return true
+                }
+            } else {
+                return true
+            }
+        }
+        let credsPath = NSString(string: "~/.claude/.credentials.json").expandingTildeInPath
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: credsPath)),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let oauth = json["claudeAiOauth"] as? [String: Any],
+           let token = oauth["accessToken"] as? String, !token.isEmpty {
+            return true
+        }
+        return hasClaudeProKeychainSession()
     }
     
     static func hasChatGPTKeychainSession() -> Bool {
@@ -3250,7 +3294,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
             calcContentH += 110 + 16
         } else {
             for g in quota.groups {
-                let extraH: CGFloat = (quota.cardSessionLine(for: g) != nil) ? 18 : 0
+                let descH: CGFloat = (quota.antigravityModelsLine(for: g) != nil) ? 16 : 0
+                let extraH: CGFloat = descH + ((quota.cardSessionLine(for: g) != nil) ? 18 : 0)
                 calcContentH += 44 + extraH + CGFloat(g.buckets.count * 44 + 6) + 14
             }
         }
@@ -3574,8 +3619,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
                 let provKey = QuotaData.providerKey(groupName: g.name, provider: g.provider)
                 let act = quota.resolvedActivity(for: provKey, group: g)
                 let st = act?.status ?? "idle"
+                let modelsLine = quota.antigravityModelsLine(for: g)
+                let descH: CGFloat = (modelsLine != nil) ? 16 : 0
                 let sessionLine = quota.cardSessionLine(for: g)
-                let extraH: CGFloat = (sessionLine != nil) ? 18 : 0
+                let extraH: CGFloat = descH + ((sessionLine != nil) ? 18 : 0)
 
                 let cardHeight = 44 + extraH + CGFloat(g.buckets.count * 44 + 6)
                 let cardView = FlippedBox(frame: NSRect(x: 16, y: y, width: windowWidth - 32, height: cardHeight))
@@ -3675,6 +3722,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
                 hSep.borderColor = .clear
                 cardView.addSubview(hSep)
 
+                if let mLine = modelsLine {
+                    let mLabel = NSTextField(labelWithString: mLine)
+                    mLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .regular)
+                    mLabel.textColor = NSColor(white: 0.55, alpha: 1.0)
+                    mLabel.lineBreakMode = .byTruncatingTail
+                    mLabel.toolTip = mLine
+                    mLabel.frame = NSRect(x: 14, y: 39, width: cardView.frame.width - 28, height: 14)
+                    cardView.addSubview(mLabel)
+                }
+
                 if let sLine = sessionLine {
                     let sLabel = NSTextField(labelWithString: sLine.text)
                     sLabel.font = NSFont.systemFont(ofSize: 10.0, weight: .regular)
@@ -3682,7 +3739,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
                         ? NSColor(srgbRed: 0xF5/255.0, green: 0xB8/255.0, blue: 0x4D/255.0, alpha: 1.0)
                         : NSColor(white: 0.65, alpha: 1.0)
                     sLabel.lineBreakMode = .byTruncatingTail
-                    sLabel.frame = NSRect(x: 14, y: 40, width: cardView.frame.width - 28, height: 14)
+                    sLabel.frame = NSRect(x: 14, y: 40 + descH, width: cardView.frame.width - 28, height: 14)
                     cardView.addSubview(sLabel)
                 }
                 
@@ -4148,7 +4205,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
         let colW = (cardW - 36) / 2.0
         
         // 1. Antigravity IDE Card
-        let antiCardH: CGFloat = 150
+        var antiOptions: [(id: String, title: String)] = []
+        var seenAntiIds = Set<String>()
+        if let qGroups = self.latestQuota?.groups {
+            for g in qGroups where QuotaData.providerKey(groupName: g.name, provider: g.provider) == "antigravity" {
+                let lowerG = g.name.lowercased()
+                let modelPrefix: String
+                if lowerG.contains("claude") || lowerG.contains("gpt") {
+                    modelPrefix = "Claude / GPT"
+                } else if lowerG.contains("argon") {
+                    modelPrefix = "Argon"
+                } else if lowerG.contains("gemini") {
+                    modelPrefix = "Gemini"
+                } else {
+                    modelPrefix = g.name
+                }
+                for b in g.buckets {
+                    guard let bid = b.id, !bid.isEmpty, !seenAntiIds.contains(bid) else { continue }
+                    seenAntiIds.insert(bid)
+                    let lowerB = b.name.lowercased()
+                    let lowerId = bid.lowercased()
+                    let windowSuffix: String
+                    if lowerB.contains("five") || lowerB.contains("5") || lowerId.contains("5h") {
+                        windowSuffix = "(5h)"
+                    } else if lowerB.contains("weekly") || lowerId.contains("weekly") {
+                        windowSuffix = "Weekly"
+                    } else {
+                        windowSuffix = b.name
+                    }
+                    antiOptions.append((id: bid, title: "\(modelPrefix) \(windowSuffix)"))
+                }
+            }
+        }
+        if antiOptions.isEmpty {
+            antiOptions = [
+                ("gemini-weekly", "Gemini Weekly"),
+                ("gemini-5h", "Gemini (5h)"),
+                ("3p-weekly", "Claude / GPT Weekly"),
+                ("3p-5h", "Claude / GPT (5h)")
+            ]
+        }
+        let antiRows = max(1, (antiOptions.count + 1) / 2)
+        let antiCardH: CGFloat = CGFloat(84 + antiRows * 22)
         let antiCard = FlippedBox(frame: NSRect(x: 18, y: cy, width: cardW, height: antiCardH))
         antiCard.boxType = .custom
         antiCard.fillColor = colorCard
@@ -4178,11 +4276,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
         antiCard.addSubview(antiDesc)
         
         let antiHudY = createHudSectionLabel(y: 54, in: antiCard)
-        addCheckbox(id: "gemini-weekly", title: "Gemini Weekly", frame: NSRect(x: 14, y: antiHudY, width: colW, height: 18), in: antiCard)
-        addCheckbox(id: "gemini-5h", title: "Gemini (5 Horas)", frame: NSRect(x: 14 + colW, y: antiHudY, width: colW, height: 18), in: antiCard)
-        addCheckbox(id: "3p-weekly", title: "Claude / GPT Weekly", frame: NSRect(x: 14, y: antiHudY + 22, width: colW, height: 18), in: antiCard)
-        addCheckbox(id: "3p-5h", title: "Claude / GPT (5 Horas)", frame: NSRect(x: 14 + colW, y: antiHudY + 22, width: colW, height: 18), in: antiCard)
-        addCheckbox(id: "gemini-argon-wtu-weekly", title: "Argon Weekly", frame: NSRect(x: 14, y: antiHudY + 44, width: colW, height: 18), in: antiCard)
+        for (idx, opt) in antiOptions.enumerated() {
+            let col = idx % 2
+            let row = idx / 2
+            addCheckbox(
+                id: opt.id,
+                title: opt.title,
+                frame: NSRect(x: 14 + CGFloat(col) * colW, y: antiHudY + CGFloat(row * 22), width: colW, height: 18),
+                in: antiCard
+            )
+        }
         
         cy += antiCardH + 12
         
@@ -4210,20 +4313,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
         self.claudeProCheck = claudeBtn
         addPastelPicker(providerKey: "claude_pro", in: claudeCard)
         
-        let hasKeychain = QuotaManager.hasClaudeProKeychainSession()
-        let statusMsg = hasKeychain
-            ? "✓ Active Claude Code session detected in the macOS Keychain"
-            : "ℹ️ No active Claude Code session. Run claude and sign in with /login, or paste a token:"
+        let hasSession = QuotaManager.hasActiveClaudeProSession(latestQuota: self.latestQuota)
+        let statusMsg = hasSession
+            ? "✓ Active Claude session detected (Claude Code / Desktop)"
+            : "ℹ️ No active Claude session. Sign in with /login or paste a token:"
         let claudeStatus = NSTextField(labelWithString: statusMsg)
         claudeStatus.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
-        claudeStatus.textColor = hasKeychain ? claudeColor : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
+        claudeStatus.textColor = hasSession ? claudeColor : NSColor(srgbRed: 0xF5/255.0, green: 0xA6/255.0, blue: 0x23/255.0, alpha: 1.0)
         claudeStatus.frame = NSRect(x: 36, y: 34, width: cardW - 50, height: 15)
         claudeCard.addSubview(claudeStatus)
         self.claudeProStatusLabel = claudeStatus
         
         let claudeToken = makeCenteredDarkSecureField(
             frame: NSRect(x: 14, y: 52, width: cardW - 28, height: 32),
-            placeholder: hasKeychain ? "OAuth token managed automatically via the Keychain" : "Claude OAuth Token (sk-ant-oat01-...)",
+            placeholder: hasSession ? "OAuth token managed automatically" : "Claude OAuth Token (sk-ant-oat01-...)",
             value: claudeCfg?.token ?? ""
         )
         claudeCard.addSubview(claudeToken)
@@ -5189,7 +5292,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFiel
         let (antiCard, antiBtn) = buildAppCard(
             y: cy,
             title: "Antigravity",
-            subtitle: "Google Antigravity IDE (Gemini, Claude, Argon)",
+            subtitle: "Google Antigravity IDE (Gemini, Claude & GPT)",
             detected: hasAnti,
             detectedText: "✓ Detected on this Mac",
             defaultChecked: true

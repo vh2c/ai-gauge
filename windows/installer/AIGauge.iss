@@ -1,9 +1,9 @@
 ﻿; AI Gauge - Windows Setup (Inno Setup 6)
-; Build:  ISCC.exe /DMyAppVersion=1.3.3 windows\installer\AIGauge.iss
+; Build:  ISCC.exe /DMyAppVersion=1.3.4 windows\installer\AIGauge.iss
 ; Needs windows\bin\node.exe (see windows\installer\fetch-node.ps1). Output: dist\AI-Gauge-Setup.exe
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.3.3"
+  #define MyAppVersion "1.3.4"
 #endif
 
 [Setup]
