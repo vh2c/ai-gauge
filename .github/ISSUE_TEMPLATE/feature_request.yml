@@ -1,0 +1,23 @@
+name: Feature Request / New Provider
+description: Suggest a new AI tool, IDE integration, or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea or want support for another AI tool? Feel free to write in English or any language you are comfortable with!
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like AI Gauge to support or improve?
+      description: Describe the feature, AI CLI/IDE, or improvement you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context (OS, IDE, or AI CLI/Tool)
+      description: Optional — tell us which OS, editor, or AI coding tool you use.
+    validations:
+      required: false

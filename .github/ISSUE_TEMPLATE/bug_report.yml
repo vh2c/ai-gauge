@@ -1,0 +1,54 @@
+name: Bug Report
+description: Report a bug, crash, or quota detection problem
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Feel free to write in English or any language you are comfortable with.
+        Please **never paste API keys, passwords, or private tokens**.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows 10 / 11
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AI Gauge Version
+      placeholder: e.g. 1.3.4
+    validations:
+      required: true
+  - type: checkboxes
+    id: providers
+    attributes:
+      label: Affected Area / Provider
+      options:
+        - label: Claude Pro / Max / Claude Code
+        - label: Google Antigravity IDE
+        - label: ChatGPT / OpenAI Codex
+        - label: Cursor IDE
+        - label: GitHub Copilot (VS Code)
+        - label: Gemini API (AI Studio)
+        - label: Installation / First Launch
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Briefly describe the problem and what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Steps to Reproduce, Logs, or Screenshots
+      description: Optional — include terminal output, screenshots, or steps to reproduce if available.
+    validations:
+      required: false

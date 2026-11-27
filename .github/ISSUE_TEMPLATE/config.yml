@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & Help (GitHub Discussions)
+    url: https://github.com/vh2c/ai-gauge/discussions
+    about: Ask setup questions, troubleshoot providers, or discuss ideas.
+  - name: Direct Email
+    url: mailto:vitorh2c@gmail.com
+    about: Prefer private contact? Send an email directly to the maintainer.

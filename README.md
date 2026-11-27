@@ -314,6 +314,16 @@ The exact data the app sends is built in [`core/updater.js`](core/updater.js), w
 
 ---
 
+## 💬 Questions, Feedback & Bug Reports
+
+Have a question, ran into an issue, or want to request support for another AI tool? Feel free to reach out in English, Portuguese, or any language:
+
+- **Questions & Setup Help:** [GitHub Discussions](https://github.com/vh2c/ai-gauge/discussions)
+- **Bug Reports & Feature Requests:** [Open a GitHub Issue](https://github.com/vh2c/ai-gauge/issues/new/choose)
+- **Direct Email:** [vitorh2c@gmail.com](mailto:vitorh2c@gmail.com)
+
+---
+
 ## 💼 Custom AI Solutions for Business
 
 Need autonomous AI agents, complex workflow orchestration or custom development for your organization?
